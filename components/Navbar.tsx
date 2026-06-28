@@ -7,27 +7,6 @@ export default function Navbar() {
           🏪 Biso-Commerce
         </h1>
 
-        <div className="flex gap-4 text-white text-sm">
-          <a href="/dashboard" className="hover:text-green-400">
-            Dashboard
-          </a>
-
-          <a href="/products" className="hover:text-green-400">
-            Produits
-          </a>
-
-          <a href="/products/add" className="hover:text-green-400">
-            Ajouter
-          </a>
-
-          <a href="/login" className="hover:text-green-400">
-            Connexion
-          </a>
-
-          <a href="/register" className="hover:text-green-400">
-            Inscription
-          </a>
-        </div>
 
       </div>
     </nav>

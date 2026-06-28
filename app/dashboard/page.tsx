@@ -159,7 +159,7 @@ export default function DashboardPage() {
   // ❌ EXPIRÉ
   if (!loading && status === "expired") {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-950 text-white p-6">
+      <main className="min-h-screen flex items-center justify-center bg-black text-white p-6">
         <div className="text-center space-y-4">
 
           <h1 className="text-3xl font-bold text-red-500">
@@ -184,7 +184,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
         Chargement...
       </div>
     );
@@ -193,7 +193,7 @@ export default function DashboardPage() {
   const percentUsed = Math.round((daysUsed / 30) * 100);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100 p-3 sm:p-4">
+    <main className="min-h-screen bg-black text-white p-3 sm:p-4">
 
       {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
@@ -201,26 +201,26 @@ export default function DashboardPage() {
 
         <div className="flex items-center gap-2">
           <Zap className="w-5 h-5 text-green-500" />
-          <div className="w-10 h-10 bg-black rounded-full text-white flex items-center justify-center text-xs">
+          <div className="w-10 h-10 bg-white rounded-full text-black flex items-center justify-center text-xs">
             PDG
           </div>
         </div>
       </div>
 
       {/* ABONNEMENT */}
-      <div className="bg-white p-5 rounded-3xl mb-6 shadow">
+      <div className="bg-slate-900 p-5 rounded-3xl mb-6 shadow">
         <div className="flex justify-between items-center">
           <div>
-            <p className="text-green-600 font-bold">
+            <p className="text-green-500 font-bold">
               Abonnement actif
             </p>
 
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-400">
               {daysUsed}/30 jours • {daysLeft} restants
             </p>
           </div>
 
-          <div className="text-green-600 font-bold">
+          <div className="text-green-500 font-bold">
             {percentUsed}%
           </div>
         </div>
@@ -239,8 +239,8 @@ export default function DashboardPage() {
           { label: "Abonnement", icon: Crown, href: "/subscription" },
         ].map((item, i) => (
           <Link key={i} href={item.href}>
-            <div className="bg-white p-4 rounded-2xl shadow text-center">
-              <item.icon className="mx-auto mb-2 text-green-600" />
+            <div className="bg-slate-900 p-4 rounded-2xl shadow text-center">
+              <item.icon className="mx-auto mb-2 text-green-500" />
               <p className="text-sm font-bold">{item.label}</p>
             </div>
           </Link>
@@ -250,23 +250,23 @@ export default function DashboardPage() {
       {/* STATS */}
       <div className="grid grid-cols-2 gap-3 mb-6">
 
-        <div className="bg-white p-4 rounded-2xl">
-          <p className="text-sm text-gray-500">Ventes FC</p>
+        <div className="bg-slate-900 p-4 rounded-2xl">
+          <p className="text-sm text-gray-400">Ventes FC</p>
           <p className="font-bold">{todaySalesFc}</p>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl">
-          <p className="text-sm text-gray-500">Ventes USD</p>
+        <div className="bg-slate-900 p-4 rounded-2xl">
+          <p className="text-sm text-gray-400">Ventes USD</p>
           <p className="font-bold">{todaySalesDollar}</p>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl">
-          <p className="text-sm text-gray-500">Bénéfice FC</p>
+        <div className="bg-slate-900 p-4 rounded-2xl">
+          <p className="text-sm text-gray-400">Bénéfice FC</p>
           <p className="font-bold">{todayProfitFc}</p>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl">
-          <p className="text-sm text-gray-500">Bénéfice USD</p>
+        <div className="bg-slate-900 p-4 rounded-2xl">
+          <p className="text-sm text-gray-400">Bénéfice USD</p>
           <p className="font-bold">{todayProfitDollar}</p>
         </div>
 
@@ -282,23 +282,23 @@ export default function DashboardPage() {
 )}
 
       {/* STOCK */}
-      <div className="bg-white p-4 rounded-2xl mb-6">
+      <div className="bg-slate-900 p-4 rounded-2xl mb-6">
         <h2 className="font-bold mb-2">Stock épuisé</h2>
 
         {exhaustedProducts.length === 0 ? (
           <p className="text-gray-400">Aucun produit</p>
         ) : (
           exhaustedProducts.map((p, i) => (
-            <div key={i} className="flex justify-between py-2 border-b">
+            <div key={i} className="flex justify-between py-2 border-b border-slate-800">
               <span>{p.product_name}</span>
-              <span className="text-red-600 font-bold">Épuisé</span>
+              <span className="text-red-500 font-bold">Épuisé</span>
             </div>
           ))
         )}
       </div>
 
       {/* VENTES */}
-      <div className="bg-white p-4 rounded-2xl">
+      <div className="bg-slate-900 p-4 rounded-2xl">
         <h2 className="font-bold mb-2">Dernières ventes</h2>
 
         {lastSales.map((s, i) => (
