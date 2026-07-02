@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 type Product = {
   id: string;
-  name: string;
+  name: string | null;
   stock: number;
-  unit: string;
+  unit: string | null;
   purchase_price: number;
   selling_price: number;
   currency: string;
@@ -16,22 +17,45 @@ type Product = {
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // 🔍 Ajout de l'état pour la recherche
   const [searchTerm, setSearchTerm] = useState("");
 
   const fetchProducts = async () => {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .order("created_at", { ascending: false });
+      const phone = localStorage.getItem("phone");
 
-    if (error) {
-      alert(error.message);
-    } else {
-      setProducts(data || []);
+      if (!phone) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("phone", phone)
+        .single();
+
+      if (userError || !user) {
+        console.error(userError);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error(error);
+        alert(error.message);
+      } else {
+        setProducts(data || []);
+      }
+    } catch (err) {
+      console.error(err);
     }
 
     setLoading(false);
@@ -39,132 +63,153 @@ export default function ProductsPage() {
 
   const deleteProduct = async (id: string) => {
     const ok = confirm("Voulez-vous supprimer ce produit ?");
-
     if (!ok) return;
 
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", id);
+    try {
+      const phone = localStorage.getItem("phone");
 
-    if (error) {
-      alert("Erreur : " + error.message);
-      return;
+      if (!phone) {
+        alert("Utilisateur non connecté");
+        return;
+      }
+
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("phone", phone)
+        .single();
+
+      if (userError || !user) {
+        alert("Utilisateur introuvable");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        alert("Erreur : " + error.message);
+        return;
+      }
+
+      await fetchProducts();
+      alert("Produit supprimé ✅");
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la suppression");
     }
-
-    await fetchProducts();
-
-    alert("Produit supprimé ✅");
   };
 
   useEffect(() => {
     fetchProducts();
   }, []);
 
-  // 🔍 Logique de filtrage des produits
   const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (p.name || "")
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
   );
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-6">
-      <div className="max-w-6xl mx-auto">
+    <main className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-black text-white p-4 pb-24">
 
-        <div className="flex justify-between items-center mb-8">
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold">📦 Produits</h1>
+        <p className="text-xs text-slate-400">
+          Gestion stock & prix en temps réel
+        </p>
+      </div>
 
-          <div>
-            <h1 className="text-3xl font-bold">
-              📦 Produits
-            </h1>
-
-            <p className="text-slate-400 mt-2">
-              Gestion de votre stock
-            </p>
-          </div>
-
-          <a
-            href="/products/add"
-            className="bg-green-600 px-5 py-3 rounded-xl"
-          >
-            + Ajouter produit
-          </a>
-
-        </div>
-
-        {/* 🔍 BARRE DE RECHERCHE */}
+      <div className="flex gap-2 mb-4">
         <input
           type="text"
-          placeholder="Rechercher un produit par son nom..."
-          className="w-full p-4 mb-6 bg-slate-900 border border-white/10 rounded-xl text-white"
+          placeholder="Rechercher un produit..."
+          className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-800 text-white outline-none"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
 
-        <div className="bg-white/10 rounded-2xl overflow-hidden">
+        <Link
+          href="/products/add"
+          className="bg-green-600 px-4 py-3 rounded-xl font-bold"
+        >
+          +
+        </Link>
+      </div>
 
-          <div className="grid grid-cols-6 p-4 text-slate-300 border-b border-white/10">
-            <span>Nom</span>
-            <span>Stock</span>
-            <span>Achat</span>
-            <span>Vente</span>
-            <span>Devise</span>
-            <span>Action</span>
+      <div className="space-y-3">
+
+        {loading ? (
+          <div className="text-center text-slate-400 py-10">
+            Chargement...
           </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center text-slate-400 py-10">
+            Aucun produit trouvé
+          </div>
+        ) : (
+          filteredProducts.map((p) => (
+            <div
+              key={p.id}
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-4"
+            >
+              <div className="flex justify-between items-start mb-2">
 
-          {loading ? (
-            <div className="p-8 text-center text-slate-400">
-              Chargement...
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="p-8 text-center text-slate-400">
-              Aucun produit trouvé
-            </div>
-          ) : (
-            filteredProducts.map((p) => (
-              <div
-                key={p.id}
-                className="grid grid-cols-6 p-4 border-b border-white/10"
-              >
-                <span>{p.name}</span>
+                <div>
+                  <p className="font-bold text-lg">
+                    {p.name || "Produit sans nom"}
+                  </p>
 
-                <span>
-                  {p.stock} {p.unit}
-                </span>
+                  <p className="text-xs text-slate-400">
+                    Stock: {p.stock} {p.unit || ""}
+                  </p>
+                </div>
 
-                <span>
-                  {p.purchase_price} {p.currency}
-                </span>
-
-                <span>
-                  {p.selling_price} {p.currency}
-                </span>
-
-                <span>{p.currency}</span>
-
-                <div className="flex gap-3">
-                  <a
-                    href={`/products/edit/${p.id}`}
-                    className="text-blue-400"
-                  >
-                    modifier/réap..
-
-                  </a>
-
-                  <button
-                    onClick={() => deleteProduct(p.id)}
-                    className="text-red-400"
-                  >
-                    Supprimer
-                  </button>
+                <div
+                  className={`text-xs px-2 py-1 rounded-full font-bold ${
+                    p.stock === 0
+                      ? "bg-red-600"
+                      : p.stock <= 3
+                      ? "bg-yellow-600"
+                      : "bg-green-600"
+                  }`}
+                >
+                  {p.stock === 0
+                    ? "ÉPUISÉ"
+                    : p.stock <= 3
+                    ? "FAIBLE"
+                    : "OK"}
                 </div>
 
               </div>
-            ))
-          )}
 
-        </div>
+              <div className="flex gap-2">
+
+                <Link
+                  href={`/products/edit/${p.id}`}
+                  className="flex-1 bg-blue-600 text-center py-2 rounded-xl text-sm font-bold"
+                >
+                  Modifier/réapprovi
+                </Link>
+
+                <button
+                  onClick={() => deleteProduct(p.id)}
+                  className="flex-1 bg-red-600 py-2 rounded-xl text-sm font-bold"
+                >
+                  Supprimer
+                </button>
+
+              </div>
+
+            </div>
+          ))
+        )}
 
       </div>
+
     </main>
   );
 }

@@ -19,90 +19,157 @@ export default function LowStockPage() {
   }, []);
 
   const loadProducts = async () => {
+    // ✅ CORRECTION ICI
+    const phone = localStorage.getItem("phone");
+
+    if (!phone) return;
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
+      .single();
+
+    if (!user) return;
+
     const { data } = await supabase
       .from("products")
-      .select("*");
+      .select("*")
+      .eq("user_id", user.id);
 
     const lowStock =
-      data?.filter(
-        (p) => Number(p.stock) <= 5
-      ) || [];
+  (data || []).filter((p) => Number(p.stock) <= 5);
 
     setProducts(lowStock);
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer ce produit ?")) {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", id);
+    if (!confirm("Supprimer ce produit ?")) return;
 
-      if (!error) {
-        loadProducts();
-      } else {
-        alert("Erreur lors de la suppression");
-      }
+    // ✅ CORRECTION ICI AUSSI
+    const phone = localStorage.getItem("phone");
+
+    if (!phone) return;
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
+      .single();
+
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (!error) {
+      loadProducts();
+    } else {
+      alert("Erreur suppression");
     }
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-6">
+    <main className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-black text-white">
 
-      <div className="max-w-4xl mx-auto">
+      {/* HEADER */}
+      <div className="p-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">
+            ⚠️ Stock faible
+          </h1>
+          <p className="text-xs text-slate-400">
+            Produits à réapprovisionner rapidement
+          </p>
+        </div>
 
-        <h1 className="text-3xl font-bold mb-6">
-          ⚠️ Produits à réapprovisionner
-        </h1>
+        <Link
+          href="/products"
+          className="text-xs bg-green-600 px-3 py-2 rounded-xl font-bold"
+        >
+          + Produits
+        </Link>
+      </div>
 
-        <div className="bg-white/10 rounded-2xl overflow-hidden">
+      {/* SUMMARY */}
+      <div className="px-4 mb-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <p className="text-sm text-slate-300">
+            Produits en alerte
+          </p>
 
-          <div className="grid grid-cols-3 p-4 border-b border-white/10 text-slate-300">
-            <span>Produit</span>
-            <span>Stock</span>
-            <span>Action</span>
+          <p className="text-2xl font-bold text-red-400">
+            {products.length}
+          </p>
+
+          <p className="text-xs text-slate-500">
+            seuil ≤ 5 en stock
+          </p>
+        </div>
+      </div>
+
+      {/* LIST */}
+      <div className="px-4 pb-10">
+
+        {products.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
+            <p className="text-green-400 font-bold">
+              ✅ Aucun produit critique
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Stock bien géré
+            </p>
           </div>
+        ) : (
+          <div className="space-y-3">
 
-          {products.length === 0 ? (
-            <div className="p-6 text-center text-slate-400">
-              Aucun produit en stock faible ✅
-            </div>
-          ) : (
-            products.map((p) => (
+            {products.map((p) => (
               <div
                 key={p.id}
-                className="grid grid-cols-3 p-4 border-b border-white/10 items-center"
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between"
               >
-                <span>{p.name}</span>
 
-                <span>
-                  {p.stock} {p.unit}
-                </span>
+                <div>
+                  <p className="font-bold text-sm">
+                    {p.name}
+                  </p>
 
-                <span className="flex items-center gap-4">
-                  <button 
+                  <p className="text-xs text-slate-400">
+                    Stock actuel :
+                    <span className="text-red-400 font-bold ml-1">
+                      {p.stock} {p.unit}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2 items-end">
+
+                  <button
                     onClick={() => handleDelete(p.id)}
-                    className="font-bold"
-                    style={{ color: '#dc2626' }}
+                    className="text-xs bg-red-600 px-3 py-1 rounded-lg font-bold hover:bg-red-700"
                   >
                     Supprimer
                   </button>
 
                   <Link
                     href="/products"
-                    style={{ color: '#16a34a', fontWeight: 'bold', textDecoration: 'underline' }}
+                    className="text-xs text-green-400 underline"
                   >
-                    Clique ici pour réapprovisionner
+                    Réapprovisionner
                   </Link>
-                </span>
-              </div>
-            ))
-          )}
 
-        </div>
+                </div>
+
+              </div>
+            ))}
+
+          </div>
+        )}
 
       </div>
-
     </main>
   );
 }

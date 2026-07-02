@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,15 +12,28 @@ export default function SubscriptionPage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
 
+  const [step, setStep] = useState("form");
+
   useEffect(() => {
     loadSubscription();
   }, []);
 
-  // 📥 LOAD SUBSCRIPTION (CORRIGÉ)
   const loadSubscription = async () => {
+    const phoneStorage = localStorage.getItem("phone");
+    if (!phoneStorage) return;
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phoneStorage)
+      .single();
+
+    if (!user) return;
+
     const { data } = await supabase
       .from("subscriptions")
       .select("*")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -34,8 +46,6 @@ export default function SubscriptionPage() {
     setSubscription(data);
 
     const now = new Date();
-
-    // 📅 CALCUL JOURS
     const start = data.start_date ? new Date(data.start_date) : null;
 
     let used = 0;
@@ -51,32 +61,34 @@ export default function SubscriptionPage() {
     setDaysUsed(used);
     setDaysLeft(left);
 
-    // 🔥 LOGIQUE SIMPLE ET FIABLE
     const isTrialActive =
       data.status === "trial" &&
       new Date(data.trial_end || 0) > now;
 
-    const isActive =
-      data.is_active === true &&
-      left > 0;
-
+    const isActive = data.is_active === true && left > 0;
     const isPending = data.status === "pending";
 
-    if (isPending) {
-      setStatus("pending");
-    } else if (isTrialActive || isActive) {
-      setStatus("active");
-    } else {
-      setStatus("expired");
-    }
+    if (isPending) setStatus("pending");
+    else if (isTrialActive || isActive) setStatus("active");
+    else setStatus("expired");
   };
 
-  // 👉 RENOUVELLEMENT WHATSAPP
   const handleRenew = async () => {
     if (!fullName || !phone) {
-      alert("Veuillez remplir vos informations");
+      alert("Veuillez remplir votre nom et numéro de téléphone");
       return;
     }
+
+    const phoneStorage = localStorage.getItem("phone");
+    if (!phoneStorage) return;
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phoneStorage)
+      .single();
+
+    if (!user || !subscription?.id) return;
 
     await supabase
       .from("subscriptions")
@@ -84,37 +96,30 @@ export default function SubscriptionPage() {
         full_name: fullName,
         phone: phone,
         status: "pending",
+        user_id: user.id,
       })
-      .eq("id", subscription?.id);
+      .eq("id", subscription.id)
+      .eq("user_id", user.id);
 
     setStatus("pending");
-
-    const message = `Bonjour PDG,
-
-J'ai effectué mon paiement pour l'abonnement Biso-Commerce.
-
-Nom : ${fullName}
-Téléphone : ${phone}`;
-
-    const url =
-      "https://wa.me/243994864173?text=" + encodeURIComponent(message);
-
-    window.open(url, "_blank");
+    setStep("confirm");
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-6">
-
+    <main className="min-h-screen bg-black text-white px-4 py-8">
       <div className="max-w-2xl mx-auto space-y-6">
 
-        {/* TITRE */}
-        <h1 className="text-3xl font-bold">
-          💳 Mon abonnement
-        </h1>
+        {/* HEADER */}
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">💳 Mon abonnement</h1>
+          <p className="text-slate-400 text-sm">
+            Gestion de votre accès Biso-Commerce
+          </p>
+        </div>
 
         {/* STATUS */}
-        <div className="bg-white/10 p-5 rounded-2xl">
-          <p className="text-gray-400">Statut</p>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-center">
+          <p className="text-slate-400">Statut actuel</p>
 
           <h2
             className={`text-2xl font-bold mt-2 ${
@@ -128,14 +133,14 @@ Téléphone : ${phone}`;
             {status === "active"
               ? "🟢 Actif"
               : status === "pending"
-              ? "⏳ En attente"
+              ? "⏳ En attente de validation"
               : "🔴 Expiré"}
           </h2>
         </div>
 
-        {/* UTILISATION */}
-        <div className="bg-white/10 p-5 rounded-2xl">
-          <p className="text-gray-400">📅 Utilisation</p>
+        {/* USAGE */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <p className="text-slate-400">📅 Utilisation de votre abonnement</p>
 
           <h2 className="text-xl font-bold mt-2">
             {daysUsed} / 30 jours utilisés
@@ -146,66 +151,97 @@ Téléphone : ${phone}`;
           </p>
         </div>
 
-        {/* INFOS */}
-        <div className="bg-white/10 p-5 rounded-2xl">
-          <h3 className="font-bold mb-2">
-            💰 Informations abonnement
-          </h3>
-
-          <p>Abonnement Biso-Commerce</p>
-          <p>Prix : 5 USD / mois</p>
-
-          <div className="mt-3 text-sm text-gray-300">
-            <p>Accès complet :</p>
-            <p>✅ Produits</p>
-            <p>✅ Ventes</p>
-            <p>✅ Dettes</p>
-            <p>✅ Dépenses</p>
-            <p>✅ Rapports</p>
-            <p>✅ Dashboard</p>
+        {/* INFO */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 className="font-bold mb-2">💰 Abonnement Biso-Commerce</h3>
+          <p className="text-slate-300">Prix : 5 USD / mois</p>
+          <div className="mt-3 text-sm text-slate-300 space-y-1">
+            <p>Avec cet abonnement vous avez accès à :</p>
+            <p>✅ Gestion des produits</p>
+            <p>✅ Enregistrement des ventes</p>
+            <p>✅ Gestion des dettes clients</p>
+            <p>✅ Suivi des dépenses</p>
+            <p>✅ Rapports financiers</p>
+            <p>✅ Dashboard complet</p>
           </div>
         </div>
 
         {/* PAIEMENT */}
-        <div className="bg-white/10 p-5 rounded-2xl">
-          <h3 className="font-bold mb-2">
-            📱 Moyens de paiement
-          </h3>
-
-          <p>AIRTEL MONEY : +243 994 864 173</p>
-          <p>ORANGE MONEY : +243XXXXXXXX</p>
-          <p>MPESA : +243XXXXXXXX</p>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 className="font-bold mb-2">📱 Moyens de paiement</h3>
+          <p className="text-slate-300">AIRTEL MONEY : +243 994 864 173</p>
+          <p className="text-slate-300">ORANGE MONEY : +243XXXXXXXX</p>
+          <p className="text-slate-300">MPESA : +243XXXXXXXX</p>
         </div>
 
         {/* FORM */}
-        <div className="bg-white/10 p-5 rounded-2xl space-y-3">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
           <input
-            className="w-full p-3 rounded bg-slate-800"
-            placeholder="VOTRE NOM COMPLET"
+            className="w-full p-3 rounded-xl bg-black border border-slate-700"
+            placeholder="Nom complet"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
           />
 
           <input
-            className="w-full p-3 rounded bg-slate-800"
-            placeholder="VOTRE NUMÉRO DE TÉLÉPHONE"
+            className="w-full p-3 rounded-xl bg-black border border-slate-700"
+            placeholder="Numéro de téléphone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
         </div>
 
-        {/* BUTTON */}
+        {/* BUTTON STEP 1 */}
         <button
           onClick={handleRenew}
-          className="w-full bg-green-600 p-4 rounded-xl font-bold"
+          className="w-full bg-green-600 hover:bg-green-500 transition p-4 rounded-xl font-bold"
         >
           🔄 Renouveler mon abonnement
         </button>
 
-        {/* PENDING MESSAGE */}
+        {/* STEP 2 CONFIRMATION */}
+        {step === "confirm" && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 p-5 rounded-2xl text-yellow-300 space-y-3">
+            
+            <p className="font-bold text-lg">
+              📸 Dernière étape obligatoire
+            </p>
+            <p className="text-sm">Merci pour votre demande de renouvellement.</p>
+            <p className="text-sm">👉 Avant de continuer, vous devez envoyer :</p>
+            <ul className="text-sm list-disc pl-5 space-y-1">
+              <li>La capture d’écran de votre paiement</li>
+              <li>La preuve de transaction mobile money</li>
+            </ul>
+            <p className="text-sm mt-2">Cliquez ensuite sur le bouton ci-dessous pour envoyer la preuve directement sur WhatsApp au support.</p>
+
+            <button
+              onClick={() => {
+                const message = `Bonjour PDG,
+
+Je viens de faire le paiement pour le renouvellement de mon abonnement Biso-Commerce.
+
+Nom : ${fullName}
+Téléphone : ${phone}
+
+Je joins ici la capture d’écran et la preuve de paiement.`;
+
+                const url =
+                  "https://wa.me/243994864173?text=" +
+                  encodeURIComponent(message);
+
+                window.open(url, "_blank");
+              }}
+              className="w-full bg-green-600 hover:bg-green-500 p-3 rounded-xl font-bold"
+            >
+              📤 Envoyer la preuve sur WhatsApp au PDG
+            </button>
+          </div>
+        )}
+
+        {/* PENDING */}
         {status === "pending" && (
-          <div className="bg-yellow-500/10 p-4 rounded-xl text-yellow-300">
-            ⏳ Votre demande est en attente de validation.
+          <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl text-yellow-300">
+            ⏳ Votre demande est en cours de vérification par l’administration.
           </div>
         )}
 

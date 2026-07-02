@@ -16,22 +16,18 @@ type Subscription = {
 
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
-  
-  // 🔍 Ajout de l'état pour la recherche
   const [searchTerm, setSearchTerm] = useState("");
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [renewRequests, setRenewRequests] = useState<Subscription[]>([]);
   const [activeClients, setActiveClients] = useState<Subscription[]>([]);
   const [expiredClients, setExpiredClients] = useState<Subscription[]>([]);
-
   const [totalRevenue, setTotalRevenue] = useState(0);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  // 📥 LOAD DATA
   const loadData = async () => {
     setLoading(true);
 
@@ -41,37 +37,38 @@ export default function AdminPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Erreur Supabase:", error);
+      console.error(error);
       setLoading(false);
       return;
     }
 
-    const { data: payments } = await supabase
+    const { data: payments, error: payError } = await supabase
       .from("subscription_payments")
       .select("*");
 
+    if (payError) {
+      console.error(payError);
+    }
+
     let revenue = 0;
-    payments?.forEach((p: any) => {
+    (payments || []).forEach((p: any) => {
       revenue += Number(p.amount || 0);
     });
 
     const now = new Date();
     const data = (subs as Subscription[]) || [];
 
-    // 🟢 ACTIFS
-    const active = data.filter((s: Subscription) => {
+    const active = data.filter((s) => {
       if (!s.end_date) return false;
       return s.is_active === true && new Date(s.end_date) > now;
     });
 
-    // 🔴 EXPIRÉS
-    const expired = data.filter((s: Subscription) => {
-      if (!s.end_date) return false;
-      return s.is_active === false || new Date(s.end_date) < now;
+    const expired = data.filter((s) => {
+      if (!s.end_date) return true;
+      return new Date(s.end_date) < now;
     });
 
-    // ⏳ DEMANDES
-    const requests = data.filter((s: Subscription) => s.status === "pending");
+    const requests = data.filter((s) => s.status === "pending");
 
     setSubscriptions(data);
     setActiveClients(active);
@@ -82,10 +79,9 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  // ✅ ACTIVER ABONNEMENT
   const activateSubscription = async (client: Subscription) => {
     const confirmAction = confirm(
-      "[ATTENTION] Activer l'abonnement de " + client.full_name + " ?"
+      "Activer abonnement de " + client.full_name + " ?"
     );
 
     if (!confirmAction) return;
@@ -109,7 +105,6 @@ export default function AdminPage() {
       return;
     }
 
-    // 💰 AJOUT PAIEMENT 5$
     const { error: paymentError } = await supabase
       .from("subscription_payments")
       .insert({
@@ -123,14 +118,12 @@ export default function AdminPage() {
       return;
     }
 
-    alert("Abonnement activé");
     await loadData();
   };
 
-  // 🟡 REFUSER
   const deleteRequest = async (client: Subscription) => {
     const confirmDelete = confirm(
-      "[REFUSER] Refuser la demande de " + client.full_name + " ?"
+      "Refuser demande de " + client.full_name + " ?"
     );
 
     if (!confirmDelete) return;
@@ -148,28 +141,22 @@ export default function AdminPage() {
       return;
     }
 
-    alert("Demande refusée (compte non bloqué)");
     await loadData();
   };
 
-  // ⏳ FILTRAGE DES DEMANDES (Logique de recherche)
   const filteredRequests = renewRequests.filter((client) =>
     client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.phone.includes(searchTerm)
   );
 
-  // ⏳ LOADING
   if (loading) {
-    return (
-      <div className="p-6 text-white">Chargement...</div>
-    );
+    return <div className="p-6 text-white">Chargement...</div>;
   }
 
   return (
     <main className="p-6 text-white bg-gray-900 min-h-screen">
       <h1 className="text-2xl font-bold mb-6">👑 Admin Panel</h1>
 
-      {/* 📊 STATS */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <div className="bg-green-600 p-4 rounded-xl">
           💰 {totalRevenue} $
@@ -182,27 +169,25 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 🔍 BARRE DE RECHERCHE */}
       <input
         type="text"
-        placeholder="Rechercher par nom ou code (ex: 0936)..."
+        placeholder="Rechercher..."
         className="w-full p-3 mb-6 bg-gray-800 border border-white/20 rounded-xl text-white"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
       />
 
-      {/* ⏳ DEMANDES */}
       <h2 className="text-xl font-bold mb-3">
-        Demandes de renouvellement ({filteredRequests.length})
+        Demandes ({filteredRequests.length})
       </h2>
 
       {filteredRequests.length === 0 ? (
-        <p className="text-gray-400 mb-4">Aucune demande trouvée</p>
+        <p className="text-gray-400">Aucune demande</p>
       ) : (
         filteredRequests.map((c) => (
           <div
             key={c.id}
-            className="p-3 border-b border-white/10 flex justify-between items-center"
+            className="p-3 border-b border-white/10 flex justify-between"
           >
             <div>
               <p className="font-bold">{c.full_name}</p>
@@ -214,14 +199,14 @@ export default function AdminPage() {
                 onClick={() => activateSubscription(c)}
                 className="bg-green-600 px-3 py-1 rounded"
               >
-                ✅ Activer
+                Activer
               </button>
 
               <button
                 onClick={() => deleteRequest(c)}
                 className="bg-red-600 px-3 py-1 rounded"
               >
-                ❌ Refuser
+                Refuser
               </button>
             </div>
           </div>

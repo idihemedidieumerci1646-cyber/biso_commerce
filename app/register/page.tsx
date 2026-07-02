@@ -1,8 +1,11 @@
+
 "use client";
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+
+import { Store, Phone, Lock, Loader2, Sparkles, Eye, EyeOff } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -12,6 +15,8 @@ export default function RegisterPage() {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [showPin, setShowPin] = useState(false); // 👈 NEW
+
   const handleRegister = async () => {
     if (!businessName || !phone || !pin) {
       alert("Veuillez remplir tous les champs");
@@ -20,16 +25,18 @@ export default function RegisterPage() {
 
     setLoading(true);
 
-    const { error: userError } = await supabase
+    const { data: user, error: userError } = await supabase
       .from("users")
       .insert({
         full_name: businessName,
         phone: phone,
         pin: pin,
-      });
+      })
+      .select()
+      .single();
 
-    if (userError) {
-      alert("Erreur : " + userError.message);
+    if (userError || !user) {
+      alert("Erreur utilisateur : " + userError?.message);
       setLoading(false);
       return;
     }
@@ -41,6 +48,7 @@ export default function RegisterPage() {
     const { error: subError } = await supabase
       .from("subscriptions")
       .insert({
+        user_id: user.id,
         full_name: businessName,
         phone: phone,
         start_date: startDate.toISOString(),
@@ -55,69 +63,134 @@ export default function RegisterPage() {
       return;
     }
 
-    alert("Compte créé avec succès 🚀 30 jours gratuits activés");
-
-    setLoading(false);
+    alert("Compte créé 🚀 30 jours gratuits activés");
 
     localStorage.setItem("phone", phone);
 
+    setLoading(false);
 
     router.push("/dashboard");
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center px-5">
-      <div className="w-full max-w-md bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl">
+    <main className="min-h-screen bg-black flex items-center justify-center px-5">
 
+      <div className="w-full max-w-md">
+
+        {/* HEADER */}
         <div className="text-center mb-8">
-          <div className="text-5xl mb-4">🏪</div>
+          <div className="flex justify-center mb-3">
+            <div className="bg-green-500/10 p-3 rounded-2xl border border-green-500/30">
+              <Store className="text-green-400" />
+            </div>
+          </div>
 
-          <h1 className="text-3xl font-bold text-white">
-            Biso-Commerce
+          <h1 className="text-2xl font-bold text-white">
+            Biso Commerce
           </h1>
 
-          <p className="text-slate-300 mt-2">
-            Créez votre commerce
+          <p className="text-xs text-slate-400 mt-1">
+            Crée ton compte caisse en 30 secondes
           </p>
         </div>
 
-        <div className="space-y-4">
+        {/* FORM CARD */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
 
-          <input
-            type="text"
-            placeholder="Votre nom complet"
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            className="w-full p-4 rounded-xl bg-white/10 text-white border border-white/20 outline-none"
-          />
+          {/* BUSINESS NAME */}
+          <div>
+            <label className="text-xs text-slate-400">
+              Nom du commerce
+            </label>
 
-          <input
-            type="tel"
-            placeholder="Votre numéro"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full p-4 rounded-xl bg-white/10 text-white border border-white/20 outline-none"
-          />
+            <div className="flex items-center gap-2 bg-black/40 border border-slate-800 rounded-xl p-3 mt-1">
+              <Store size={18} className="text-green-400" />
+              <input
+                type="text"
+                placeholder="Ex: Boutique Amani"
+                value={businessName}
+                onChange={(e) =>
+                  setBusinessName(e.target.value)
+                }
+                className="bg-transparent w-full outline-none text-white text-sm"
+              />
+            </div>
+          </div>
 
-          <input
-            type="password"
-            placeholder="Code PIN (6 chiffres)"
-            maxLength={6}
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            className="w-full p-4 rounded-xl bg-white/10 text-white border border-white/20 outline-none"
-          />
+          {/* PHONE */}
+          <div>
+            <label className="text-xs text-slate-400">
+              Téléphone
+            </label>
 
+            <div className="flex items-center gap-2 bg-black/40 border border-slate-800 rounded-xl p-3 mt-1">
+              <Phone size={18} className="text-blue-400" />
+              <input
+                type="tel"
+                placeholder="XXXXXXXXX"
+                value={phone}
+                onChange={(e) =>
+                  setPhone(e.target.value)
+                }
+                className="bg-transparent w-full outline-none text-white text-sm"
+              />
+            </div>
+          </div>
+
+          {/* PIN */}
+          <div>
+            <label className="text-xs text-slate-400">
+              Code PIN
+            </label>
+
+            <div className="flex items-center gap-2 bg-black/40 border border-slate-800 rounded-xl p-3 mt-1">
+              <Lock size={18} className="text-yellow-400" />
+
+              <input
+                type={showPin ? "text" : "password"} // 👈 TOGGLE
+                placeholder="••••"
+                value={pin}
+                onChange={(e) =>
+                  setPin(e.target.value)
+                }
+                className="bg-transparent w-full outline-none text-white text-sm"
+              />
+
+              {/* 👁️ BUTTON */}
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="text-slate-400 hover:text-white"
+              >
+                {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {/* BUTTON */}
           <button
             onClick={handleRegister}
             disabled={loading}
-            className="w-full p-4 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700"
+            className="w-full bg-green-600 hover:bg-green-700 transition p-4 rounded-2xl font-bold flex items-center justify-center gap-2"
           >
-            {loading ? "Création..." : "Créer mon compte"}
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin" />
+                Création...
+              </>
+            ) : (
+              <>
+                <Sparkles size={18} />
+                Créer mon compte
+              </>
+            )}
           </button>
 
+          {/* FOOTER INFO */}
+          <p className="text-[10px] text-slate-500 text-center">
+            30 jours gratuits • Sans carte bancaire
+          </p>
         </div>
-
       </div>
     </main>
   );

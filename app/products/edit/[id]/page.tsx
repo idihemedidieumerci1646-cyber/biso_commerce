@@ -20,9 +20,7 @@ export default function EditProductPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id) {
-      loadProduct();
-    }
+    if (id) loadProduct();
   }, [id]);
 
   const loadProduct = async () => {
@@ -80,93 +78,155 @@ export default function EditProductPage() {
     }
 
     alert("Produit modifié ✅");
-
     router.push("/products");
   };
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        Chargement...
+      <main className="min-h-screen bg-black flex items-center justify-center text-white">
+        <div className="text-center">
+          <div className="animate-pulse text-green-500 font-bold">
+            Chargement...
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-6">
+    <main className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-black text-white p-4">
 
-      <div className="max-w-xl mx-auto">
-
-        <h1 className="text-3xl font-bold mb-6">
+      {/* HEADER */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">
           ✏️ Modifier le produit
         </h1>
+        <p className="text-xs text-slate-400">
+          Mise à jour rapide du stock et des prix
+        </p>
+      </div>
 
-        <div className="bg-white/10 p-6 rounded-3xl space-y-5">
+      {/* FORM CARD */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4 shadow-lg">
 
+        {/* NOM */}
+        <div>
+          <p className="text-xs text-slate-400 mb-1">
+            Nom du produit
+          </p>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full p-4 rounded-xl bg-white/10"
+            className="w-full p-3 rounded-xl bg-black border border-slate-700 outline-none"
             placeholder="Nom du produit"
           />
+        </div>
 
+        {/* STOCK */}
+        <div>
+          <p className="text-xs text-slate-400 mb-1">
+            Stock actuel
+          </p>
           <input
             type="number"
             value={stock}
             onChange={(e) => setStock(e.target.value)}
-            className="w-full p-4 rounded-xl bg-white/10"
+            className="w-full p-3 rounded-xl bg-black border border-slate-700 outline-none"
             placeholder="Stock"
           />
+        </div>
 
-          <input
-            type="number"
-            value={purchasePrice}
-            onChange={(e) => setPurchasePrice(e.target.value)}
-            className="w-full p-4 rounded-xl bg-white/10"
-            placeholder="Prix d'achat"
-          />
+        {/* PRIX */}
+        <div className="grid grid-cols-2 gap-3">
 
-          <input
-            type="number"
-            value={sellingPrice}
-            onChange={(e) => setSellingPrice(e.target.value)}
-            className="w-full p-4 rounded-xl bg-white/10"
-            placeholder="Prix de vente"
-          />
+          <div>
+            <p className="text-xs text-slate-400 mb-1">
+              Prix achat
+            </p>
+            <input
+              type="number"
+              value={purchasePrice}
+              onChange={(e) =>
+                setPurchasePrice(e.target.value)
+              }
+              className="w-full p-3 rounded-xl bg-black border border-slate-700 outline-none"
+              placeholder="0"
+            />
+          </div>
 
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            className="w-full p-4 rounded-xl text-black"
-          >
-            <option>Pièce</option>
-            <option>Carton</option>
-            <option>Boîte</option>
-            <option>Sachet</option>
-            <option>Bouteille</option>
-            <option>Sac</option>
-            <option>Kg</option>
-          </select>
-
-          <select
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-            className="w-full p-4 rounded-xl text-black"
-          >
-            <option value="FC">FC</option>
-            <option value="$">$</option>
-          </select>
-
-          <button
-            onClick={updateProduct}
-            className="w-full bg-green-600 p-4 rounded-xl font-bold"
-          >
-            Enregistrer les modifications
-          </button>
+          <div>
+            <p className="text-xs text-slate-400 mb-1">
+              Prix vente
+            </p>
+            <input
+              type="number"
+              value={sellingPrice}
+              onChange={(e) =>
+                setSellingPrice(e.target.value)
+              }
+              className="w-full p-3 rounded-xl bg-black border border-slate-700 outline-none"
+              placeholder="0"
+            />
+          </div>
 
         </div>
 
+        {/* SELECTS */}
+        <div className="grid grid-cols-2 gap-3">
+
+          <div>
+            <p className="text-xs text-slate-400 mb-1">
+              Unité
+            </p>
+            <select
+              value={unit}
+              onChange={(e) =>
+                setUnit(e.target.value)
+              }
+              className="w-full p-3 rounded-xl bg-black border border-slate-700"
+            >
+              <option>Pièce</option>
+              <option>Carton</option>
+              <option>Boîte</option>
+              <option>Sachet</option>
+              <option>Bouteille</option>
+              <option>Sac</option>
+              <option>Kg</option>
+            </select>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-400 mb-1">
+              Devise
+            </p>
+            <select
+              value={currency}
+              onChange={(e) =>
+                setCurrency(e.target.value)
+              }
+              className="w-full p-3 rounded-xl bg-black border border-slate-700"
+            >
+              <option value="FC">FC</option>
+              <option value="$">USD ($)</option>
+            </select>
+          </div>
+
+        </div>
+
+        {/* BUTTON */}
+        <button
+          onClick={updateProduct}
+          className="w-full bg-green-600 hover:bg-green-700 transition p-3 rounded-xl font-bold shadow-lg"
+        >
+          💾 Enregistrer les modifications
+        </button>
+
       </div>
+
+      {/* FOOTER TIP */}
+      <p className="text-center text-xs text-slate-500 mt-4">
+        
+      </p>
 
     </main>
   );
