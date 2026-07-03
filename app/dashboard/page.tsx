@@ -266,7 +266,7 @@ if (!ok) {
             💼 Biso Gestion
           </h1>
           <p className="text-xs text-slate-400">
-            Mode caisse pro • vente rapide
+            Votre caisse pro • vente rapide
           </p>
         </div>
 
@@ -341,7 +341,7 @@ if (!ok) {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            Ventes FC
+            VENTES DU JOUR ( CDF)
           </p>
           <p className="text-lg font-bold text-green-400">
             {todaySalesFc}
@@ -350,7 +350,7 @@ if (!ok) {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            Ventes USD
+            VENTES DU JOURS (USD)
           </p>
           <p className="text-lg font-bold text-blue-400">
             {todaySalesDollar}
@@ -359,7 +359,7 @@ if (!ok) {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            Bénéfice FC
+            BENÉFICE DU JOUR (CDF)
           </p>
           <p className="text-lg font-bold text-green-300">
             {todayProfitFc}
@@ -368,7 +368,7 @@ if (!ok) {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            Bénéfice USD
+            BENÉFICE DU JOUR (USD)
           </p>
           <p className="text-lg font-bold text-blue-300">
             {todayProfitDollar}
@@ -539,6 +539,9 @@ if (!ok) {
             <p className="text-sm text-slate-300 leading-7">
 
 <span className="text-green-400 font-bold text-lg">
+<p className="text-sm text-slate-300 leading-7">
+
+<span className="text-green-400 font-bold text-lg">
 📖 BIENVENUE SUR BISO-COMMERCE
 </span>
 
@@ -546,28 +549,47 @@ if (!ok) {
 
 <b>Qu'est-ce que Biso-Commerce ?</b>
 
-Biso-Commerce est une caisse digitale qui vous permet de gérer vos ventes, votre stock, vos bénéfices, vos dépenses, vos dettes et vos rapports depuis votre téléphone.
+<br /><br />
+
+Biso-Commerce est une caisse digitale qui vous permet de gérer facilement votre commerce depuis votre téléphone.
+
+Vous pouvez enregistrer vos ventes, suivre vos bénéfices, gérer votre stock, vos dépenses, les dettes de vos clients et consulter vos rapports en temps réel.
 
 <br /><br />
 
-<b>Comment l'utiliser ?</b>
-
-Ajoutez vos produits, enregistrez vos ventes, puis consultez vos bénéfices et vos rapports. L'application met automatiquement à jour votre stock.
+<b>Comment utiliser Biso-Commerce ?</b>
 
 <br /><br />
 
-<b>📲 Installation</b>
+• Ajoutez d'abord vos produits.
 
-Android : Chrome → ⋮ → <b>Installer l'application</b>.
+• Enregistrez vos ventes chaque jour.
 
-<br />
+• Ajoutez vos dépenses.
 
-iPhone : Safari → <b>Partager</b> → <b>Sur l'écran d'accueil</b> → <b>Ajouter</b>.
+• Gérez les dettes de vos clients.
+
+• Consultez vos rapports pour suivre votre commerce.
+
+<br /><br />
+
+<b>Installer l'application</b>
+
+<br /><br />
+
+📱 <b>Android :</b> Chrome → ⋮ → <b>Installer l'application</b>.
+
+<br /><br />
+
+🍎 <b>iPhone :</b> Safari → <b>Partager</b> → <b>Sur l'écran d'accueil</b> → <b>Ajouter</b>.
 
 <br /><br />
 
 <span className="text-green-400 font-semibold">
-💚 Merci d'utiliser Biso-Commerce  PDG DIEUMERCI IDI
+Merci d'utiliser Biso-Commerce 💚
+</span>
+
+</p>
 </span>
 
 </p>

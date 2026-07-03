@@ -92,14 +92,14 @@ export default function SalesPage() {
 
     setLoading(true);
 
-    const unitPurchasePrice =
-      Number(product.purchase_price) /
-      Number(product.initial_stock || 1);
+    const totalSale =
+  Number(product.selling_price) * qty;
 
-    const profit =
-      (Number(product.selling_price) - unitPurchasePrice) * qty;
+const profit =
+  (Number(product.selling_price) -
+    Number(product.purchase_price)) *
+  qty;
 
-    const totalSale = Number(product.selling_price) * qty;
 
     await supabase.from("sales").insert({
       user_id: user.id,

@@ -105,9 +105,12 @@ export default function ReportsPage() {
     setBeforeYesterdayFc(byFc); setBeforeYesterdayUsd(byUsd);
     setBeforeYesterdayProfitFc(byPfFc); setBeforeYesterdayProfitUsd(byPfUsd);
 
-    const sorted = sales?.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    ) || [];
+    const sorted =
+      sales?.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      ) || [];
 
     setSalesHistory(sorted);
     setFilteredSales(sorted);
@@ -117,17 +120,19 @@ export default function ReportsPage() {
     if (!selectedDate) return setFilteredSales(salesHistory);
 
     setFilteredSales(
-      salesHistory.filter((s) => s.created_at.split("T")[0] === selectedDate)
+      salesHistory.filter(
+        (s) => s.created_at.split("T")[0] === selectedDate
+      )
     );
   };
 
   const last7Days = salesHistory.slice(0, 7);
 
   const downloadPDF = () => {
-    // Sécurité : Si l'utilisateur a choisi une date mais n'a pas cliqué sur Rechercher, 
-    // on filtre pour lui avant de générer le document.
-    const dataToExport = selectedDate 
-      ? salesHistory.filter((s) => s.created_at.split("T")[0] === selectedDate)
+    const dataToExport = selectedDate
+      ? salesHistory.filter(
+          (s) => s.created_at.split("T")[0] === selectedDate
+        )
       : filteredSales;
 
     const doc = new jsPDF();
@@ -136,9 +141,16 @@ export default function ReportsPage() {
     doc.text("RAPPORT BISO GESTION", 20, 20);
 
     doc.setFontSize(12);
-    doc.text("Date : " + (selectedDate || "Toutes les dates"), 20, 40);
+    doc.text(
+      "Date : " + (selectedDate || "Toutes les dates"),
+      20,
+      40
+    );
 
-    let totalFc = 0, totalUsd = 0, profitFc = 0, profitUsd = 0;
+    let totalFc = 0,
+      totalUsd = 0,
+      profitFc = 0,
+      profitUsd = 0;
 
     dataToExport.forEach((s) => {
       if (s.currency === "FC") {
@@ -152,10 +164,9 @@ export default function ReportsPage() {
 
     doc.text("Ventes FC : " + totalFc + " FC", 20, 60);
     doc.text("Ventes USD : " + totalUsd + " $", 20, 70);
-
     doc.text("Bénéfice FC : " + profitFc + " FC", 20, 85);
     doc.text("Bénéfice USD : " + profitUsd + " $", 20, 95);
-    
+
     doc.line(20, 100, 190, 100);
 
     let y = 115;
@@ -174,28 +185,36 @@ export default function ReportsPage() {
       y += 6;
       doc.text("Quantité : " + s.quantity, 25, y);
       y += 6;
-      doc.text("Montant : " + s.total_sale + " " + s.currency, 25, y);
+      doc.text(
+        "Montant : " + s.total_sale + " " + s.currency,
+        25,
+        y
+      );
       y += 6;
     });
 
-    doc.save("rapport-" + (selectedDate || "complet") + ".pdf");
+    doc.save(
+      "rapport-" + (selectedDate || "complet") + ".pdf"
+    );
   };
 
   return (
     <main className="min-h-screen bg-black text-white p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* HEADER */}
-        <div>
+        {/* HEADER PRO */}
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-5">
           <h1 className="text-2xl font-bold">📊 Rapports PRO</h1>
-          <p className="text-slate-400 text-sm">
-            Analyse ventes & performance caisse
+          <p className="text-slate-400 text-sm mt-1">
+            Analyse ventes & performance caisse en temps réel
           </p>
         </div>
 
-        {/* PETIT MOT D'AIDE */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
-          <p>💡 <strong> PDF Comment ça marche ?</strong> Choisissez la date (par exemple : 24-07-2026), cliquez sur 'Rechercher' pour voir les ventes, puis sur 'PDF' pour télécharger votre rapport.</p>
+        {/* AIDE */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
+          <p>
+            💡 <strong>Comment générer un PDF :</strong> Choisissez une date → cliquez sur "Rechercher" → puis "PDF".
+          </p>
         </div>
 
         {/* SECTIONS */}
@@ -220,45 +239,62 @@ export default function ReportsPage() {
           <Card label="Bénéfice USD" value={`${beforeYesterdayProfitUsd} $`} />
         </Section>
 
-        {/* 7 DAYS */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-          <h2 className="font-bold mb-3">📅 7 derniers rapports</h2>
+        {/* 7 DAYS PRO */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h2 className="font-bold mb-4">📅 7 derniers rapports</h2>
+
           {last7Days.length === 0 ? (
             <p className="text-slate-500 text-sm">Aucun rapport</p>
           ) : (
-            last7Days.map((s) => (
-              <div key={s.id} className="border-b border-slate-800 py-3">
-                <p className="text-sm text-slate-400">
-                  {new Date(s.created_at).toLocaleDateString()}
-                </p>
-                <p>{s.product_name} - {s.quantity}</p>
-                <p className="text-green-400 font-bold">
-                  {s.total_sale} {s.currency}
-                </p>
-              </div>
-            ))
+            <div className="space-y-3">
+              {last7Days.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex justify-between border-b border-slate-800 pb-2"
+                >
+                  <div>
+                    <p className="text-sm">{s.product_name}</p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-green-400 font-bold">
+                      {s.total_sale} {s.currency}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      x{s.quantity}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
         {/* SEARCH */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-          <h2 className="font-bold mb-3">🔎 Recherche</h2>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h2 className="font-bold mb-4">🔎 Choisissez une date → "PDF".</h2>
+
           <div className="flex flex-col md:flex-row gap-3">
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-black border border-slate-700 p-3 rounded-xl"
+              className="bg-black border border-slate-700 p-3 rounded-xl w-full"
             />
+
             <button
               onClick={searchByDate}
-              className="bg-green-600 px-5 py-3 rounded-xl font-bold"
+              className="bg-green-600 hover:bg-green-700 transition px-5 py-3 rounded-xl font-bold"
             >
               Rechercher
             </button>
+
             <button
               onClick={downloadPDF}
-              className="bg-red-600 px-5 py-3 rounded-xl font-bold"
+              className="bg-red-600 hover:bg-red-700 transition px-5 py-3 rounded-xl font-bold"
             >
               📄 PDF
             </button>
@@ -273,9 +309,12 @@ export default function ReportsPage() {
 /* UI */
 function Section({ title, children }: any) {
   return (
-    <div>
-      <h2 className="text-lg font-bold mb-3 text-slate-300">{title}</h2>
-      <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="space-y-3">
+      <h2 className="text-md font-semibold text-slate-300 border-l-4 border-green-500 pl-3">
+        {title}
+      </h2>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {children}
       </div>
     </div>
@@ -284,9 +323,9 @@ function Section({ title, children }: any) {
 
 function Card({ label, value }: any) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-      <p className="text-slate-400 text-sm">{label}</p>
-      <p className="text-lg font-bold">{value}</p>
+    <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-4 hover:border-slate-600 transition">
+      <p className="text-slate-400 text-xs">{label}</p>
+      <p className="text-xl font-bold mt-1">{value}</p>
     </div>
   );
 }
