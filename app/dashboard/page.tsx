@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -71,29 +72,55 @@ export default function DashboardPage() {
     useState<Sale[]>([]);
 
   useEffect(() => {
-  const init = async () => {
-    const userId = localStorage.getItem("user_id");
+    loadAll();
+  }, []);
 
-    if (!userId) {
-      router.replace("/login");
+  useEffect(() => {
+    if (exhaustedProducts.length > 0) {
+      alert(
+        "🚨 " +
+          exhaustedProducts.length +
+          " produit(s) épuisé(s)"
+      );
+    }
+  }, [exhaustedProducts]);
+
+  async function loadAll() {
+    const phone = localStorage.getItem("phone");
+
+    if (!phone) {
+      window.location.replace("/login");
       return;
     }
 
-    const ok = await checkSubscription(userId);
+    const { data: user } = await supabase
+      .from("users")
+      .select("*")
+      .eq("phone", phone)
+      .single();
+
+    if (!user) {
+      window.location.replace("/login");
+      return;
+    }
+
+    const ok = await checkSubscription(user.id);
 
     if (!ok) {
-      router.replace("/subscription");
-      setInitialLoading(false);
-      return;
-    }
+  router.replace("/subscription");
+  return;
+}
 
-    await loadDashboard(userId);
+if (!ok) {
+  router.replace("/subscription");
+  setInitialLoading(false);
+  return;
+}
+
+    await loadDashboard(user.id);
+
     setInitialLoading(false);
-  };
-
-  init();
-}, []);
-
+  }
 
   async function checkSubscription(userId: string) {
     const { data } = await supabase
@@ -250,7 +277,7 @@ export default function DashboardPage() {
             💼 Biso Gestion
           </h1>
           <p className="text-xs text-slate-400">
-            Votre caisse pro • vente rapide
+            Mode caisse pro • vente rapide
           </p>
         </div>
 
@@ -261,7 +288,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-
 
       {/* ABONNEMENT CARD */}
       <div className="px-4 mb-4">
@@ -280,7 +306,7 @@ export default function DashboardPage() {
           <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
             <div
               className="h-full bg-green-500"
-              style={{ width: `${percentUsed}%` }}
+           style={{ width: percentUsed + "%" }}
             />
           </div>
 
@@ -325,7 +351,7 @@ export default function DashboardPage() {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            VENTES DU JOUR ( CDF)
+            Ventes FC
           </p>
           <p className="text-lg font-bold text-green-400">
             {todaySalesFc}
@@ -334,7 +360,7 @@ export default function DashboardPage() {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            VENTES DU JOURS (USD)
+            Ventes USD
           </p>
           <p className="text-lg font-bold text-blue-400">
             {todaySalesDollar}
@@ -343,7 +369,7 @@ export default function DashboardPage() {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            BENÉFICE DU JOUR (CDF)
+            Bénéfice FC
           </p>
           <p className="text-lg font-bold text-green-300">
             {todayProfitFc}
@@ -352,7 +378,7 @@ export default function DashboardPage() {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            BENÉFICE DU JOUR (USD)
+            Bénéfice USD
           </p>
           <p className="text-lg font-bold text-blue-300">
             {todayProfitDollar}
@@ -487,8 +513,6 @@ export default function DashboardPage() {
         <button
           onClick={() => {
             localStorage.removeItem("phone");
-localStorage.removeItem("user_id");
-
             router.push("/login");
           }}
           className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 transition text-white font-bold p-4 rounded-2xl"
@@ -522,46 +546,16 @@ localStorage.removeItem("user_id");
             </div>
 
             {/* TEXT */}
-            <p className="text-sm text-slate-300 leading-6">
+            <p className="text-sm text-slate-300 leading-relaxed">
+              📖 BIENVENUE SUR BISO-COMMERCE
+QU'EST-CE QUE BISO-COMMERCE ?
 
+Biso-Commerce est une caisse digitale intelligente conçue pour aider tous les commerçants à gérer facilement leur activité directement depuis leur téléphone.
 
-<p className="text-sm text-slate-300 leading-6">
+Que vous possédiez une boutique, une alimentation, une pharmacie, un dépôt de boissons, une quincaillerie, un magasin de vêtements ou tout autre commerce, Biso-Commerce vous accompagne chaque jour pour garder le contrôle de votre argent et de votre stock.
 
-<span className="text-green-400 font-bold text-lg">
-📖 BIENVENUE SUR BISO-COMMERCE
-</span>
-
-<br /><br />
-
-<b>Qu'est-ce que Biso-Commerce ?</b>
-
-Biso-Commerce est une caisse digitale qui vous permet de gérer vos ventes, votre stock, vos bénéfices, vos dépenses, vos dettes et vos rapports depuis votre téléphone.
-
-<br /><br />
-
-<b>Comment l'utiliser ?</b>
-
-Ajoutez vos produits, enregistrez vos ventes, puis consultez vos bénéfices et vos rapports. L'application met automatiquement à jour votre stock.
-
-<br /><br />
-
-<b>📲 Installation</b>
-
-Android : Chrome → ⋮ → <b>Installer l'application</b>.
-
-<br />
-
-iPhone : Safari → <b>Partager</b> → <b>Sur l'écran d'accueil</b> → <b>Ajouter</b>.
-
-<br /><br />
-
-<span className="text-green-400 font-semibold">
-💚 Merci d'utiliser Biso-Commerce PDG DIEUMERCI IDI
-</span>
-
-</p>
-
-</p>
+Grâce à cette application, vous n'avez plus besoin d'utiliser plusieurs cahiers ou de retenir toutes vos ventes de mémoire. Toutes les informations importantes sont enregistrées automatiquement et restent disponibles à tout moment.
+            </p>
 
             {/* CTA */}
             <button

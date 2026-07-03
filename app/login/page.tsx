@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -65,15 +64,14 @@ export default function LoginPage() {
         sub?.is_active === true && end > now;
 
       if (!sub || !isActive) {
-        alert("❌ Abonnement expiré");
+        alert("Abonnement expiré");
         router.replace("/subscription");
         return;
       }
 
       // 4. SAVE SESSION
       localStorage.setItem("phone", cleanPhone);
-localStorage.setItem("user_id", user.id);
-
+      localStorage.setItem("user_id", user.id); // Ajout pour la cohérence avec le dashboard
 
       // 5. GO DASHBOARD
       router.push("/dashboard");
@@ -89,10 +87,12 @@ localStorage.setItem("user_id", user.id);
       return;
     }
 
+    // Correction des backticks ici
     const message = encodeURIComponent(
       `Bonjour PDG j'ai oublié mon pin. Mon numéro est : ${resetPhone}`
     );
 
+    // Correction des backticks ici
     window.open(
       `https://wa.me/243994864173?text=${message}`,
       "_blank"
@@ -101,9 +101,7 @@ localStorage.setItem("user_id", user.id);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-black flex items-center justify-center px-4">
-
       <div className="w-full max-w-md">
-
         {/* HEADER */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-3">
@@ -111,19 +109,12 @@ localStorage.setItem("user_id", user.id);
               <Lock className="text-black" />
             </div>
           </div>
-
-          <h1 className="text-2xl font-bold text-white">
-            Connexion caisse
-          </h1>
-
-          <p className="text-xs text-slate-400 mt-1">
-            Accès sécurisé à votre gestion
-          </p>
+          <h1 className="text-2xl font-bold text-white">Connexion caisse</h1>
+          <p className="text-xs text-slate-400 mt-1">Accès sécurisé à votre gestion</p>
         </div>
 
         {/* FORM */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
-
           {/* PHONE */}
           <div className="space-y-1">
             <p className="text-xs text-slate-400">NUMÉRO</p>
@@ -183,7 +174,6 @@ localStorage.setItem("user_id", user.id);
 
           {showReset && (
             <div className="bg-black/40 border border-slate-800 p-4 rounded-xl space-y-3">
-
               <input
                 type="tel"
                 value={resetPhone}
@@ -191,7 +181,6 @@ localStorage.setItem("user_id", user.id);
                 placeholder="Numéro de votre compte"
                 className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white"
               />
-
               <button
                 onClick={handleResetPassword}
                 className="w-full bg-blue-600 hover:bg-blue-700 transition p-3 rounded-xl font-bold flex items-center justify-center gap-2"
@@ -199,11 +188,9 @@ localStorage.setItem("user_id", user.id);
                 <MessageCircle size={16} />
                 WhatsApp support
               </button>
-
             </div>
           )}
         </div>
-
       </div>
     </main>
   );
