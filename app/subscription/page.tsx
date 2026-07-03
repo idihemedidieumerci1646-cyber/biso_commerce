@@ -175,22 +175,32 @@ export default function SubscriptionPage() {
         </div>
 
         {/* FORM */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-          <input
-            className="w-full p-3 rounded-xl bg-black border border-slate-700"
-            placeholder="Nom complet"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
+        
+<input
+  type="text"
+  className="w-full p-3 rounded-xl bg-black text-white border border-slate-700 placeholder:text-slate-400"
+  style={{
+    color: "#fff",
+    WebkitTextFillColor: "#fff",
+    caretColor: "#fff",
+  }}
+  placeholder="Nom complet"
+  value={fullName}
+  onChange={(e) => setFullName(e.target.value)}
+/>
 
-          <input
-            className="w-full p-3 rounded-xl bg-black border border-slate-700"
-            placeholder="Numéro de téléphone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-        </div>
-
+<input
+  type="tel"
+  className="w-full p-3 rounded-xl bg-black text-white border border-slate-700 placeholder:text-slate-400"
+  style={{
+    color: "#fff",
+    WebkitTextFillColor: "#fff",
+    caretColor: "#fff",
+  }}
+  placeholder="Numéro de téléphone"
+  value={phone}
+  onChange={(e) => setPhone(e.target.value)}
+/>
         {/* BUTTON STEP 1 */}
         <button
           onClick={handleRenew}

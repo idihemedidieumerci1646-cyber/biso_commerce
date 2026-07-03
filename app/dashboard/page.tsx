@@ -71,34 +71,29 @@ export default function DashboardPage() {
     useState<Sale[]>([]);
 
   useEffect(() => {
-    loadAll();
-  }, []);
-
-  async function loadAll() {
+  const init = async () => {
     const userId = localStorage.getItem("user_id");
 
-if (!userId) {
-  window.location.replace("/login");
-  return;
-}
+    if (!userId) {
+      router.replace("/login");
+      return;
+    }
 
     const ok = await checkSubscription(userId);
 
     if (!ok) {
-  router.replace("/subscription");
-  return;
-}
-
-if (!ok) {
-  router.replace("/subscription");
-  setInitialLoading(false);
-  return;
-}
+      router.replace("/subscription");
+      setInitialLoading(false);
+      return;
+    }
 
     await loadDashboard(userId);
-
     setInitialLoading(false);
-  }
+  };
+
+  init();
+}, []);
+
 
   async function checkSubscription(userId: string) {
     const { data } = await supabase
