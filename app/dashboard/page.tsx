@@ -74,16 +74,6 @@ export default function DashboardPage() {
     loadAll();
   }, []);
 
-  useEffect(() => {
-    if (exhaustedProducts.length > 0) {
-      alert(
-        "🚨 " +
-          exhaustedProducts.length +
-          " produit(s) épuisé(s)"
-      );
-    }
-  }, [exhaustedProducts]);
-
   async function loadAll() {
     const phone = localStorage.getItem("phone");
 
@@ -546,16 +536,41 @@ if (!ok) {
             </div>
 
             {/* TEXT */}
-            <p className="text-sm text-slate-300 leading-relaxed">
-              📖 BIENVENUE SUR BISO-COMMERCE
-QU'EST-CE QUE BISO-COMMERCE ?
+            <p className="text-sm text-slate-300 leading-7">
 
-Biso-Commerce est une caisse digitale intelligente conçue pour aider tous les commerçants à gérer facilement leur activité directement depuis leur téléphone.
+<span className="text-green-400 font-bold text-lg">
+📖 BIENVENUE SUR BISO-COMMERCE
+</span>
 
-Que vous possédiez une boutique, une alimentation, une pharmacie, un dépôt de boissons, une quincaillerie, un magasin de vêtements ou tout autre commerce, Biso-Commerce vous accompagne chaque jour pour garder le contrôle de votre argent et de votre stock.
+<br /><br />
 
-Grâce à cette application, vous n'avez plus besoin d'utiliser plusieurs cahiers ou de retenir toutes vos ventes de mémoire. Toutes les informations importantes sont enregistrées automatiquement et restent disponibles à tout moment.
-            </p>
+<b>Qu'est-ce que Biso-Commerce ?</b>
+
+Biso-Commerce est une caisse digitale qui vous permet de gérer vos ventes, votre stock, vos bénéfices, vos dépenses, vos dettes et vos rapports depuis votre téléphone.
+
+<br /><br />
+
+<b>Comment l'utiliser ?</b>
+
+Ajoutez vos produits, enregistrez vos ventes, puis consultez vos bénéfices et vos rapports. L'application met automatiquement à jour votre stock.
+
+<br /><br />
+
+<b>📲 Installation</b>
+
+Android : Chrome → ⋮ → <b>Installer l'application</b>.
+
+<br />
+
+iPhone : Safari → <b>Partager</b> → <b>Sur l'écran d'accueil</b> → <b>Ajouter</b>.
+
+<br /><br />
+
+<span className="text-green-400 font-semibold">
+💚 Merci d'utiliser Biso-Commerce  PDG DIEUMERCI IDI
+</span>
+
+</p>
 
             {/* CTA */}
             <button

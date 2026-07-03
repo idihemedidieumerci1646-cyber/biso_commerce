@@ -20,26 +20,29 @@ export default function AddProductPage() {
 
     const phone = localStorage.getItem("phone");
 
-if (!phone) {
-  alert("Non connecté");
-  return;
-}
+    if (!phone) {
+      alert("Non connecté");
+      return;
+    }
 
-const { data: user } = await supabase
-  .from("users")
-  .select("id")
-  .eq("phone", phone)
-  .single();
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
+      .single();
 
-if (!user) {
-  alert("Utilisateur introuvable");
-  return;
-}
+    // ✅ CORRECTION ICI
+    if (userError || !user?.id) {
+      alert("Utilisateur introuvable");
+      return;
+    }
+
+    const userId = user.id;
 
     setLoading(true);
 
     const { error } = await supabase.from("products").insert({
-      user_id: user.id,
+      user_id: userId,
       name,
       unit: type,
       stock: Number(quantity),
@@ -68,7 +71,9 @@ if (!user) {
     <main className="min-h-screen bg-black text-white p-4">
       <div className="max-w-xl mx-auto">
 
-        <h1 className="text-2xl font-bold mb-4">➕ Nouveau produit</h1>
+        <h1 className="text-2xl font-bold mb-4">
+          ➕ Nouveau produit
+        </h1>
 
         <div className="bg-slate-900 p-4 rounded-2xl space-y-3">
 
@@ -103,7 +108,7 @@ if (!user) {
             <input
               type="number"
               className="p-3 rounded-xl bg-black border border-white/10"
-              placeholder="Achat"
+              placeholder=" Prix d'Achat"
               value={buyPrice}
               onChange={(e) => setBuyPrice(e.target.value)}
             />
@@ -111,7 +116,7 @@ if (!user) {
             <input
               type="number"
               className="p-3 rounded-xl bg-black border border-white/10"
-              placeholder="Vente"
+              placeholder="Prix de Vente"
               value={sellPrice}
               onChange={(e) => setSellPrice(e.target.value)}
             />
