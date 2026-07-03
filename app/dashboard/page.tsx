@@ -75,25 +75,14 @@ export default function DashboardPage() {
   }, []);
 
   async function loadAll() {
-    const phone = localStorage.getItem("phone");
+    const userId = localStorage.getItem("user_id");
 
-    if (!phone) {
-      window.location.replace("/login");
-      return;
-    }
+if (!userId) {
+  window.location.replace("/login");
+  return;
+}
 
-    const { data: user } = await supabase
-      .from("users")
-      .select("*")
-      .eq("phone", phone)
-      .single();
-
-    if (!user) {
-      window.location.replace("/login");
-      return;
-    }
-
-    const ok = await checkSubscription(user.id);
+    const ok = await checkSubscription(userId);
 
     if (!ok) {
   router.replace("/subscription");
@@ -106,7 +95,7 @@ if (!ok) {
   return;
 }
 
-    await loadDashboard(user.id);
+    await loadDashboard(userId);
 
     setInitialLoading(false);
   }
@@ -503,6 +492,8 @@ if (!ok) {
         <button
           onClick={() => {
             localStorage.removeItem("phone");
+localStorage.removeItem("user_id");
+
             router.push("/login");
           }}
           className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 transition text-white font-bold p-4 rounded-2xl"
@@ -536,10 +527,10 @@ if (!ok) {
             </div>
 
             {/* TEXT */}
-            <p className="text-sm text-slate-300 leading-7">
+            <p className="text-sm text-slate-300 leading-6">
 
-<span className="text-green-400 font-bold text-lg">
-<p className="text-sm text-slate-300 leading-7">
+
+<p className="text-sm text-slate-300 leading-6">
 
 <span className="text-green-400 font-bold text-lg">
 📖 BIENVENUE SUR BISO-COMMERCE
@@ -549,48 +540,31 @@ if (!ok) {
 
 <b>Qu'est-ce que Biso-Commerce ?</b>
 
-<br /><br />
-
-Biso-Commerce est une caisse digitale qui vous permet de gérer facilement votre commerce depuis votre téléphone.
-
-Vous pouvez enregistrer vos ventes, suivre vos bénéfices, gérer votre stock, vos dépenses, les dettes de vos clients et consulter vos rapports en temps réel.
+Biso-Commerce est une caisse digitale qui vous permet de gérer vos ventes, votre stock, vos bénéfices, vos dépenses, vos dettes et vos rapports depuis votre téléphone.
 
 <br /><br />
 
-<b>Comment utiliser Biso-Commerce ?</b>
+<b>Comment l'utiliser ?</b>
+
+Ajoutez vos produits, enregistrez vos ventes, puis consultez vos bénéfices et vos rapports. L'application met automatiquement à jour votre stock.
 
 <br /><br />
 
-• Ajoutez d'abord vos produits.
+<b>📲 Installation</b>
 
-• Enregistrez vos ventes chaque jour.
+Android : Chrome → ⋮ → <b>Installer l'application</b>.
 
-• Ajoutez vos dépenses.
+<br />
 
-• Gérez les dettes de vos clients.
-
-• Consultez vos rapports pour suivre votre commerce.
-
-<br /><br />
-
-<b>Installer l'application</b>
-
-<br /><br />
-
-📱 <b>Android :</b> Chrome → ⋮ → <b>Installer l'application</b>.
-
-<br /><br />
-
-🍎 <b>iPhone :</b> Safari → <b>Partager</b> → <b>Sur l'écran d'accueil</b> → <b>Ajouter</b>.
+iPhone : Safari → <b>Partager</b> → <b>Sur l'écran d'accueil</b> → <b>Ajouter</b>.
 
 <br /><br />
 
 <span className="text-green-400 font-semibold">
-Merci d'utiliser Biso-Commerce 💚
+💚 Merci d'utiliser Biso-Commerce PDG DIEUMERCI IDI
 </span>
 
 </p>
-</span>
 
 </p>
 

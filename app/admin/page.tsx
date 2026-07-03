@@ -28,6 +28,30 @@ export default function AdminPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+  checkAdmin();
+}, []);
+
+const checkAdmin = async () => {
+  const phone = localStorage.getItem("phone");
+
+  if (!phone) {
+    window.location.href = "/login";
+    return;
+  }
+
+  const { data: user } = await supabase
+    .from("users")
+    .select("is_admin")
+    .eq("phone", phone)
+    .single();
+
+  if (!user?.is_admin) {
+    window.location.href = "/dashboard";
+  }
+};
+
+
   const loadData = async () => {
     setLoading(true);
 

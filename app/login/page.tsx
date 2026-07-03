@@ -72,6 +72,8 @@ export default function LoginPage() {
 
       // 4. SAVE SESSION
       localStorage.setItem("phone", cleanPhone);
+localStorage.setItem("user_id", user.id);
+
 
       // 5. GO DASHBOARD
       router.push("/dashboard");
