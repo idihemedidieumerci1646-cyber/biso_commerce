@@ -31,7 +31,6 @@ export default function AddProductPage() {
       .eq("phone", phone)
       .single();
 
-    // ✅ CORRECTION ICI
     if (userError || !user?.id) {
       alert("Utilisateur introuvable");
       return;
@@ -78,14 +77,23 @@ export default function AddProductPage() {
         <div className="bg-slate-900 p-4 rounded-2xl space-y-3">
 
           <input
-            className="w-full p-3 rounded-xl bg-black border border-white/10"
+            className="w-full p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
+            style={{
+              color: "#fff",
+              WebkitTextFillColor: "#fff",
+              caretColor: "#fff",
+            }}
             placeholder="Nom produit"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
 
           <select
-            className="w-full p-3 rounded-xl bg-black border border-white/10"
+            className="w-full p-3 rounded-xl bg-black border border-white/10 text-white"
+            style={{
+              color: "#fff",
+              WebkitTextFillColor: "#fff",
+            }}
             value={type}
             onChange={(e) => setType(e.target.value)}
           >
@@ -98,7 +106,12 @@ export default function AddProductPage() {
 
           <input
             type="number"
-            className="w-full p-3 rounded-xl bg-black border border-white/10"
+            className="w-full p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
+            style={{
+              color: "#fff",
+              WebkitTextFillColor: "#fff",
+              caretColor: "#fff",
+            }}
             placeholder="Stock"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
@@ -107,15 +120,25 @@ export default function AddProductPage() {
           <div className="grid grid-cols-2 gap-2">
             <input
               type="number"
-              className="p-3 rounded-xl bg-black border border-white/10"
-              placeholder=" Prix d'Achat"
+              className="p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+                caretColor: "#fff",
+              }}
+              placeholder="Prix d'Achat"
               value={buyPrice}
               onChange={(e) => setBuyPrice(e.target.value)}
             />
 
             <input
               type="number"
-              className="p-3 rounded-xl bg-black border border-white/10"
+              className="p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+                caretColor: "#fff",
+              }}
               placeholder="Prix de Vente"
               value={sellPrice}
               onChange={(e) => setSellPrice(e.target.value)}
@@ -123,7 +146,11 @@ export default function AddProductPage() {
           </div>
 
           <select
-            className="w-full p-3 rounded-xl bg-black border border-white/10"
+            className="w-full p-3 rounded-xl bg-black border border-white/10 text-white"
+            style={{
+              color: "#fff",
+              WebkitTextFillColor: "#fff",
+            }}
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
           >

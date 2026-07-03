@@ -70,8 +70,7 @@ export default function ReportsPage() {
       .order("created_at", { ascending: false });
 
     setExpensesList(expenses || []);
-
-    let tFc = 0,
+        let tFc = 0,
       tUsd = 0,
       tPfFc = 0,
       tPfUsd = 0,
@@ -200,14 +199,24 @@ export default function ReportsPage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <input
-              className="bg-black border border-slate-700 p-3 rounded-xl flex-1"
+              className="bg-black border border-slate-700 p-3 rounded-xl flex-1 text-white placeholder:text-slate-400"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+                caretColor: "#fff",
+              }}
               placeholder="Nom"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
 
             <input
-              className="bg-black border border-slate-700 p-3 rounded-xl w-full sm:w-40"
+              className="bg-black border border-slate-700 p-3 rounded-xl w-full sm:w-40 text-white placeholder:text-slate-400"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+                caretColor: "#fff",
+              }}
               type="number"
               placeholder="Montant"
               value={amount}
@@ -215,7 +224,11 @@ export default function ReportsPage() {
             />
 
             <select
-              className="bg-black border border-slate-700 p-3 rounded-xl"
+              className="bg-black border border-slate-700 p-3 rounded-xl text-white"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+              }}
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
             >
@@ -320,7 +333,7 @@ function Card({ title, value }: any) {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
       <p className="text-slate-400 text-sm">{title}</p>
-      <p className="text-xl font-bold">{value}</p>
+      <p className="text-xl font-bold text-white">{value}</p>
     </div>
   );
 }

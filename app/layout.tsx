@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "react-hot-toast";
 
 import Navbar from "../components/Navbar";
 
@@ -19,7 +20,6 @@ export const metadata: Metadata = {
   description: "Gestion moderne des commerces",
 };
 
-// 🔥 AJOUT SEULEMENT ICI (ANTI-ZOOM)
 export const viewport = {
   width: "device-width",
   initialScale: 1,
@@ -42,6 +42,7 @@ export default function RootLayout({
       <body className="bg-slate-950 min-h-screen">
         <Navbar />
         {children}
+        <Toaster position="top-center" />
       </body>
 
     </html>

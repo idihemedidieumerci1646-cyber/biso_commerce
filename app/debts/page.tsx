@@ -24,7 +24,6 @@ export default function DebtsPage() {
     loadDebts();
   }, []);
 
-  // 📥 LOAD DEBTS
   const loadDebts = async () => {
     const phone = localStorage.getItem("phone");
 
@@ -52,7 +51,6 @@ export default function DebtsPage() {
     setDebts(data || []);
   };
 
-  // ➕ ADD DEBT
   const addDebt = async () => {
     if (!name || !amount || !currency) {
       alert("Veuillez remplir tous les champs");
@@ -89,9 +87,7 @@ export default function DebtsPage() {
     setAmount("");
     loadDebts();
   };
-
-  // 💰 PAY DEBT
-  const payDebt = async () => {
+    const payDebt = async () => {
     if (!selectedDebt || !paymentAmount) return;
 
     const debt = debts.find((d) => d.id === selectedDebt);
@@ -121,7 +117,6 @@ export default function DebtsPage() {
     loadDebts();
   };
 
-  // 🔍 FILTER SAFE
   const filteredDebts = debts.filter((d) =>
     (d.client_name || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -148,7 +143,12 @@ export default function DebtsPage() {
               placeholder="Nom client"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 rounded-xl bg-black border border-slate-700"
+              className="w-full p-3 rounded-xl bg-black border border-slate-700 text-white placeholder:text-slate-400"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+                caretColor: "#fff",
+              }}
             />
 
             <input
@@ -156,13 +156,22 @@ export default function DebtsPage() {
               placeholder="Montant"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full p-3 rounded-xl bg-black border border-slate-700"
+              className="w-full p-3 rounded-xl bg-black border border-slate-700 text-white placeholder:text-slate-400"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+                caretColor: "#fff",
+              }}
             />
 
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
-              className="w-full p-3 rounded-xl bg-black border border-slate-700"
+              className="w-full p-3 rounded-xl bg-black border border-slate-700 text-white"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+              }}
             >
               <option value="FC">FC</option>
               <option value="$">USD</option>
@@ -189,15 +198,19 @@ export default function DebtsPage() {
               setSearchTerm(e.target.value);
               setSelectedDebt("");
             }}
-            className="w-full p-3 rounded-xl bg-black border border-slate-700"
+            className="w-full p-3 rounded-xl bg-black border border-slate-700 text-white placeholder:text-slate-400"
+            style={{
+              color: "#fff",
+              WebkitTextFillColor: "#fff",
+              caretColor: "#fff",
+            }}
           />
 
           {searchTerm && !selectedDebt && (
             <div className="mt-2 bg-black border border-slate-700 rounded-xl overflow-hidden">
 
               {filteredDebts.map((d) => {
-                const remaining =
-                  d.total_amount - d.paid_amount;
+                const remaining = d.total_amount - d.paid_amount;
 
                 return (
                   <button
@@ -226,7 +239,12 @@ export default function DebtsPage() {
             placeholder="Montant payé"
             value={paymentAmount}
             onChange={(e) => setPaymentAmount(e.target.value)}
-            className="w-full mt-3 p-3 rounded-xl bg-black border border-slate-700"
+            className="w-full mt-3 p-3 rounded-xl bg-black border border-slate-700 text-white placeholder:text-slate-400"
+            style={{
+              color: "#fff",
+              WebkitTextFillColor: "#fff",
+              caretColor: "#fff",
+            }}
           />
 
           <button
@@ -251,8 +269,7 @@ export default function DebtsPage() {
             <div className="space-y-3">
 
               {debts.map((d) => {
-                const remaining =
-                  d.total_amount - d.paid_amount;
+                const remaining = d.total_amount - d.paid_amount;
 
                 const percent =
                   d.total_amount > 0

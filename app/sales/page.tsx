@@ -51,8 +51,7 @@ export default function SalesPage() {
   const filtered = products.filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const saveSale = async () => {
+    const saveSale = async () => {
     if (!productId || !quantity) {
       alert("Remplis les champs");
       return;
@@ -93,13 +92,12 @@ export default function SalesPage() {
     setLoading(true);
 
     const totalSale =
-  Number(product.selling_price) * qty;
+      Number(product.selling_price) * qty;
 
-const profit =
-  (Number(product.selling_price) -
-    Number(product.purchase_price)) *
-  qty;
-
+    const profit =
+      (Number(product.selling_price) -
+        Number(product.purchase_price)) *
+      qty;
 
     await supabase.from("sales").insert({
       user_id: user.id,
@@ -155,7 +153,12 @@ const profit =
                 setProductId("");
               }}
               placeholder="Rechercher un produit..."
-              className="w-full p-3 rounded-xl bg-black border border-white/10 focus:border-green-500 outline-none"
+              className="w-full p-3 rounded-xl bg-black border border-white/10 focus:border-green-500 outline-none text-white placeholder:text-slate-400"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+                caretColor: "#fff",
+              }}
             />
 
             {searchTerm && !productId && (
@@ -187,7 +190,12 @@ const profit =
               type="number"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              className="w-full p-3 rounded-xl bg-black border border-white/10 focus:border-green-500 outline-none"
+              className="w-full p-3 rounded-xl bg-black border border-white/10 focus:border-green-500 outline-none text-white placeholder:text-slate-400"
+              style={{
+                color: "#fff",
+                WebkitTextFillColor: "#fff",
+                caretColor: "#fff",
+              }}
               placeholder="0"
             />
           </div>
@@ -195,9 +203,7 @@ const profit =
           {/* RESUME CAISSE */}
           {selectedProduct && quantity && Number(quantity) > 0 && (
             <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3">
-              <p className="text-green-300 text-sm">
-                Prix unitaire
-              </p>
+              <p className="text-green-300 text-sm">Prix unitaire</p>
 
               <p className="text-lg font-bold">
                 {selectedProduct.selling_price} {selectedProduct.currency}
