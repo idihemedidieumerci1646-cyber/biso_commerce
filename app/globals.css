@@ -6,6 +6,9 @@
 }
 
 @layer base {
+  html {
+    overflow-y: scroll;
+  }
   :root {
     --color-background: var(--background);
     --color-foreground: var(--foreground);

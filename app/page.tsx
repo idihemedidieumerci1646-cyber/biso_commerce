@@ -28,21 +28,27 @@ export default function Home() {
       </p>
 
       {/* BOUTONS */}
-      <div className="w-full mt-10 space-y-4 max-w-sm">
+      <div className="w-full mt-10 max-w-sm space-y-4">
 
-        <Link href="/login">
-          <button className="w-full bg-green-600 py-4 rounded-2xl font-bold">
-            🔐 Se connecter
-          </button>
-        </Link>
+  <Link
+    href="/login"
+    className="block w-full"
+  >
+    <div className="w-full bg-green-600 py-4 rounded-2xl font-bold text-center">
+      🔐 Se connecter
+    </div>
+  </Link>
 
-        <Link href="/register">
-          <button className="w-full bg-white/10 py-4 rounded-2xl font-bold">
-            ✨ Créer un compte
-          </button>
-        </Link>
+  <Link
+    href="/register"
+    className="block w-full"
+  >
+    <div className="w-full bg-white/10 py-4 rounded-2xl font-bold text-center">
+      ✨ Créer un compte
+    </div>
+  </Link>
 
-      </div>
+</div>
 
       {/* FOOTER */}
       <p className="text-xs text-slate-500 mt-10 text-center">
