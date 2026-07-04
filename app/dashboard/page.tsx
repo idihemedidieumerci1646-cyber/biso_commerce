@@ -341,7 +341,7 @@ if (!ok) {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            Ventes FC
+            Ventes du jour (CDF)
           </p>
           <p className="text-lg font-bold text-green-400">
             {todaySalesFc}
@@ -350,7 +350,7 @@ if (!ok) {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            Ventes USD
+            Ventes du jour (USD)
           </p>
           <p className="text-lg font-bold text-blue-400">
             {todaySalesDollar}
@@ -359,7 +359,7 @@ if (!ok) {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            Bénéfice FC
+            Bénéfice du jour (CDF)
           </p>
           <p className="text-lg font-bold text-green-300">
             {todayProfitFc}
@@ -368,7 +368,7 @@ if (!ok) {
 
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
           <p className="text-xs text-slate-400">
-            Bénéfice USD
+            Bénéfice du jour (USD)
           </p>
           <p className="text-lg font-bold text-blue-300">
             {todayProfitDollar}
