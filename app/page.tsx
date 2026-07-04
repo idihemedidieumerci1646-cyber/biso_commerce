@@ -1,10 +1,21 @@
-
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const phone = localStorage.getItem("phone");
+
+    if (phone) {
+      router.replace("/dashboard");
+    }
+  }, []);
+
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-6">
 

@@ -75,16 +75,6 @@ export default function DashboardPage() {
     loadAll();
   }, []);
 
-  useEffect(() => {
-    if (exhaustedProducts.length > 0) {
-      alert(
-        "🚨 " +
-          exhaustedProducts.length +
-          " produit(s) épuisé(s)"
-      );
-    }
-  }, [exhaustedProducts]);
-
   async function loadAll() {
     const phone = localStorage.getItem("phone");
 

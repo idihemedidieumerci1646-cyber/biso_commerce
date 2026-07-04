@@ -121,12 +121,15 @@ export default function LoginPage() {
             <div className="flex items-center gap-2 bg-black/40 border border-slate-800 rounded-xl px-3">
               <Phone size={16} className="text-green-400" />
               <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="XXXXXXXXXX"
-                className="w-full bg-transparent p-3 outline-none text-white"
-              />
+  type="tel"
+  value={phone}
+  onChange={(e) => setPhone(e.target.value)}
+  placeholder="XXXXXXXXXX"
+  autoComplete="tel"
+  spellCheck={false}
+  style={{ WebkitTextFillColor: "#ffffff" }}
+  className="w-full bg-transparent p-3 outline-none text-white placeholder:text-slate-500 text-base caret-green-500"
+/>
             </div>
           </div>
 
@@ -136,12 +139,15 @@ export default function LoginPage() {
             <div className="flex items-center gap-2 bg-black/40 border border-slate-800 rounded-xl px-3">
               <KeyRound size={16} className="text-green-400" />
               <input
-                type="password"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                placeholder="••••"
-                className="w-full bg-transparent p-3 outline-none text-white"
-              />
+  type="password"
+  value={pin}
+  onChange={(e) => setPin(e.target.value)}
+  placeholder="••••"
+  autoComplete="current-password"
+  spellCheck={false}
+  style={{ WebkitTextFillColor: "#ffffff" }}
+  className="w-full bg-transparent p-3 outline-none text-white placeholder:text-slate-500 text-base caret-green-500"
+/>
             </div>
           </div>
 
