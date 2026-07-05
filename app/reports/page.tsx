@@ -287,7 +287,7 @@ export default function ReportsPage() {
 
         {/* SEARCH */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <h2 className="font-bold mb-4">🔎 Choisissez une date → "PDF".</h2>
+          <h2 className="font-bold mb-4">🔎 Choisissez une date puis → "PDF".</h2>
 
           <div className="flex flex-col md:flex-row gap-3">
             <input

@@ -87,17 +87,45 @@ export default function AddProductPage() {
         </div>
 
         {/* GUIDE DE L'UTILISATEUR */}
-        {showGuide && (
-          <div className="bg-slate-800 p-5 rounded-2xl mb-6 text-sm border border-green-500/30">
-            <h3 className="font-bold text-green-400 mb-2">Guide d'utilisation :</h3>
-            <ul className="list-decimal pl-4 space-y-2 text-slate-300">
-              <li><b>Quantité :</b> Indiquez le nombre de cartons ou boîtes achetés.</li>
-              <li><b>Combien dedans ? :</b> Si vous vendez au détail, tapez le nombre de pièces contenues dans 1 carton. <i>Laissez vide si vous vendez uniquement le carton entier.</i></li>
-              <li><b>Prix d'achat TOTAL :</b> Le prix payé pour la totalité des cartons achetés.</li>
-              <li><b>Prix de vente :</b> Le prix de vente d'une seule unité (ou du carton).</li>
-            </ul>
+       {/* GUIDE COMPLET */}
+        <div className="bg-slate-900 border border-green-500/50 p-6 rounded-2xl mb-6">
+          <h3 className="font-bold text-green-400 mb-4 text-xl">💡 Guide simple pour bien vendre</h3>
+          
+          <div className="space-y-6 text-sm text-slate-300">
+            {/* ÉTAPE 1 */}
+            <div>
+              <p className="font-bold text-white mb-2">1. Si tu achètes des cartons/boîtes :</p>
+              <div className="bg-black p-3 rounded-lg border border-slate-700">
+                <p>Ex: 1 carton qui contient 100 médicaments acheté à 20 000 FC.</p>
+                <ul className="text-green-400 mt-1">
+                  <li>• Quantité : <b>1</b></li>
+                  <li>• Nombre de pièces dedans : <b>100</b></li>
+                  <li>• Prix d'achat TOTAL : <b>20 000</b></li>
+                </ul>
+              </div>
+            </div>
+
+            {/* ÉTAPE 2 */}
+            <div>
+              <p className="font-bold text-white mb-2">2. Si tu achètes à la pièce :</p>
+              <div className="bg-black p-3 rounded-lg border border-slate-700">
+                <p>Ex: 10 stylos achetés à 500 FC au total.</p>
+                <ul className="text-green-400 mt-1">
+                  <li>• Quantité : <b>10</b></li>
+                  <li>• Prix d'achat TOTAL : <b>500</b></li>
+                </ul>
+              </div>
+            </div>
+
+            {/* ÉTAPE 3 */}
+            <div>
+              <p className="font-bold text-white mb-2">3. Le Prix de Vente :</p>
+              <p>Mets ici le prix auquel tu vends <b>une seule unité</b> (ex: 250 FC pour un seul médicament).</p>
+            </div>
+            
+            <p className="text-xs text-slate-500 italic">Le système est magique : il prend ton prix total, le divise, et calcule tout seul ton bénéfice !</p>
           </div>
-        )}
+        </div>
 
         <div className="bg-slate-900 p-4 rounded-2xl space-y-3">
           <input

@@ -11,7 +11,7 @@ type Product = {
   purchase_price: number;
   selling_price: number;
   currency: string;
-  pieces_per_unit: number; // Ajouté pour le calcul
+  pieces_per_unit: number;
 };
 
 export default function SalesPage() {
@@ -89,16 +89,20 @@ export default function SalesPage() {
 
     setLoading(true);
 
-    const totalSale = Number(selectedProduct.selling_price) * qty;
-    const profit = (Number(selectedProduct.selling_price) - Number(selectedProduct.purchase_price)) * qty;
+    const prixVente = Number(selectedProduct.selling_price);
+    const prixAchat = Number(selectedProduct.purchase_price);
+    const totalSale = prixVente * qty;
+    
+    // Calcul précis du profit : (Prix de vente unitaire - Prix d'achat unitaire) * quantité
+    const profit = (prixVente - prixAchat) * qty;
 
     await supabase.from("sales").insert({
       user_id: user.id,
       product_id: selectedProduct.id,
       product_name: selectedProduct.name,
       quantity: qty,
-      purchase_price: selectedProduct.purchase_price,
-      selling_price: selectedProduct.selling_price,
+      purchase_price: prixAchat,
+      selling_price: prixVente,
       total_sale: totalSale,
       profit: profit,
       currency: selectedProduct.currency,
