@@ -138,9 +138,7 @@ export default function SalesPage() {
             {showGuide ? "Fermer l'aide" : "Guide"}
           </button>
         </div>
-
-        {/* GUIDE DE VENTE */}
-        {showGuide && (
+          {showGuide && (
           <div className="bg-slate-800 p-4 rounded-2xl mb-4 text-sm border border-green-500/30">
             <p className="font-bold text-green-400 mb-1">Comment vendre :</p>
             <ul className="list-disc pl-4 text-gray-300 space-y-1">

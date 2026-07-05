@@ -82,7 +82,7 @@ export default function AddProductPage() {
             onClick={() => setShowGuide(!showGuide)}
             className="text-xs bg-green-600 px-3 py-1 rounded-full font-bold"
           >
-            {showGuide ? "Fermer l'aide" : "Comment ajouter ?"}
+            
           </button>
         </div>
 
@@ -95,7 +95,7 @@ export default function AddProductPage() {
             {/* ÉTAPE 1 */}
             <div>
               <p className="font-bold text-white mb-2">1. Si tu achètes des cartons/boîtes :</p>
-              <div className="bg-black p-3 rounded-lg border border-slate-700">
+              <div className="bg-black p-2 rounded-lg border border-slate-500">
                 <p>Ex: 1 carton qui contient 100 médicaments acheté à 20 000 FC.</p>
                 <ul className="text-green-400 mt-1">
                   <li>• Quantité : <b>1</b></li>
