@@ -221,32 +221,47 @@ if (!ok) {
     setLastSales(sales.slice(0, 5));
   }
 
-  if (!initialLoading && status === "expired")
- {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-black text-white">
-        <div className="text-center space-y-5">
+  if (!initialLoading && status === "expired") {
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-black text-white px-6">
+      <div className="text-center space-y-6">
+        
+        {/* Titre d'alerte */}
+        <h1 className="text-3xl font-bold text-red-500">
+          ❌ Abonnement expiré
+        </h1>
+        
+        {/* Message explicatif clair */}
+        <p className="text-slate-400 leading-relaxed">
+          Votre période d'abonnement a pris fin.<br /> 
+          Cliquez sur le bouton ci-dessous pour renouveler votre accès et continuer à gérer vos ventes.
+        </p>
+        
+        {/* Bouton d'action explicite */}
+        <Link
+          href="/subscription"
+          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 px-8 py-4 rounded-2xl font-bold text-lg transition-all transform hover:scale-105"
+        >
+          <Crown size={20} />
+          Renouveler mon abonnement
+        </Link>
 
-          <h1 className="text-3xl font-bold text-red-500">
-            ❌ Abonnement expiré
-          </h1>
-
-          <p className="text-slate-400">
-            Votre accès est bloqué.
-          </p>
-
-          <Link
-            href="/subscription"
-            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 px-7 py-3 rounded-2xl font-bold"
+        {/* Option de secours pour le support */}
+        <p className="text-sm text-slate-500 pt-4">
+          Besoin d'aide ? 
+          <a 
+            href="https://wa.me/243994864173" 
+            target="_blank" 
+            className="text-green-400 hover:underline ml-1"
           >
-            <Crown size={18} />
-            Renouveler
-          </Link>
+            Contactez le support sur WhatsApp
+          </a>
+        </p>
 
-        </div>
-      </main>
-    );
-  }
+      </div>
+    </main>
+  );
+}
 
   {initialLoading && (
   <div className="text-center text-slate-400 py-3">
@@ -411,7 +426,7 @@ if (!ok) {
               <div className="flex items-center gap-2">
                 <AlertTriangle />
                 <p className="font-bold text-sm">
-                  {exhaustedProducts.length} produit(s) épuisé(s)
+                  {exhaustedProducts.length} produit(s) épuisé(s)   Clique ici pour en savoir
                 </p>
               </div>
 
@@ -420,83 +435,7 @@ if (!ok) {
           </Link>
         </div>
       )}
-            {/* STOCK EPUISE DETAIL */}
-      <div className="px-4 mb-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-sm">
-              Stock épuisé
-            </h2>
-
-            <span className="text-xs text-slate-400">
-              {exhaustedProducts.length} article(s)
-            </span>
-          </div>
-
-          {exhaustedProducts.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              Aucun produit en rupture
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {exhaustedProducts.map((p, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between bg-black/40 p-2 rounded-lg border border-slate-800"
-                >
-                  <span className="text-sm">
-                    {p.product_name}
-                  </span>
-                  <span className="text-xs text-red-400 font-bold">
-                    ÉPUISÉ
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* LAST SALES */}
-      <div className="px-4 mb-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-
-          <h2 className="font-bold text-sm mb-3">
-            Dernières ventes
-          </h2>
-
-          {lastSales.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              Aucune vente récente
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {lastSales.map((s, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between bg-black/40 p-2 rounded-lg border border-slate-800"
-                >
-                  <div>
-                    <p className="text-sm font-medium">
-                      {s.product_name}
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      Qté: {s.quantity}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-xs text-green-400">
-                      {s.total_sale} {s.currency}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+           
 
       {/* LOGOUT */}
       <div className="px-4 mb-10">
@@ -536,9 +475,9 @@ if (!ok) {
             </div>
 
             {/* TEXT */}
-            <p className="text-sm text-slate-300 leading-8">
+              <p className="text-sm text-slate-300 leading-4">
 
-<span className="text-green-400 font-bold text-lg">
+<span className="text-green-300 font-bold text-lg">
 <p className="text-sm text-slate-300 leading-4">
 
 <span className="text-green-400 font-bold text-lg">

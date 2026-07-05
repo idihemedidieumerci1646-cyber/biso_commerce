@@ -7,7 +7,6 @@ import { useParams, useRouter } from "next/navigation";
 export default function EditProductPage() {
   const params = useParams();
   const router = useRouter();
-
   const id = params.id as string;
 
   const [name, setName] = useState("");
@@ -16,8 +15,9 @@ export default function EditProductPage() {
   const [sellingPrice, setSellingPrice] = useState("");
   const [unit, setUnit] = useState("Pièce");
   const [currency, setCurrency] = useState("FC");
-
+  const [piecesPerUnit, setPiecesPerUnit] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     if (id) loadProduct();
@@ -25,21 +25,14 @@ export default function EditProductPage() {
 
   const loadProduct = async () => {
     setLoading(true);
-
     const { data, error } = await supabase
       .from("products")
       .select("*")
       .eq("id", id)
       .single();
 
-    if (error) {
-      alert("Erreur chargement produit: " + error.message);
-      setLoading(false);
-      return;
-    }
-
-    if (!data) {
-      alert("Produit introuvable");
+    if (error || !data) {
+      alert("Erreur chargement produit");
       setLoading(false);
       return;
     }
@@ -50,16 +43,15 @@ export default function EditProductPage() {
     setSellingPrice(String(data.selling_price ?? 0));
     setUnit(data.unit || "Pièce");
     setCurrency(data.currency || "FC");
-
+    setPiecesPerUnit(String(data.pieces_per_unit ?? 1));
     setLoading(false);
   };
 
   const updateProduct = async () => {
-    if (!name) {
-      alert("Nom obligatoire");
-      return;
-    }
-
+    // Calcul identique à la page Ajout pour garder la cohérence
+    const nPieces = (unit !== "Pièce" && piecesPerUnit) ? Number(piecesPerUnit) : 1;
+    // Si vous modifiez le stock, le système considère la nouvelle valeur totale en pièces
+    
     const { error } = await supabase
       .from("products")
       .update({
@@ -69,6 +61,7 @@ export default function EditProductPage() {
         selling_price: Number(sellingPrice),
         unit,
         currency,
+        pieces_per_unit: nPieces,
       })
       .eq("id", id);
 
@@ -77,157 +70,57 @@ export default function EditProductPage() {
       return;
     }
 
-    alert("Produit modifié ✅");
+    alert("Produit modifié avec succès ✅");
     router.push("/products");
   };
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-black flex items-center justify-center text-white">
-        <div className="text-center">
-          <div className="animate-pulse text-green-500 font-bold">
-            Chargement...
-          </div>
-        </div>
-      </main>
-    );
-  }
+  if (loading) return <main className="min-h-screen bg-black flex items-center justify-center text-white">Chargement...</main>;
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-black text-white p-4">
+    <main className="min-h-screen bg-black text-white p-4">
+      <div className="max-w-xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">✏️ Modifier le produit</h1>
+          <button onClick={() => setShowGuide(!showGuide)} className="text-xs bg-green-600 px-3 py-1 rounded-full font-bold">
+            {showGuide ? "Fermer l'aide" : "Comment modifier ?"}
+          </button>
+        </div>
 
-      {/* HEADER */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">
-          ✏️ Modifier le produit
-        </h1>
-        <p className="text-xs text-slate-400">
-          Mise à jour rapide du stock et des prix
-        </p>
+        {/* GUIDE INTELLIGENT */}
+        {showGuide && (
+          <div className="bg-slate-800 p-5 rounded-2xl mb-6 text-sm border border-green-500/30">
+            <h3 className="font-bold text-green-400 mb-2">Guide de modification :</h3>
+            <ul className="list-decimal pl-4 space-y-2 text-slate-300">
+              <li><b>Stock :</b> Le nombre total de pièces en stock.</li>
+              <li><b>Pièces par unité :</b> Si vous avez changé la composition d'un carton, mettez cette valeur à jour ici.</li>
+              <li>Le système recalculera vos prix et stocks automatiquement.</li>
+            </ul>
+          </div>
+        )}
+
+        <div className="bg-slate-900 p-4 rounded-2xl space-y-4">
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 rounded-xl bg-black border border-white/10" placeholder="Nom du produit" />
+          
+          <input type="number" value={stock} onChange={(e) => setStock(e.target.value)} className="w-full p-3 rounded-xl bg-black border border-white/10" placeholder="Stock total (en pièces)" />
+
+          {unit !== "Pièce" && (
+            <input type="number" value={piecesPerUnit} onChange={(e) => setPiecesPerUnit(e.target.value)} className="w-full p-3 rounded-xl bg-black border border-white/10" placeholder="Combien de pièces dans une unité ?" />
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} className="p-3 rounded-xl bg-black border border-white/10" placeholder="Prix achat" />
+            <input type="number" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} className="p-3 rounded-xl bg-black border border-white/10" placeholder="Prix vente" />
+          </div>
+
+          <select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full p-3 rounded-xl bg-black border border-white/10">
+            <option>Pièce</option><option>Carton</option><option>Boîte</option><option>Sachet</option><option>Kg</option>
+          </select>
+
+          <button onClick={updateProduct} className="w-full bg-green-600 p-3 rounded-xl font-bold">
+            💾 Enregistrer les modifications
+          </button>
+        </div>
       </div>
-
-      {/* FORM CARD */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4 shadow-lg">
-
-        {/* NOM */}
-        <div>
-          <p className="text-xs text-slate-400 mb-1">
-            Nom du produit
-          </p>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full p-3 rounded-xl bg-black border border-slate-700 outline-none"
-            placeholder="Nom du produit"
-          />
-        </div>
-
-        {/* STOCK */}
-        <div>
-          <p className="text-xs text-slate-400 mb-1">
-            Stock actuel
-          </p>
-          <input
-            type="number"
-            value={stock}
-            onChange={(e) => setStock(e.target.value)}
-            className="w-full p-3 rounded-xl bg-black border border-slate-700 outline-none"
-            placeholder="Stock"
-          />
-        </div>
-
-        {/* PRIX */}
-        <div className="grid grid-cols-2 gap-3">
-
-          <div>
-            <p className="text-xs text-slate-400 mb-1">
-              Prix achat
-            </p>
-            <input
-              type="number"
-              value={purchasePrice}
-              onChange={(e) =>
-                setPurchasePrice(e.target.value)
-              }
-              className="w-full p-3 rounded-xl bg-black border border-slate-700 outline-none"
-              placeholder="0"
-            />
-          </div>
-
-          <div>
-            <p className="text-xs text-slate-400 mb-1">
-              Prix vente
-            </p>
-            <input
-              type="number"
-              value={sellingPrice}
-              onChange={(e) =>
-                setSellingPrice(e.target.value)
-              }
-              className="w-full p-3 rounded-xl bg-black border border-slate-700 outline-none"
-              placeholder="0"
-            />
-          </div>
-
-        </div>
-
-        {/* SELECTS */}
-        <div className="grid grid-cols-2 gap-3">
-
-          <div>
-            <p className="text-xs text-slate-400 mb-1">
-              Unité
-            </p>
-            <select
-              value={unit}
-              onChange={(e) =>
-                setUnit(e.target.value)
-              }
-              className="w-full p-3 rounded-xl bg-black border border-slate-700"
-            >
-              <option>Pièce</option>
-              <option>Carton</option>
-              <option>Boîte</option>
-              <option>Sachet</option>
-              <option>Bouteille</option>
-              <option>Sac</option>
-              <option>Kg</option>
-            </select>
-          </div>
-
-          <div>
-            <p className="text-xs text-slate-400 mb-1">
-              Devise
-            </p>
-            <select
-              value={currency}
-              onChange={(e) =>
-                setCurrency(e.target.value)
-              }
-              className="w-full p-3 rounded-xl bg-black border border-slate-700"
-            >
-              <option value="FC">FC</option>
-              <option value="$">USD ($)</option>
-            </select>
-          </div>
-
-        </div>
-
-        {/* BUTTON */}
-        <button
-          onClick={updateProduct}
-          className="w-full bg-green-600 hover:bg-green-700 transition p-3 rounded-xl font-bold shadow-lg"
-        >
-          💾 Enregistrer les modifications
-        </button>
-
-      </div>
-
-      {/* FOOTER TIP */}
-      <p className="text-center text-xs text-slate-500 mt-4">
-        
-      </p>
-
     </main>
   );
 }

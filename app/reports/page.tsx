@@ -33,6 +33,9 @@ export default function ReportsPage() {
   const [salesHistory, setSalesHistory] = useState<Sale[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
+  
+  // Ajout de l'état pour basculer la vue
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     load();
@@ -126,7 +129,8 @@ export default function ReportsPage() {
     );
   };
 
-  const last7Days = salesHistory.slice(0, 7);
+  // Logique pour afficher soit les 7 derniers, soit tout
+  const displayedSales = showAll ? filteredSales : filteredSales.slice(0, 7);
 
   const downloadPDF = () => {
     const dataToExport = selectedDate
@@ -201,7 +205,7 @@ export default function ReportsPage() {
   return (
     <main className="min-h-screen bg-black text-white p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
-
+        
         {/* HEADER PRO */}
         <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-5">
           <h1 className="text-2xl font-bold">📊 Rapports PRO</h1>
@@ -241,13 +245,21 @@ export default function ReportsPage() {
 
         {/* 7 DAYS PRO */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <h2 className="font-bold mb-4">📅 7 derniers rapports</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="font-bold">📅 {showAll ? "Historique complet" : "7 derniers rapports"}</h2>
+            <button 
+              onClick={() => setShowAll(!showAll)}
+              className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg transition"
+            >
+              {showAll ? "Voir moins" : "Cliquez ici pour voir tout"}
+            </button>
+          </div>
 
-          {last7Days.length === 0 ? (
+          {displayedSales.length === 0 ? (
             <p className="text-slate-500 text-sm">Aucun rapport</p>
           ) : (
             <div className="space-y-3">
-              {last7Days.map((s) => (
+              {displayedSales.map((s) => (
                 <div
                   key={s.id}
                   className="flex justify-between border-b border-slate-800 pb-2"
