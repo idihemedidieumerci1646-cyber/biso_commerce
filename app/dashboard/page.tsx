@@ -583,22 +583,8 @@ export default function DashboardPage() {
     <main className="relative min-h-screen overflow-hidden bg-[#060d1b] pb-28 text-white">
 
 
-      {/* BACKGROUND LIGHTS */}
-
-      <div className="pointer-events-none absolute inset-0">
-
-
-        <div className="absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[160px]" />
-
-
-        <div className="absolute bottom-0 right-0 h-[400px] w-[400px] rounded-full bg-blue-600/20 blur-[140px]" />
-
-
-        <div className="absolute left-0 top-1/3 h-[300px] w-[300px] rounded-full bg-purple-600/20 blur-[130px]" />
-
-
-      </div>
-
+     {/* Background simple */}
+<div className="absolute inset-0 bg-[#060d1b]" />
 
 
 
@@ -1454,7 +1440,7 @@ export default function DashboardPage() {
                   <br />
 
                   Ouvrez Chrome → cliquez sur ⋮ →
-                  choisissez "Installer l'application".
+                  choisissez "Installer l'application" ou ajouter sur l'écran d'accueil
 
 
                 </p>
