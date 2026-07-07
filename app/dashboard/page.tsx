@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -21,9 +20,14 @@ import {
   AlertTriangle,
   LogOut,
   ArrowRight,
+  Sparkles,
+  ShieldCheck,
+  X,
 } from "lucide-react";
 
+
 // ---------------- TYPES ----------------
+
 
 type Sale = {
   total_sale: number;
@@ -34,516 +38,1532 @@ type Sale = {
   created_at: string;
 };
 
+
 type Product = {
   product_name: string;
   stock: number;
 };
 
-type Subscription = {
-  start_date: string;
-  end_date: string;
-  is_active: boolean;
-};
 
 export default function DashboardPage() {
+
+
   const router = useRouter();
 
+
   const [initialLoading, setInitialLoading] = useState(true);
-  const [showInfo, setShowInfo] = useState(false); // Ajout state modal
+
+  const [showInfo, setShowInfo] = useState(false);
+
 
   const [daysUsed, setDaysUsed] = useState(0);
+
   const [daysLeft, setDaysLeft] = useState(30);
+
 
   const [status, setStatus] =
     useState<"active" | "expired">("active");
 
+
+
   const [todaySalesFc, setTodaySalesFc] = useState(0);
+
   const [todaySalesDollar, setTodaySalesDollar] = useState(0);
 
+
   const [todayProfitFc, setTodayProfitFc] = useState(0);
+
   const [todayProfitDollar, setTodayProfitDollar] = useState(0);
 
+
+
   const [todayProductsSold, setTodayProductsSold] = useState(0);
+
+
 
   const [exhaustedProducts, setExhaustedProducts] =
     useState<Product[]>([]);
 
+
+
   const [lastSales, setLastSales] =
     useState<Sale[]>([]);
 
+
+
+
+
   useEffect(() => {
+
     loadAll();
+
   }, []);
 
+
+
+
+
   async function loadAll() {
+
+
     const phone = localStorage.getItem("phone");
 
+
     if (!phone) {
-      window.location.replace("/login");
+
+      router.replace("/login");
+
       return;
+
     }
 
-    const { data: user } = await supabase
+
+
+
+    const { data:user } = await supabase
+
       .from("users")
+
       .select("*")
+
       .eq("phone", phone)
+
       .single();
 
+
+
+
     if (!user) {
-      window.location.replace("/login");
+
+      router.replace("/login");
+
       return;
+
     }
+
+
+
+
 
     const ok = await checkSubscription(user.id);
 
-    if (!ok) {
-  router.replace("/subscription");
-  return;
-}
 
-if (!ok) {
-  router.replace("/subscription");
-  setInitialLoading(false);
-  return;
-}
+
+
+    if (!ok) {
+
+      router.replace("/subscription");
+
+      return;
+
+    }
+
+
+
+
 
     await loadDashboard(user.id);
 
+
+
     setInitialLoading(false);
+
+
   }
 
-  async function checkSubscription(userId: string) {
+
+
+
+
+
+  async function checkSubscription(userId:string) {
+
+
     const { data } = await supabase
+
       .from("subscriptions")
+
       .select("*")
+
       .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+
+      .order("created_at",{ascending:false})
+
       .limit(1);
+
+
 
     const sub = data?.[0];
 
+
+
     if (!sub) {
+
       setStatus("expired");
+
       return false;
+
     }
 
+
+
+
     const start = new Date(sub.start_date);
+
     const end = new Date(sub.end_date);
+
     const now = new Date();
 
+
+
     const diffDays = Math.floor(
-      (now.getTime() - start.getTime()) /
-        (1000 * 60 * 60 * 24)
+
+      (now.getTime() - start.getTime())
+
+      /
+
+      (1000 * 60 * 60 * 24)
+
     );
+
+
 
     const used = diffDays < 0 ? 0 : diffDays;
 
+
+
     setDaysUsed(used);
 
-    setDaysLeft(Math.max(0, 30 - used));
+    setDaysLeft(Math.max(0,30-used));
 
-    const isActive =
+
+
+    const active =
+
       sub.is_active === true &&
-      sub.end_date &&
+
       end > now;
 
-    setStatus(
-      isActive ? "active" : "expired"
-    );
 
-    return isActive;
+
+    setStatus(active ? "active" : "expired");
+
+
+
+    return active;
+
+
   }
+    async function loadDashboard(userId: string) {
 
-  async function loadDashboard(userId: string) {
+
     const today =
       new Date().toISOString().split("T")[0];
 
+
+
     const [salesRes, productsRes] =
+
       await Promise.all([
-        supabase
-          .from("sales")
-          .select("*")
-          .eq("user_id", userId),
+
 
         supabase
-          .from("products")
+
+          .from("sales")
+
           .select("*")
+
           .eq("user_id", userId),
+
+
+
+        supabase
+
+          .from("products")
+
+          .select("*")
+
+          .eq("user_id", userId),
+
+
       ]);
 
+
+
+
     const sales = salesRes.data || [];
+
     const products = productsRes.data || [];
 
+
+
+
     let todayFc = 0;
+
     let todayDollar = 0;
 
-    let todayBenefFc = 0;
-    let todayBenefDollar = 0;
+
+
+    let profitFc = 0;
+
+    let profitDollar = 0;
+
+
 
     let soldToday = 0;
 
+
+
+
+
     sales.forEach((sale: Sale) => {
+
+
+
       const saleDate =
         sale.created_at?.split("T")[0];
 
+
+
+
       if (saleDate === today) {
-        soldToday += Number(sale.quantity || 0);
+
+
+
+        soldToday += Number(
+          sale.quantity || 0
+        );
+
+
+
 
         if (sale.currency === "FC") {
-          todayFc += Number(sale.total_sale || 0);
-          todayBenefFc += Number(sale.profit || 0);
+
+
+
+          todayFc += Number(
+            sale.total_sale || 0
+          );
+
+
+
+          profitFc += Number(
+            sale.profit || 0
+          );
+
+
+
         } else {
+
+
+
           todayDollar += Number(
             sale.total_sale || 0
           );
 
-          todayBenefDollar += Number(
+
+
+          profitDollar += Number(
             sale.profit || 0
           );
+
+
         }
+
+
       }
+
+
     });
 
+
+
+
+
     setTodaySalesFc(todayFc);
+
     setTodaySalesDollar(todayDollar);
 
-    setTodayProfitFc(todayBenefFc);
-    setTodayProfitDollar(todayBenefDollar);
+
+
+    setTodayProfitFc(profitFc);
+
+    setTodayProfitDollar(profitDollar);
+
+
 
     setTodayProductsSold(soldToday);
 
+
+
+
     setExhaustedProducts(
+
       products.filter(
-        (p: Product) => Number(p.stock) === 0
+
+        (p: Product)=>
+
+          Number(p.stock) === 0
+
       )
+
     );
 
-    setLastSales(sales.slice(0, 5));
+
+
+    setLastSales(
+
+      sales.slice(0,5)
+
+    );
+
+
   }
 
+
+
+
+
+
+
   if (!initialLoading && status === "expired") {
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-black text-white px-6">
-      <div className="text-center space-y-6">
-        
-        {/* Titre d'alerte */}
-        <h1 className="text-3xl font-bold text-red-500">
-          ❌ Abonnement expiré
-        </h1>
-        
-        {/* Message explicatif clair */}
-        <p className="text-slate-400 leading-relaxed">
-          Votre période d'abonnement a pris fin.<br /> 
-          Cliquez sur le bouton ci-dessous pour renouveler votre accès et continuer à gérer vos ventes.
-        </p>
-        
-        {/* Bouton d'action explicite */}
-        <Link
-          href="/subscription"
-          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 px-8 py-4 rounded-2xl font-bold text-lg transition-all transform hover:scale-105"
-        >
-          <Crown size={20} />
-          Renouveler mon abonnement
-        </Link>
 
-        {/* Option de secours pour le support */}
-        <p className="text-sm text-slate-500 pt-4">
-          Besoin d'aide ? 
-          <a 
-            href="https://wa.me/243994864173" 
-            target="_blank" 
-            className="text-green-400 hover:underline ml-1"
+
+    return (
+
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
+
+
+
+        <div className="absolute inset-0">
+
+
+          <div className="absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[150px]" />
+
+
+          <div className="absolute bottom-0 right-0 h-[350px] w-[350px] rounded-full bg-blue-600/20 blur-[120px]" />
+
+
+        </div>
+
+
+
+
+
+        <div className="relative z-10 max-w-md rounded-[2rem] border border-white/10 bg-white/[0.07] p-8 text-center backdrop-blur-xl">
+
+
+
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/20">
+
+            <AlertTriangle
+              className="text-red-400"
+              size={32}
+            />
+
+          </div>
+
+
+
+
+
+          <h1 className="text-3xl font-black text-red-400">
+
+            Abonnement expiré
+
+          </h1>
+
+
+
+
+
+          <p className="mt-4 text-sm leading-7 text-slate-300">
+
+
+            Votre période gratuite ou votre abonnement
+            est terminé.
+
+
+            <br />
+
+
+            Renouvelez votre accès pour continuer
+            à gérer votre commerce.
+
+
+          </p>
+
+
+
+
+
+          <Link
+
+            href="/subscription"
+
+            className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-bold text-black transition hover:scale-[1.03]"
+
           >
-            Contactez le support sur WhatsApp
+
+
+            <Crown size={20}/>
+
+            Renouveler abonnement
+
+
+          </Link>
+
+
+
+
+
+          <a
+
+            href="https://wa.me/243994864173"
+
+            target="_blank"
+
+            className="mt-5 block text-sm text-orange-400 hover:underline"
+
+          >
+
+            Contacter le support WhatsApp
+
+
           </a>
-        </p>
 
-      </div>
-    </main>
-  );
-}
 
-  {initialLoading && (
-  <div className="text-center text-slate-400 py-3">
-    Chargement des données...
-  </div>
-)}
+
+        </div>
+
+
+      </main>
+
+    );
+
+
+  }
+
+
+
+
 
   const percentUsed = Math.round(
+
     (daysUsed / 30) * 100
+
   );
+
+
+
+
+  if (initialLoading) {
+
+
     return (
-    <main className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-black text-white pb-28">
 
-      {/* HEADER PRO */}
-      <div className="px-4 pt-5 pb-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-wide">
-            💼 Biso Gestion
-          </h1>
-          <p className="text-xs text-slate-400">
-            Mode caisse pro • vente rapide
-          </p>
+      <main className="flex min-h-screen items-center justify-center bg-[#060d1b] text-white">
+
+        <div className="flex items-center gap-3 text-slate-400">
+
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+
+          Chargement du tableau de bord...
+
         </div>
 
-        <div className="flex items-center gap-2">
-          <Zap className="text-green-500" />
-          <div className="w-9 h-9 rounded-full bg-green-500 text-black flex items-center justify-center font-bold text-xs">
-            PDG
-          </div>
-        </div>
+      </main>
+
+    );
+
+
+  }
+    return (
+
+    <main className="relative min-h-screen overflow-hidden bg-[#060d1b] pb-28 text-white">
+
+
+      {/* BACKGROUND LIGHTS */}
+
+      <div className="pointer-events-none absolute inset-0">
+
+
+        <div className="absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[160px]" />
+
+
+        <div className="absolute bottom-0 right-0 h-[400px] w-[400px] rounded-full bg-blue-600/20 blur-[140px]" />
+
+
+        <div className="absolute left-0 top-1/3 h-[300px] w-[300px] rounded-full bg-purple-600/20 blur-[130px]" />
+
+
       </div>
 
-      {/* ABONNEMENT CARD */}
-      <div className="px-4 mb-4">
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
 
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-green-400 font-bold">
-              Abonnement actif
+
+
+
+      {/* HEADER */}
+
+
+      <div className="relative z-10 px-5 pt-6">
+
+
+        <div className="flex items-center justify-between">
+
+
+
+          <div>
+
+
+            <div className="flex items-center gap-2">
+
+
+              <Sparkles
+                size={18}
+                className="text-orange-400"
+              />
+
+
+              <h1 className="text-2xl font-black tracking-tight">
+
+                BISO-
+
+                <span className="text-orange-400">
+
+                  COMMERCE
+
+                </span>
+
+              </h1>
+
+
+            </div>
+
+
+
+
+            <p className="mt-1 text-xs text-slate-400">
+
+              Votre commerce intelligent
+
             </p>
+
+
+          </div>
+
+
+
+
+
+
+          <div className="flex items-center gap-3">
+
+
+
+            <Zap
+              className="text-orange-400"
+              size={22}
+            />
+
+
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 font-black text-black shadow-lg shadow-orange-500/30">
+
+              PDG
+
+            </div>
+
+
+          </div>
+
+
+
+        </div>
+
+
+
+      </div>
+
+
+
+
+
+
+
+      {/* SUBSCRIPTION CARD */}
+
+
+      <div className="relative z-10 px-5 mt-6">
+
+
+        <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl">
+
+
+
+          <div className="flex items-center justify-between mb-4">
+
+
+            <div>
+
+
+              <p className="text-sm font-bold text-orange-400">
+
+                Abonnement actif
+
+              </p>
+
+
+              <p className="text-xs text-slate-400">
+
+                Essai gratuit professionnel
+
+              </p>
+
+
+            </div>
+
+
+
+            <div className="rounded-full bg-orange-500/10 px-3 py-1 text-xs text-orange-300">
+
+
+              {daysUsed}/30 jours
+
+
+            </div>
+
+
+
+          </div>
+
+
+
+
+
+          <div className="h-3 overflow-hidden rounded-full bg-black/40">
+
+
+            <div
+
+              className="h-full rounded-full bg-gradient-to-r from-orange-500 to-yellow-400 transition-all"
+
+              style={{
+                width:`${percentUsed}%`
+              }}
+
+            />
+
+
+
+          </div>
+
+
+
+
+
+          <div className="mt-3 flex items-center justify-between">
+
 
             <p className="text-xs text-slate-400">
-              {daysUsed}/30 jours
+
+              Temps restant
+
             </p>
+
+
+            <p className="text-sm font-bold text-white">
+
+              {daysLeft} jours
+
+            </p>
+
+
           </div>
 
-          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-green-500"
-           style={{ width: percentUsed + "%" }}
-            />
-          </div>
 
-          <p className="text-xs text-slate-400 mt-2">
-            {daysLeft} jours restants
-          </p>
         </div>
+
+
       </div>
 
-      {/* BOUTON PRO */}
-      <div className="px-4 mb-3">
+
+
+
+
+
+
+      {/* INFORMATION BUTTON */}
+
+
+      <div className="relative z-10 px-5 mt-4">
+
+
         <button
-          onClick={() => setShowInfo(true)}
-          className="text-xs text-slate-400 hover:text-green-400 transition underline"
+
+          onClick={()=>setShowInfo(true)}
+
+          className="text-xs text-slate-400 underline transition hover:text-orange-400"
+
         >
-          👉 Clique ici pour en savoir plus sur Biso-Commerce
+
+          ✨ Clique ici pour en savoir plus sur Biso-commerce
+
+
         </button>
+
+
       </div>
 
-      {/* QUICK ACTION CAISSE */}
-      <div className="px-4 mb-5">
+
+
+
+
+
+
+      {/* QUICK SALE BUTTON */}
+
+
+      <div className="relative z-10 px-5 mt-5">
+
+
         <Link
+
           href="/sales"
-          className="flex items-center justify-between bg-green-600 hover:bg-green-700 transition p-4 rounded-2xl shadow-lg"
+
+          className="group flex items-center justify-between rounded-[2rem] bg-gradient-to-r from-orange-500 to-yellow-400 p-5 font-bold text-black shadow-xl shadow-orange-500/20 transition hover:scale-[1.02]"
+
         >
-          <div className="flex items-center gap-3">
-            <ShoppingCart />
-            <div>
-              <p className="font-bold">Nouvelle vente</p>
-              <p className="text-xs opacity-80">
-                Accès rapide caisse
-              </p>
+
+
+
+          <div className="flex items-center gap-4">
+
+
+            <div className="rounded-2xl bg-black/10 p-3">
+
+
+              <ShoppingCart size={26}/>
+
+
             </div>
+
+
+
+            <div>
+
+
+              <p className="text-lg">
+
+                Nouvelle vente
+
+              </p>
+
+
+              <p className="text-xs opacity-70">
+
+                Ouvrir la caisse rapidement
+
+              </p>
+
+
+            </div>
+
+
           </div>
 
-          <ArrowRight />
+
+
+
+
+          <ArrowRight
+
+            className="transition group-hover:translate-x-1"
+
+          />
+
+
         </Link>
+
+
       </div>
+            {/* STATS */}
 
-      {/* STATS GRID */}
-      <div className="px-4 grid grid-cols-2 gap-3 mb-5">
+      <div className="relative z-10 mt-6 grid grid-cols-2 gap-4 px-5">
 
-        <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
-          <p className="text-xs text-slate-400">
-            Ventes du jour (CDF)
-          </p>
-          <p className="text-lg font-bold text-green-400">
+
+        <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
+
+
+          <div className="mb-2 flex items-center justify-between">
+
+
+            <p className="text-xs text-slate-400">
+              Ventes aujourd'hui
+            </p>
+
+
+            <TrendingUp
+              size={18}
+              className="text-orange-400"
+            />
+
+
+          </div>
+
+
+
+          <p className="text-xl font-black text-orange-400">
+
             {todaySalesFc}
+
           </p>
+
+
+          <p className="mt-1 text-xs text-slate-500">
+
+            Franc Congolais
+
+          </p>
+
+
         </div>
 
-        <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
-          <p className="text-xs text-slate-400">
-            Ventes du jour (USD)
-          </p>
-          <p className="text-lg font-bold text-blue-400">
+
+
+
+
+        <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
+
+
+          <div className="mb-2 flex items-center justify-between">
+
+
+            <p className="text-xs text-slate-400">
+              Ventes USD
+            </p>
+
+
+            <Wallet
+              size={18}
+              className="text-blue-400"
+            />
+
+
+          </div>
+
+
+
+          <p className="text-xl font-black text-blue-400">
+
             {todaySalesDollar}
+
           </p>
+
+
+          <p className="mt-1 text-xs text-slate-500">
+
+            Dollars
+
+          </p>
+
+
         </div>
 
-        <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
-          <p className="text-xs text-slate-400">
-            Bénéfice du jour (CDF)
-          </p>
-          <p className="text-lg font-bold text-green-300">
+
+
+
+
+
+        <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
+
+
+          <div className="mb-2 flex items-center justify-between">
+
+
+            <p className="text-xs text-slate-400">
+              Bénéfice CDF
+            </p>
+
+
+            <BarChart3
+              size={18}
+              className="text-green-400"
+            />
+
+
+          </div>
+
+
+
+          <p className="text-xl font-black text-green-400">
+
             {todayProfitFc}
+
           </p>
+
+
+          <p className="mt-1 text-xs text-slate-500">
+
+            Aujourd'hui
+
+          </p>
+
+
         </div>
 
-        <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800">
-          <p className="text-xs text-slate-400">
-            Bénéfice du jour (USD)
-          </p>
-          <p className="text-lg font-bold text-blue-300">
+
+
+
+
+
+        <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
+
+
+          <div className="mb-2 flex items-center justify-between">
+
+
+            <p className="text-xs text-slate-400">
+              Bénéfice USD
+            </p>
+
+
+            <CreditCard
+              size={18}
+              className="text-yellow-400"
+            />
+
+
+          </div>
+
+
+
+          <p className="text-xl font-black text-yellow-400">
+
             {todayProfitDollar}
+
           </p>
+
+
+          <p className="mt-1 text-xs text-slate-500">
+
+            Aujourd'hui
+
+          </p>
+
+
         </div>
+
+
 
       </div>
 
-      {/* SHORTCUT MENU */}
-      <div className="px-4 mb-6">
+
+
+
+
+
+
+
+
+      {/* QUICK MENU */}
+
+
+      <div className="relative z-10 mt-7 px-5">
+
+
+        <h2 className="mb-4 text-sm font-bold text-white">
+
+          Accès rapide
+
+        </h2>
+
+
+
+
+
         <div className="grid grid-cols-4 gap-3">
 
+
           {[
-            { label: "Produits", icon: Package, href: "/products" },
-            { label: "Ajouter", icon: PlusCircle, href: "/products/add" },
-            { label: "Ventes", icon: BarChart3, href: "/sales" },
-            { label: "Dettes", icon: CreditCard, href: "/debts" },
-            { label: "Dépenses", icon: Banknote, href: "/expenses" },
-            { label: "Rapports", icon: FileText, href: "/reports" },
-            { label: "Abonnement", icon: Crown, href: "/subscription" },
-          ].map((item, i) => (
-            <Link key={i} href={item.href}>
-              <div className="bg-slate-900 hover:bg-slate-800 transition rounded-xl p-3 text-center border border-slate-800">
-                <item.icon className="mx-auto mb-1 text-green-400" size={18} />
-                <p className="text-[10px] text-slate-300">
-                  {item.label}
-                </p>
+
+            {
+              label:"Produits",
+              icon:Package,
+              href:"/products"
+            },
+
+
+            {
+              label:"Ajouter",
+              icon:PlusCircle,
+              href:"/products/add"
+            },
+
+
+            {
+              label:"Ventes",
+              icon:BarChart3,
+              href:"/sales"
+            },
+
+
+            {
+              label:"Dettes",
+              icon:CreditCard,
+              href:"/debts"
+            },
+
+
+            {
+              label:"Dépenses",
+              icon:Banknote,
+              href:"/expenses"
+            },
+
+
+            {
+              label:"Rapports",
+              icon:FileText,
+              href:"/reports"
+            },
+
+
+            {
+              label:"Abonnement",
+              icon:Crown,
+              href:"/subscription"
+            },
+
+
+          ].map((item,index)=>{
+
+
+            const Icon = item.icon;
+
+
+            return (
+
+              <Link
+
+                key={index}
+
+                href={item.href}
+
+                className="group"
+
+              >
+
+
+                <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-center backdrop-blur-xl transition hover:-translate-y-1 hover:bg-white/10">
+
+
+                  <Icon
+
+                    size={21}
+
+                    className="mb-2 text-orange-400 transition group-hover:scale-110"
+
+                  />
+
+
+                  <span className="text-[10px] text-slate-300">
+
+                    {item.label}
+
+                  </span>
+
+
+                </div>
+
+
+              </Link>
+
+            );
+
+
+          })}
+
+
+        </div>
+
+
+      </div>
+            {/* STOCK ALERT */}
+
+      {
+        exhaustedProducts.length > 0 && (
+
+          <div className="relative z-10 mt-6 px-5">
+
+
+            <Link href="/products/low-stock">
+
+
+              <div className="flex items-center justify-between rounded-3xl border border-red-400/20 bg-red-500/10 p-5 backdrop-blur-xl transition hover:scale-[1.02]">
+
+
+                <div className="flex items-center gap-3">
+
+
+                  <div className="rounded-2xl bg-red-500/20 p-3">
+
+
+                    <AlertTriangle
+                      className="text-red-400"
+                      size={22}
+                    />
+
+
+                  </div>
+
+
+
+
+                  <div>
+
+
+                    <p className="font-bold text-red-300">
+
+                      Stock faible clique ici pour en savoir
+
+                    </p>
+
+
+                    <p className="text-xs text-slate-400">
+
+                      {exhaustedProducts.length} produit(s) épuisé(s)
+
+                    </p>
+
+
+                  </div>
+
+
+                </div>
+
+
+
+
+                <ArrowRight
+                  className="text-red-400"
+                />
+
+
               </div>
+
+
             </Link>
-          ))}
+
+
+          </div>
+
+        )
+
+      }
+
+
+
+
+
+
+
+
+
+      {/* FOOTER */}
+
+
+      <div className="relative z-10 mt-8 px-5 text-center">
+
+
+        <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+
+
+          <ShieldCheck
+
+            size={14}
+
+            className="text-orange-400"
+
+          />
+
+
+          BISO-COMMERCE • Gestion sécurisée ( PDG DIEUMERCI IDI )
+
 
         </div>
+
+
       </div>
+      
+            {/* MODAL INFORMATION BISO-COMMERCE */}
 
-      {/* WARNING STOCK */}
-      {exhaustedProducts.length > 0 && (
-        <div className="px-4 mb-5">
-          <Link href="/products/low-stock">
-            <div className="bg-red-600/90 animate-pulse text-white p-4 rounded-2xl flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle />
-                <p className="font-bold text-sm">
-                  {exhaustedProducts.length} produit(s) épuisé(s)   Clique ici pour en savoir
-                </p>
-              </div>
-
-              <ArrowRight />
-            </div>
-          </Link>
-        </div>
-      )}
-           
-
-      {/* LOGOUT */}
-      <div className="px-4 mb-10">
-        <button
-          onClick={() => {
-            localStorage.removeItem("phone");
-            router.push("/login");
-          }}
-          className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 transition text-white font-bold p-4 rounded-2xl"
-        >
-          <LogOut size={18} />
-          Se déconnecter
-        </button>
-      </div>
-
-      {/* MODAL ULTRA PRO */}
       {showInfo && (
+
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center px-4 z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
           onClick={() => setShowInfo(false)}
         >
+
           <div
-            className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-[fadeIn_0.2s_ease-out]"
             onClick={(e) => e.stopPropagation()}
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[2rem] border border-white/10 bg-[#081221] p-6 shadow-2xl"
           >
+
+
             {/* HEADER */}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-green-400 font-bold text-lg">
-                Biso-Commerce
+
+            <div className="mb-6 flex items-center justify-between">
+
+
+              <h2 className="text-xl font-black">
+
+                BISO-
+
+                <span className="text-orange-400">
+                  COMMERCE
+                </span>
+
               </h2>
+
+
+
               <button
+
                 onClick={() => setShowInfo(false)}
-                className="text-slate-400 hover:text-white"
+
+                className="rounded-xl bg-white/10 px-3 py-2 text-slate-300 hover:bg-white/20"
+
               >
+
                 ✕
+
               </button>
+
+
             </div>
 
-            {/* TEXT */}
-              <p className="text-sm text-slate-300 leading-4">
 
-<span className="text-green-300 font-bold text-lg">
-<p className="text-sm text-slate-300 leading-4">
 
-<span className="text-green-400 font-bold text-lg">
-📖 BIENVENUE SUR BISO-COMMERCE
-</span>
 
-<br /><br />
 
-<b>Qu'est-ce que Biso-Commerce ?</b>
+            {/* CONTENU */}
 
-<br /><br />
+            <div className="space-y-5 text-sm leading-6 text-slate-300">
 
-Biso-Commerce est une caisse digitale qui vous permet de gérer facilement votre commerce depuis votre téléphone.
 
-Vous pouvez enregistrer vos ventes, suivre vos bénéfices, gérer votre stock, vos dépenses, les dettes de vos clients et consulter vos rapports en temps réel.
 
-<br /><br />
+              <div>
 
-<b>Comment utiliser Biso-Commerce ?</b>
 
-<br /><br />
+                <h3 className="text-lg font-bold text-orange-400">
 
-• Ajoutez d'abord vos produits.
+                  📖 BIENVENUE SUR BISO-COMMERCE
 
-• Enregistrez vos ventes chaque jour.
+                </h3>
 
-• Ajoutez vos dépenses.
 
-• Gérez les dettes de vos clients.
+                <p className="mt-3">
 
-• Consultez vos rapports pour suivre votre commerce.
+                  Biso-Commerce est une caisse digitale intelligente
+                  qui vous permet de gérer facilement votre commerce
+                  depuis votre téléphone.
 
-<br /><br />
+                </p>
 
-<b>Installer l'application</b>
 
-<br /><br />
+              </div>
 
-📱 <b>Android :</b> Chrome → ⋮ → <b>Installer l'application</b>.
 
-<br /><br />
 
-🍎 <b>iPhone :</b> Safari → <b>Partager</b> → <b>Sur l'écran d'accueil</b> → <b>Ajouter</b>.
 
-<br /><br />
 
-<span className="text-green-400 font-semibold">
-Merci d'utiliser Biso-Commerce 💚 PDG DIEUMERCI IDI
-</span>
 
-</p>
-</span>
+              <div>
 
-</p>
 
-            {/* CTA */}
+                <h3 className="font-bold text-white">
+
+                  💼 Avec Biso-Commerce vous pouvez :
+
+                </h3>
+
+
+
+                <ul className="mt-3 space-y-2">
+
+
+                  <li>
+                    ✅ Ajouter et gérer vos produits
+                  </li>
+
+
+                  <li>
+                    ✅ Enregistrer vos ventes chaque jour
+                  </li>
+
+
+                  <li>
+                    ✅ Suivre vos bénéfices automatiquement
+                  </li>
+
+
+                  <li>
+                    ✅ Contrôler vos dépenses
+                  </li>
+
+
+                  <li>
+                    ✅ Gérer les dettes de vos clients
+                  </li>
+
+
+                  <li>
+                    ✅ Voir vos rapports de commerce
+                  </li>
+
+
+                </ul>
+
+
+              </div>
+
+
+
+
+
+
+              <div>
+
+
+                <h3 className="font-bold text-white">
+
+                  📱 Installation de l'application
+
+                </h3>
+
+
+                <p className="mt-3">
+
+
+                  <b className="text-green-400">
+                    Android :
+                  </b>
+
+
+                  <br />
+
+                  Ouvrez Chrome → cliquez sur ⋮ →
+                  choisissez "Installer l'application".
+
+
+                </p>
+
+
+
+
+                <p className="mt-3">
+
+
+                  <b className="text-blue-400">
+                    iPhone :
+                  </b>
+
+
+                  <br />
+
+                  Ouvrez Safari → Partager →
+                  "Sur l'écran d'accueil" → Ajouter.
+
+
+                </p>
+
+
+              </div>
+
+
+
+
+
+
+              <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 p-4">
+
+
+                <p className="font-semibold text-orange-300">
+
+
+                  🎯 Conseil PDG
+
+
+                </p>
+
+
+                <p className="mt-2 text-xs">
+
+
+                  Ajoutez vos produits avant de commencer
+                  les ventes afin d'obtenir des statistiques
+                  précises sur votre commerce.
+
+
+                </p>
+
+
+              </div>
+
+
+
+
+
+
+              <p className="text-center text-sm font-semibold text-green-400">
+
+
+                Merci d'utiliser Biso-Commerce 💚
+                <br />
+                PDG DIEUMERCI IDI
+
+
+              </p>
+
+
+
+            </div>
+
+
+
+
+
+
+            {/* BUTTON FERMER */}
+
+
             <button
+
               onClick={() => setShowInfo(false)}
-              className="mt-5 w-full bg-green-600 hover:bg-green-700 transition p-3 rounded-xl font-bold"
+
+              className="mt-6 w-full rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black transition hover:scale-[1.02]"
+
             >
-              J’ai compris
+
+              J'ai compris 🚀
+
             </button>
+
+
+
           </div>
+
+
         </div>
+
+
       )}
 
+
+
     </main>
+
   );
+
 }

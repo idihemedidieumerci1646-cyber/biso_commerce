@@ -15,6 +15,7 @@ type Sale = {
 };
 
 export default function ReportsPage() {
+
   const [todayFc, setTodayFc] = useState(0);
   const [todayUsd, setTodayUsd] = useState(0);
   const [todayProfitFc, setTodayProfitFc] = useState(0);
@@ -31,19 +32,23 @@ export default function ReportsPage() {
   const [beforeYesterdayProfitUsd, setBeforeYesterdayProfitUsd] = useState(0);
 
   const [salesHistory, setSalesHistory] = useState<Sale[]>([]);
-  const [selectedDate, setSelectedDate] = useState("");
   const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
-  
-  // Ajout de l'état pour basculer la vue
+
+  const [selectedDate, setSelectedDate] = useState("");
   const [showAll, setShowAll] = useState(false);
+
 
   useEffect(() => {
     load();
   }, []);
 
+
   const load = async () => {
+
     const phone = localStorage.getItem("phone");
+
     if (!phone) return;
+
 
     const { data: user } = await supabase
       .from("users")
@@ -51,293 +56,1037 @@ export default function ReportsPage() {
       .eq("phone", phone)
       .single();
 
+
     if (!user) return;
 
-    const { data: sales, error: salesError } = await supabase
+
+    const { data: sales, error } = await supabase
       .from("sales")
       .select("*")
       .eq("user_id", user.id);
 
-    if (salesError) {
-      console.log(salesError);
+
+    if (error) {
+      console.log(error);
       return;
     }
 
+
     const now = new Date();
-    const today = new Date().toISOString().split("T")[0];
+
+    const today =
+      new Date().toISOString().split("T")[0];
+
 
     const y = new Date();
     y.setDate(now.getDate() - 1);
-    const yesterday = y.toISOString().split("T")[0];
+
+    const yesterday =
+      y.toISOString().split("T")[0];
+
 
     const by = new Date();
     by.setDate(now.getDate() - 2);
-    const beforeYesterday = by.toISOString().split("T")[0];
 
-    let tFc = 0, tUsd = 0, tPfFc = 0, tPfUsd = 0;
-    let yFc = 0, yUsd = 0, yPfFc = 0, yPfUsd = 0;
-    let byFc = 0, byUsd = 0, byPfFc = 0, byPfUsd = 0;
+    const beforeYesterday =
+      by.toISOString().split("T")[0];
+
+
+
+    let tFc = 0;
+    let tUsd = 0;
+    let tPfFc = 0;
+    let tPfUsd = 0;
+
+
+    let yFc = 0;
+    let yUsd = 0;
+    let yPfFc = 0;
+    let yPfUsd = 0;
+
+
+    let byFc = 0;
+    let byUsd = 0;
+    let byPfFc = 0;
+    let byPfUsd = 0;
+
+
 
     sales?.forEach((s: Sale) => {
-      const date = s.created_at.split("T")[0];
-      const val = Number(s.total_sale || 0);
-      const prof = Number(s.profit || 0);
+
+      const date =
+        s.created_at.split("T")[0];
+
+
+      const vente =
+        Number(s.total_sale || 0);
+
+
+      const benefice =
+        Number(s.profit || 0);
+
+
 
       if (date === today) {
-        if (s.currency === "FC") { tFc += val; tPfFc += prof; }
-        else { tUsd += val; tPfUsd += prof; }
+
+        if (s.currency === "FC") {
+          tFc += vente;
+          tPfFc += benefice;
+        } else {
+          tUsd += vente;
+          tPfUsd += benefice;
+        }
+
       }
+
+
 
       if (date === yesterday) {
-        if (s.currency === "FC") { yFc += val; yPfFc += prof; }
-        else { yUsd += val; yPfUsd += prof; }
+
+        if (s.currency === "FC") {
+          yFc += vente;
+          yPfFc += benefice;
+        } else {
+          yUsd += vente;
+          yPfUsd += benefice;
+        }
+
       }
+
+
 
       if (date === beforeYesterday) {
-        if (s.currency === "FC") { byFc += val; byPfFc += prof; }
-        else { byUsd += val; byPfUsd += prof; }
+
+        if (s.currency === "FC") {
+          byFc += vente;
+          byPfFc += benefice;
+        } else {
+          byUsd += vente;
+          byPfUsd += benefice;
+        }
+
       }
+
     });
 
-    setTodayFc(tFc); setTodayUsd(tUsd);
-    setTodayProfitFc(tPfFc); setTodayProfitUsd(tPfUsd);
 
-    setYesterdayFc(yFc); setYesterdayUsd(yUsd);
-    setYesterdayProfitFc(yPfFc); setYesterdayProfitUsd(yPfUsd);
 
-    setBeforeYesterdayFc(byFc); setBeforeYesterdayUsd(byUsd);
-    setBeforeYesterdayProfitFc(byPfFc); setBeforeYesterdayProfitUsd(byPfUsd);
+    setTodayFc(tFc);
+    setTodayUsd(tUsd);
+    setTodayProfitFc(tPfFc);
+    setTodayProfitUsd(tPfUsd);
+
+
+    setYesterdayFc(yFc);
+    setYesterdayUsd(yUsd);
+    setYesterdayProfitFc(yPfFc);
+    setYesterdayProfitUsd(yPfUsd);
+
+
+    setBeforeYesterdayFc(byFc);
+    setBeforeYesterdayUsd(byUsd);
+    setBeforeYesterdayProfitFc(byPfFc);
+    setBeforeYesterdayProfitUsd(byPfUsd);
+
+
 
     const sorted =
       sales?.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
+        (a,b)=>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
       ) || [];
+
+
 
     setSalesHistory(sorted);
     setFilteredSales(sorted);
+
   };
 
+
+  const displayedSales =
+    showAll
+      ? filteredSales
+      : filteredSales.slice(0,7);
+
+
+
   const searchByDate = () => {
-    if (!selectedDate) return setFilteredSales(salesHistory);
+
+    if (!selectedDate) {
+
+      setFilteredSales(salesHistory);
+      return;
+
+    }
+
 
     setFilteredSales(
       salesHistory.filter(
-        (s) => s.created_at.split("T")[0] === selectedDate
+        s =>
+        s.created_at.split("T")[0]
+        === selectedDate
       )
     );
+
   };
+    const downloadPDF = () => {
 
-  // Logique pour afficher soit les 7 derniers, soit tout
-  const displayedSales = showAll ? filteredSales : filteredSales.slice(0, 7);
-
-  const downloadPDF = () => {
     const dataToExport = selectedDate
       ? salesHistory.filter(
-          (s) => s.created_at.split("T")[0] === selectedDate
+          (s) =>
+            s.created_at.split("T")[0] === selectedDate
         )
       : filteredSales;
 
+
     const doc = new jsPDF();
 
+
     doc.setFontSize(18);
-    doc.text("RAPPORT BISO GESTION", 20, 20);
+    doc.text(
+      "RAPPORT BISO GESTION",
+      20,
+      20
+    );
+
 
     doc.setFontSize(12);
+
     doc.text(
-      "Date : " + (selectedDate || "Toutes les dates"),
+      "Date : " +
+      (selectedDate || "Toutes les dates"),
       20,
       40
     );
 
-    let totalFc = 0,
-      totalUsd = 0,
-      profitFc = 0,
-      profitUsd = 0;
 
-    dataToExport.forEach((s) => {
-      if (s.currency === "FC") {
+    let totalFc = 0;
+    let totalUsd = 0;
+    let profitFc = 0;
+    let profitUsd = 0;
+
+
+
+    dataToExport.forEach((s)=>{
+
+      if(s.currency==="FC"){
+
         totalFc += Number(s.total_sale || 0);
         profitFc += Number(s.profit || 0);
-      } else {
+
+      }else{
+
         totalUsd += Number(s.total_sale || 0);
         profitUsd += Number(s.profit || 0);
+
       }
+
     });
 
-    doc.text("Ventes FC : " + totalFc + " FC", 20, 60);
-    doc.text("Ventes USD : " + totalUsd + " $", 20, 70);
-    doc.text("Bénéfice FC : " + profitFc + " FC", 20, 85);
-    doc.text("Bénéfice USD : " + profitUsd + " $", 20, 95);
 
-    doc.line(20, 100, 190, 100);
 
-    let y = 115;
-    doc.setFontSize(14);
-    doc.text("PRODUITS VENDUS", 20, y);
+    doc.text(
+      "Ventes FC : "+totalFc+" FC",
+      20,
+      60
+    );
 
-    dataToExport.forEach((s) => {
+    doc.text(
+      "Ventes USD : "+totalUsd+" $",
+      20,
+      70
+    );
+
+    doc.text(
+      "Benefice FC : "+profitFc+" FC",
+      20,
+      85
+    );
+
+    doc.text(
+      "Benefice USD : "+profitUsd+" $",
+      20,
+      95
+    );
+
+
+    doc.line(
+      20,
+      105,
+      190,
+      105
+    );
+
+
+    let y = 120;
+
+
+    doc.text(
+      "PRODUITS VENDUS",
+      20,
+      y
+    );
+
+
+    dataToExport.forEach((s)=>{
+
       y += 12;
-      if (y > 270) {
+
+
+      if(y > 270){
+
         doc.addPage();
         y = 20;
+
       }
 
+
       doc.setFontSize(11);
-      doc.text("Produit : " + s.product_name, 20, y);
-      y += 6;
-      doc.text("Quantité : " + s.quantity, 25, y);
-      y += 6;
+
+
       doc.text(
-        "Montant : " + s.total_sale + " " + s.currency,
+        "Produit : "+s.product_name,
+        20,
+        y
+      );
+
+
+      y += 6;
+
+
+      doc.text(
+        "Quantite : "+s.quantity,
         25,
         y
       );
+
+
       y += 6;
+
+
+      doc.text(
+        "Montant : "+
+        s.total_sale+
+        " "+
+        s.currency,
+        25,
+        y
+      );
+
     });
 
+
     doc.save(
-      "rapport-" + (selectedDate || "complet") + ".pdf"
+      "rapport-" +
+      (selectedDate || "complet")
+      +
+      ".pdf"
     );
+
   };
 
+
+
   return (
-    <main className="min-h-screen bg-black text-white p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* HEADER PRO */}
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-5">
-          <h1 className="text-2xl font-bold">📊 Rapports PRO</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Analyse ventes & performance caisse en temps réel
+
+    <main
+      className="
+      min-h-screen
+      p-4
+      sm:p-6
+      text-white
+      bg-gradient-to-b
+      from-black
+      via-slate-950
+      to-black
+      relative
+      overflow-hidden
+      "
+    >
+
+
+      {/* LUMIERES BACKGROUND */}
+
+      <div
+        className="
+        absolute
+        top-0
+        left-0
+        w-72
+        h-72
+        bg-orange-500/20
+        blur-3xl
+        rounded-full
+        "
+      />
+
+
+      <div
+        className="
+        absolute
+        right-0
+        top-40
+        w-80
+        h-80
+        bg-blue-500/20
+        blur-3xl
+        rounded-full
+        "
+      />
+
+
+
+      <div
+        className="
+        max-w-6xl
+        mx-auto
+        space-y-6
+        relative
+        z-10
+        "
+      >
+
+
+
+        {/* HEADER GLASS */}
+
+
+        <div
+          className="
+          rounded-3xl
+          p-6
+          bg-white/5
+          backdrop-blur-xl
+          border
+          border-white/10
+          shadow-xl
+          "
+        >
+
+          <h1
+            className="
+            text-3xl
+            font-black
+            "
+          >
+            📊 Rapports PRO
+          </h1>
+
+
+          <p
+            className="
+            text-slate-400
+            text-sm
+            mt-2
+            "
+          >
+            Analyse ventes, bénéfices et performance caisse
           </p>
+
+
         </div>
 
-        {/* AIDE */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
-          <p>
-            💡 <strong>Comment générer un PDF :</strong> Choisissez une date → cliquez sur "Rechercher" → puis "PDF".
+
+
+        {/* INFO GUIDE */}
+
+
+        <div
+          className="
+          rounded-2xl
+          p-4
+          bg-slate-900/70
+          backdrop-blur
+          border
+          border-blue-500/20
+          "
+        >
+
+          <p
+            className="
+            text-sm
+            text-slate-300
+            "
+          >
+
+            💡 Sélectionne une date pour filtrer
+            tes ventes puis exporte ton rapport PDF.
+
           </p>
+
+
         </div>
+                {/* STATISTIQUES */}
 
-        {/* SECTIONS */}
-        <Section title="Aujourd’hui">
-          <Card label="Ventes FC" value={`${todayFc} FC`} />
-          <Card label="Ventes USD" value={`${todayUsd} $`} />
-          <Card label="Bénéfice FC" value={`${todayProfitFc} FC`} />
-          <Card label="Bénéfice USD" value={`${todayProfitUsd} $`} />
+        <Section title="🔥 Aujourd’hui">
+
+          <Card
+            icon="💵"
+            label="Ventes FC"
+            value={`${todayFc} FC`}
+          />
+
+          <Card
+            icon="💲"
+            label="Ventes USD"
+            value={`${todayUsd} $`}
+          />
+
+          <Card
+            icon="📈"
+            label="Bénéfice FC"
+            value={`${todayProfitFc} FC`}
+          />
+
+          <Card
+            icon="🚀"
+            label="Bénéfice USD"
+            value={`${todayProfitUsd} $`}
+          />
+
         </Section>
 
-        <Section title="Hier">
-          <Card label="Ventes FC" value={`${yesterdayFc} FC`} />
-          <Card label="Ventes USD" value={`${yesterdayUsd} $`} />
-          <Card label="Bénéfice FC" value={`${yesterdayProfitFc} FC`} />
-          <Card label="Bénéfice USD" value={`${yesterdayProfitUsd} $`} />
+
+
+        <Section title="📅 Hier">
+
+
+          <Card
+            icon="💵"
+            label="Ventes FC"
+            value={`${yesterdayFc} FC`}
+          />
+
+
+          <Card
+            icon="💲"
+            label="Ventes USD"
+            value={`${yesterdayUsd} $`}
+          />
+
+
+          <Card
+            icon="📈"
+            label="Bénéfice FC"
+            value={`${yesterdayProfitFc} FC`}
+          />
+
+
+          <Card
+            icon="🚀"
+            label="Bénéfice USD"
+            value={`${yesterdayProfitUsd} $`}
+          />
+
+
         </Section>
 
-        <Section title="Avant-hier">
-          <Card label="Ventes FC" value={`${beforeYesterdayFc} FC`} />
-          <Card label="Ventes USD" value={`${beforeYesterdayUsd} $`} />
-          <Card label="Bénéfice FC" value={`${beforeYesterdayProfitFc} FC`} />
-          <Card label="Bénéfice USD" value={`${beforeYesterdayProfitUsd} $`} />
+
+
+
+        <Section title="⏳ Avant-hier">
+
+
+          <Card
+            icon="💵"
+            label="Ventes FC"
+            value={`${beforeYesterdayFc} FC`}
+          />
+
+
+          <Card
+            icon="💲"
+            label="Ventes USD"
+            value={`${beforeYesterdayUsd} $`}
+          />
+
+
+          <Card
+            icon="📈"
+            label="Bénéfice FC"
+            value={`${beforeYesterdayProfitFc} FC`}
+          />
+
+
+          <Card
+            icon="🚀"
+            label="Bénéfice USD"
+            value={`${beforeYesterdayProfitUsd} $`}
+          />
+
+
         </Section>
 
-        {/* 7 DAYS PRO */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold">📅 {showAll ? "Historique complet" : "7 derniers rapports"}</h2>
-            <button 
-              onClick={() => setShowAll(!showAll)}
-              className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg transition"
+
+
+
+        {/* HISTORIQUE */}
+
+        <div
+          className="
+          bg-white/5
+          backdrop-blur-xl
+          border
+          border-white/10
+          rounded-3xl
+          p-5
+          shadow-xl
+          "
+        >
+
+
+          <div
+            className="
+            flex
+            justify-between
+            items-center
+            mb-5
+            "
+          >
+
+            <h2
+              className="
+              font-black
+              text-lg
+              "
             >
-              {showAll ? "Voir moins" : "Cliquez ici pour voir tout"}
+              📅 
+              {showAll
+              ? " Historique complet"
+              : " 7 dernières ventes"}
+
+            </h2>
+
+
+
+            <button
+
+              onClick={() =>
+                setShowAll(!showAll)
+              }
+
+              className="
+              px-4
+              py-2
+              rounded-xl
+              text-xs
+              font-bold
+              bg-gradient-to-r
+              from-orange-500
+              to-red-500
+              shadow-lg
+              "
+
+            >
+
+              {
+                showAll
+                ? "Réduire"
+                : "Voir tout"
+              }
+
             </button>
+
+
           </div>
 
-          {displayedSales.length === 0 ? (
-            <p className="text-slate-500 text-sm">Aucun rapport</p>
-          ) : (
-            <div className="space-y-3">
-              {displayedSales.map((s) => (
+
+
+
+
+          {
+            displayedSales.length === 0 ? (
+
+              <p
+                className="
+                text-slate-500
+                text-sm
+                "
+              >
+                Aucun rapport disponible
+              </p>
+
+
+            ) : (
+
+
+              <div
+                className="
+                space-y-3
+                "
+              >
+
+              {
+
+              displayedSales.map((s)=>(
+
+
                 <div
+
                   key={s.id}
-                  className="flex justify-between border-b border-slate-800 pb-2"
+
+                  className="
+                  flex
+                  justify-between
+                  items-center
+                  bg-black/40
+                  border
+                  border-white/5
+                  rounded-2xl
+                  p-4
+                  "
+
                 >
+
+
                   <div>
-                    <p className="text-sm">{s.product_name}</p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(s.created_at).toLocaleDateString()}
+
+                    <p
+                      className="
+                      font-bold
+                      "
+                    >
+                      📦 {s.product_name}
                     </p>
+
+
+                    <p
+                      className="
+                      text-xs
+                      text-slate-500
+                      mt-1
+                      "
+                    >
+
+                      {
+                        new Date(
+                          s.created_at
+                        ).toLocaleDateString()
+
+                      }
+
+                    </p>
+
+
                   </div>
 
-                  <div className="text-right">
-                    <p className="text-green-400 font-bold">
-                      {s.total_sale} {s.currency}
+
+
+
+                  <div
+                    className="
+                    text-right
+                    "
+                  >
+
+                    <p
+                      className="
+                      font-black
+                      text-green-400
+                      "
+                    >
+
+                      {
+                        s.total_sale
+                      }
+                      {" "}
+                      {
+                        s.currency
+                      }
+
                     </p>
-                    <p className="text-xs text-slate-500">
-                      x{s.quantity}
+
+
+                    <p
+                      className="
+                      text-xs
+                      text-slate-500
+                      "
+                    >
+
+                      Quantité x{s.quantity}
+
                     </p>
+
+
                   </div>
+
+
                 </div>
-              ))}
-            </div>
-          )}
+
+
+              ))
+
+              }
+
+
+              </div>
+
+
+            )
+          }
+
+
         </div>
+                {/* RECHERCHE PDF */}
 
-        {/* SEARCH */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <h2 className="font-bold mb-4">🔎 Choisissez une date puis → "PDF".</h2>
+        <div
+          className="
+          bg-white/5
+          backdrop-blur-xl
+          border
+          border-white/10
+          rounded-3xl
+          p-5
+          shadow-xl
+          "
+        >
 
-          <div className="flex flex-col md:flex-row gap-3">
+          <h2
+            className="
+            font-black
+            text-lg
+            mb-4
+            "
+          >
+            📄 Exporter un rapport PDF
+          </h2>
+
+
+          <div
+            className="
+            flex
+            flex-col
+            md:flex-row
+            gap-3
+            "
+          >
+
+
             <input
+
               type="date"
+
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-black border border-slate-700 p-3 rounded-xl w-full"
+
+              onChange={(e)=>
+                setSelectedDate(e.target.value)
+              }
+
+              className="
+              flex-1
+              bg-black/60
+              border
+              border-white/10
+              rounded-xl
+              p-3
+              text-white
+              outline-none
+              "
+
             />
 
-            <button
-              onClick={searchByDate}
-              className="bg-green-600 hover:bg-green-700 transition px-5 py-3 rounded-xl font-bold"
-            >
-              Rechercher
-            </button>
+
 
             <button
-              onClick={downloadPDF}
-              className="bg-red-600 hover:bg-red-700 transition px-5 py-3 rounded-xl font-bold"
+
+              onClick={searchByDate}
+
+              className="
+              px-6
+              py-3
+              rounded-xl
+              font-bold
+              bg-gradient-to-r
+              from-blue-500
+              to-cyan-500
+              shadow-lg
+              "
+
             >
-              📄 PDF
+
+              🔎 Rechercher
+
             </button>
+
+
+
+
+            <button
+
+              onClick={downloadPDF}
+
+              className="
+              px-6
+              py-3
+              rounded-xl
+              font-bold
+              bg-gradient-to-r
+              from-orange-500
+              to-red-500
+              shadow-lg
+              "
+
+            >
+
+              📄 PDF
+
+            </button>
+
+
+
           </div>
+
+
         </div>
 
+
       </div>
+
+
     </main>
+
   );
+
 }
 
-/* UI */
-function Section({ title, children }: any) {
+
+
+/* ========================= */
+/* COMPONENTS UI */
+/* ========================= */
+
+
+function Section({
+  title,
+  children
+}:any){
+
+
   return (
-    <div className="space-y-3">
-      <h2 className="text-md font-semibold text-slate-300 border-l-4 border-green-500 pl-3">
+
+    <div
+      className="
+      space-y-3
+      "
+    >
+
+
+      <h2
+        className="
+        text-lg
+        font-black
+        text-slate-200
+        border-l-4
+        border-orange-500
+        pl-3
+        "
+      >
+
         {title}
+
       </h2>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+
+
+      <div
+        className="
+        grid
+        grid-cols-2
+        md:grid-cols-4
+        gap-4
+        "
+      >
+
         {children}
+
       </div>
+
+
+
     </div>
+
   );
+
+
 }
 
-function Card({ label, value }: any) {
+
+
+
+
+function Card({
+  icon,
+  label,
+  value
+}:any){
+
+
   return (
-    <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-4 hover:border-slate-600 transition">
-      <p className="text-slate-400 text-xs">{label}</p>
-      <p className="text-xl font-bold mt-1">{value}</p>
+
+    <div
+
+      className="
+      bg-white/5
+      backdrop-blur-xl
+      border
+      border-white/10
+      rounded-3xl
+      p-4
+      shadow-xl
+      hover:scale-[1.02]
+      transition
+      "
+
+    >
+
+
+      <div
+        className="
+        text-2xl
+        mb-3
+        "
+      >
+
+        {icon}
+
+      </div>
+
+
+
+      <p
+        className="
+        text-xs
+        text-slate-400
+        "
+      >
+
+        {label}
+
+      </p>
+
+
+
+      <p
+        className="
+        text-xl
+        font-black
+        mt-1
+        text-white
+        "
+      >
+
+        {value}
+
+      </p>
+
+
+
     </div>
+
   );
+
 }

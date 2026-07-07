@@ -2,6 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  Wallet,
+  TrendingUp,
+  Receipt,
+  PlusCircle,
+  Trash2,
+  Sparkles,
+  Banknote,
+} from "lucide-react";
 
 type Sale = {
   total_sale: number;
@@ -19,13 +28,16 @@ type Expense = {
 };
 
 export default function ReportsPage() {
+
   const [todayFc, setTodayFc] = useState(0);
   const [todayUsd, setTodayUsd] = useState(0);
+
   const [todayProfitFc, setTodayProfitFc] = useState(0);
   const [todayProfitUsd, setTodayProfitUsd] = useState(0);
 
   const [todayExpenseFc, setTodayExpenseFc] = useState(0);
   const [todayExpenseUsd, setTodayExpenseUsd] = useState(0);
+
   const [expensesList, setExpensesList] = useState<Expense[]>([]);
 
   const [title, setTitle] = useState("");
@@ -33,307 +45,931 @@ export default function ReportsPage() {
   const [currency, setCurrency] = useState("FC");
 
   const now = new Date();
+
   const offset = now.getTimezoneOffset() * 60000;
-  const localDate = new Date(now.getTime() - offset);
-  const todayStr = localDate.toISOString().split("T")[0];
+
+  const localDate = new Date(
+    now.getTime() - offset
+  );
+
+  const todayStr =
+    localDate.toISOString().split("T")[0];
+
 
   const yesterdayDate = new Date(localDate);
-  yesterdayDate.setDate(localDate.getDate() - 1);
-  const yesterdayStr = yesterdayDate.toISOString().split("T")[0];
+
+  yesterdayDate.setDate(
+    localDate.getDate() - 1
+  );
+
+  const yesterdayStr =
+    yesterdayDate.toISOString().split("T")[0];
+
 
   useEffect(() => {
     load();
   }, []);
 
+
   const load = async () => {
-    const phone = localStorage.getItem("phone");
+
+    const phone =
+      localStorage.getItem("phone");
 
     if (!phone) return;
 
-    const { data: user } = await supabase
+
+    const { data:user } =
+      await supabase
       .from("users")
       .select("id")
       .eq("phone", phone)
       .single();
 
+
     if (!user) return;
 
-    const { data: sales } = await supabase
+
+    const { data:sales } =
+      await supabase
       .from("sales")
       .select("*")
       .eq("user_id", user.id);
 
-    const { data: expenses } = await supabase
+
+
+    const { data:expenses } =
+      await supabase
       .from("expenses")
       .select("*")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    setExpensesList(expenses || []);
-        let tFc = 0,
-      tUsd = 0,
-      tPfFc = 0,
-      tPfUsd = 0,
-      expFc = 0,
-      expUsd = 0;
-
-    sales?.forEach((s: Sale) => {
-      if (s.created_at.split("T")[0] === todayStr) {
-        if (s.currency === "FC") {
-          tFc += Number(s.total_sale || 0);
-          tPfFc += Number(s.profit || 0);
-        } else {
-          tUsd += Number(s.total_sale || 0);
-          tPfUsd += Number(s.profit || 0);
+      .order(
+        "created_at",
+        {
+          ascending:false
         }
-      }
-    });
+      );
 
-    expenses?.forEach((e: Expense) => {
-      if (e.created_at.split("T")[0] === todayStr) {
-        if (e.currency === "FC") expFc += Number(e.amount || 0);
-        else expUsd += Number(e.amount || 0);
+
+    setExpensesList(
+      expenses || []
+    );
+
+
+    let tFc = 0;
+    let tUsd = 0;
+
+    let pfFc = 0;
+    let pfUsd = 0;
+
+    let expFc = 0;
+    let expUsd = 0;
+
+
+
+    sales?.forEach(
+      (s:Sale)=>{
+
+        if(
+          s.created_at.split("T")[0]
+          === todayStr
+        ){
+
+          if(
+            s.currency==="FC"
+          ){
+
+            tFc += Number(
+              s.total_sale || 0
+            );
+
+            pfFc += Number(
+              s.profit || 0
+            );
+
+          }else{
+
+            tUsd += Number(
+              s.total_sale || 0
+            );
+
+            pfUsd += Number(
+              s.profit || 0
+            );
+
+          }
+
+        }
+
       }
-    });
+    );
+
+
+
+    expenses?.forEach(
+      (e:Expense)=>{
+
+        if(
+          e.created_at.split("T")[0]
+          === todayStr
+        ){
+
+          if(
+            e.currency==="FC"
+          ){
+
+            expFc += Number(
+              e.amount || 0
+            );
+
+          }else{
+
+            expUsd += Number(
+              e.amount || 0
+            );
+
+          }
+
+        }
+
+      }
+    );
+
 
     setTodayFc(tFc);
     setTodayUsd(tUsd);
-    setTodayProfitFc(tPfFc);
-    setTodayProfitUsd(tPfUsd);
+
+    setTodayProfitFc(pfFc);
+    setTodayProfitUsd(pfUsd);
+
     setTodayExpenseFc(expFc);
     setTodayExpenseUsd(expUsd);
+
   };
 
-  const addExpense = async () => {
-    if (!title || !amount) return alert("Remplissez les champs");
 
-    const phone = localStorage.getItem("phone");
 
-    if (!phone) {
-      alert("Utilisateur non connecté");
+  const addExpense = async()=>{
+
+
+    if(
+      !title ||
+      !amount
+    ){
+
+      alert(
+        "Remplissez les champs"
+      );
+
       return;
+
     }
 
-    const { data: user } = await supabase
+
+    const phone =
+      localStorage.getItem("phone");
+
+
+    if(!phone)
+      return;
+
+
+
+    const {data:user} =
+      await supabase
       .from("users")
       .select("id")
-      .eq("phone", phone)
+      .eq("phone",phone)
       .single();
 
-    if (!user) {
-      alert("Utilisateur introuvable");
+
+
+    if(!user)
       return;
-    }
 
-    const { error } = await supabase.from("expenses").insert([
-      {
-        title,
-        amount: Number(amount),
-        currency,
-        user_id: user.id,
-      },
-    ]);
 
-    if (error) {
+
+    const {error}=
+
+      await supabase
+      .from("expenses")
+      .insert([
+        {
+          title,
+          amount:Number(amount),
+          currency,
+          user_id:user.id
+        }
+      ]);
+
+
+
+    if(error){
+
       alert(error.message);
+
       return;
+
     }
+
+
 
     setTitle("");
     setAmount("");
+
     load();
+
   };
+   
+  const deleteExpense = async (id:number)=>{
 
-  const deleteExpense = async (id: number) => {
-    if (!confirm("Supprimer cette dépense ?")) return;
+    if(!confirm("Supprimer cette dépense ?"))
+      return;
 
-    const phone = localStorage.getItem("phone");
 
-    if (!phone) return;
+    const phone =
+      localStorage.getItem("phone");
 
-    const { data: user } = await supabase
+
+    if(!phone)
+      return;
+
+
+    const {data:user}=await supabase
       .from("users")
       .select("id")
-      .eq("phone", phone)
+      .eq("phone",phone)
       .single();
 
-    if (!user) return;
 
-    const { error } = await supabase
+    if(!user)
+      return;
+
+
+    await supabase
       .from("expenses")
       .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("id",id)
+      .eq("user_id",user.id);
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
 
     load();
+
   };
 
-  const todayExpenses = expensesList.filter(
-    (e) => e.created_at && e.created_at.split("T")[0] === todayStr
-  );
 
-  const yesterdayExpenses = expensesList.filter(
-    (e) => e.created_at && e.created_at.split("T")[0] === yesterdayStr
-  );
 
-  return (
-    <main className="min-h-screen bg-black text-white p-4 sm:p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
+  const todayExpenses =
+    expensesList.filter(
+      (e)=>
+      e.created_at &&
+      e.created_at.split("T")[0]===todayStr
+    );
 
-        {/* HEADER */}
-        <div>
-          <h1 className="text-2xl font-bold">📊 Rapports</h1>
-          <p className="text-slate-400 text-sm">
-            Analyse ventes & dépenses
-          </p>
-        </div>
 
-        {/* ADD EXPENSE */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <h2 className="font-bold mb-4">➕ Ajouter dépense</h2>
+  const yesterdayExpenses =
+    expensesList.filter(
+      (e)=>
+      e.created_at &&
+      e.created_at.split("T")[0]===yesterdayStr
+    );
 
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              className="bg-black border border-slate-700 p-3 rounded-xl flex-1 text-white placeholder:text-slate-400"
-              style={{
-                color: "#fff",
-                WebkitTextFillColor: "#fff",
-                caretColor: "#fff",
-              }}
-              placeholder="Nom"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
 
-            <input
-              className="bg-black border border-slate-700 p-3 rounded-xl w-full sm:w-40 text-white placeholder:text-slate-400"
-              style={{
-                color: "#fff",
-                WebkitTextFillColor: "#fff",
-                caretColor: "#fff",
-              }}
-              type="number"
-              placeholder="Montant"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
 
-            <select
-              className="bg-black border border-slate-700 p-3 rounded-xl text-white"
-              style={{
-                color: "#fff",
-                WebkitTextFillColor: "#fff",
-              }}
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-            >
-              <option value="FC">FC</option>
-              <option value="USD">USD</option>
-            </select>
+return (
 
-            <button
-              onClick={addExpense}
-              className="bg-green-600 px-6 py-3 rounded-xl font-bold"
-            >
-              Ajouter
-            </button>
-          </div>
-        </div>
+<main className="
+relative
+min-h-screen
+overflow-hidden
+bg-[#081221]
+text-white
+p-4
+pb-20
+">
 
-        {/* SUMMARY */}
-        <div>
-          <h2 className="text-emerald-400 font-bold mb-3">
-            💰 Résultat du jour
-          </h2>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Card
-              title="EN FC IL ME RESTE"
-              value={`${todayProfitFc - todayExpenseFc} FC`}
-            />
-            <Card
-              title="EN USD IL ME RESTE"
-              value={`${todayProfitUsd - todayExpenseUsd} $`}
-            />
-          </div>
-        </div>
+{/* LIGHT EFFECT */}
 
-        {/* LISTS */}
-        <div className="grid md:grid-cols-2 gap-6">
+<div className="
+absolute
+top-[-150px]
+left-1/2
+h-[400px]
+w-[400px]
+-translate-x-1/2
+rounded-full
+bg-orange-500/20
+blur-[130px]
+"/>
 
-          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <h3 className="font-bold mb-3 text-emerald-400">
-              Aujourd’hui
-            </h3>
 
-            {todayExpenses.length === 0 ? (
-              <p className="text-slate-500 text-sm">Aucune dépense</p>
-            ) : (
-              todayExpenses.map((exp) => (
-                <ExpenseItem key={exp.id} exp={exp} onDelete={deleteExpense} />
-              ))
-            )}
-          </section>
+<div className="
+absolute
+bottom-0
+right-0
+h-[350px]
+w-[350px]
+rounded-full
+bg-blue-500/20
+blur-[120px]
+"/>
 
-          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <h3 className="font-bold mb-3 text-amber-400">
-              Hier
-            </h3>
 
-            {yesterdayExpenses.length === 0 ? (
-              <p className="text-slate-500 text-sm">Aucune dépense</p>
-            ) : (
-              yesterdayExpenses.map((exp) => (
-                <ExpenseItem key={exp.id} exp={exp} onDelete={deleteExpense} />
-              ))
-            )}
-          </section>
 
-        </div>
-      </div>
-    </main>
-  );
+<div className="
+relative
+z-10
+max-w-5xl
+mx-auto
+space-y-6
+">
+
+
+{/* HEADER */}
+
+<div>
+
+<div className="flex items-center gap-3">
+
+<div className="
+bg-orange-500/20
+p-3
+rounded-2xl
+border
+border-orange-400/30
+">
+
+<TrendingUp
+className="text-orange-400"
+/>
+
+</div>
+
+
+<div>
+
+<h1 className="
+text-3xl
+font-black
+">
+
+Rapports
+
+</h1>
+
+
+<p className="
+text-sm
+text-slate-400
+">
+
+Analyse ventes & dépenses
+
+</p>
+
+
+</div>
+
+</div>
+
+</div>
+
+
+
+
+
+{/* RESULTAT */}
+
+<div className="
+grid
+sm:grid-cols-2
+gap-4
+">
+
+
+<Card
+
+title="Bénéfice restant FC"
+
+value={
+`${todayProfitFc - todayExpenseFc} FC`
 }
 
-/* UI */
+icon={<Wallet/>}
 
-function ExpenseItem({
-  exp,
-  onDelete,
-}: {
-  exp: Expense;
-  onDelete: (id: number) => void;
-}) {
-  return (
-    <div className="flex justify-between items-center py-3 border-b border-slate-800">
-      <p className="text-slate-300 text-sm">{exp.title}</p>
+/>
 
-      <div className="flex items-center gap-3">
-        <span className="font-bold">
-          {exp.amount} {exp.currency}
-        </span>
 
-        <button
-          onClick={() => onDelete(exp.id)}
-          className="text-[10px] bg-red-600 px-2 py-1 rounded font-bold"
-        >
-          Supprimer
-        </button>
-      </div>
-    </div>
-  );
+<Card
+
+title="Bénéfice restant USD"
+
+value={
+`${todayProfitUsd - todayExpenseUsd} $`
 }
 
-function Card({ title, value }: any) {
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-      <p className="text-slate-400 text-sm">{title}</p>
-      <p className="text-xl font-bold text-white">{value}</p>
-    </div>
-  );
+icon={<Banknote/>}
+
+/>
+
+
+</div>
+
+
+
+
+
+{/* VENTES */}
+
+<div className="
+grid
+sm:grid-cols-2
+gap-4
+">
+
+
+<InfoCard
+
+title="Ventes du jour FC"
+
+value={`${todayFc} FC`}
+
+/>
+
+
+<InfoCard
+
+title="Ventes du jour USD"
+
+value={`${todayUsd} $`}
+
+/>
+
+
+</div>
+
+
+
+
+
+{/* AJOUT DEPENSE */}
+
+<div className="
+rounded-3xl
+border
+border-white/10
+bg-white/5
+backdrop-blur-xl
+p-5
+shadow-2xl
+">
+
+
+<div className="
+flex
+items-center
+gap-2
+mb-4
+">
+
+<PlusCircle
+className="text-orange-400"
+/>
+
+
+<h2 className="font-bold text-lg">
+
+Nouvelle dépense
+
+</h2>
+
+
+</div>
+
+
+
+<div className="
+space-y-3
+">
+
+
+<input
+
+placeholder="Nom de la dépense"
+
+value={title}
+
+onChange={
+(e)=>setTitle(e.target.value)
+}
+
+className="
+w-full
+rounded-xl
+bg-black/40
+border
+border-white/10
+p-3
+outline-none
+text-white
+"
+
+/>
+
+
+
+<input
+
+type="number"
+
+placeholder="Montant"
+
+value={amount}
+
+onChange={
+(e)=>setAmount(e.target.value)
+}
+
+className="
+w-full
+rounded-xl
+bg-black/40
+border
+border-white/10
+p-3
+outline-none
+text-white
+"
+
+/>
+
+
+
+
+<select
+
+value={currency}
+
+onChange={
+(e)=>setCurrency(e.target.value)
+}
+
+className="
+w-full
+rounded-xl
+bg-black/40
+border
+border-white/10
+p-3
+text-white
+"
+
+>
+
+<option value="FC">
+FC
+</option>
+
+<option value="USD">
+USD
+</option>
+
+</select>
+
+
+
+
+<button
+
+onClick={addExpense}
+
+className="
+w-full
+rounded-xl
+py-4
+font-bold
+text-black
+bg-gradient-to-r
+from-orange-500
+to-yellow-400
+hover:scale-[1.02]
+transition
+flex
+items-center
+justify-center
+gap-2
+"
+
+>
+
+<Sparkles size={18}/>
+
+Ajouter la dépense
+
+</button>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+{/* LISTES */}
+
+<div className="
+grid
+md:grid-cols-2
+gap-5
+">
+
+
+
+<ExpenseBox
+
+title="Aujourd'hui"
+
+data={todayExpenses}
+
+color="text-green-400"
+
+onDelete={deleteExpense}
+
+/>
+
+
+
+<ExpenseBox
+
+title="Hier"
+
+data={yesterdayExpenses}
+
+color="text-orange-400"
+
+onDelete={deleteExpense}
+
+/>
+
+
+
+</div>
+
+
+
+</div>
+
+
+</main>
+
+);
+
+}
+
+
+
+
+
+function Card(
+{
+title,
+value,
+icon
+}:any
+){
+
+return (
+
+<div className="
+rounded-3xl
+border
+border-white/10
+bg-white/5
+backdrop-blur-xl
+p-5
+shadow-xl
+">
+
+
+<div className="
+flex
+justify-between
+items-center
+mb-3
+">
+
+
+<p className="
+text-sm
+text-slate-400
+">
+
+{title}
+
+</p>
+
+
+<div className="
+text-orange-400
+">
+
+{icon}
+
+</div>
+
+
+</div>
+
+
+<p className="
+text-2xl
+font-black
+text-white
+">
+
+{value}
+
+</p>
+
+
+</div>
+
+);
+
+}
+
+
+
+
+
+function InfoCard(
+{
+title,
+value
+}:any
+){
+
+return (
+
+<div className="
+bg-slate-900/70
+border
+border-slate-800
+rounded-2xl
+p-4
+">
+
+<p className="
+text-xs
+text-slate-400
+">
+
+{title}
+
+</p>
+
+
+<p className="
+text-xl
+font-bold
+text-green-400
+">
+
+{value}
+
+</p>
+
+
+</div>
+
+);
+
+}
+
+
+
+
+
+function ExpenseBox(
+{
+title,
+data,
+color,
+onDelete
+}:any
+){
+
+return (
+
+<div className="
+rounded-3xl
+border
+border-white/10
+bg-white/5
+backdrop-blur-xl
+p-5
+">
+
+
+<h3 className={`
+font-bold
+mb-4
+${color}
+`}>
+
+{title}
+
+</h3>
+
+
+
+{
+data.length===0 ?
+
+<p className="
+text-slate-500
+text-sm
+">
+
+Aucune dépense
+
+</p>
+
+
+:
+
+
+data.map(
+(exp:Expense)=>(
+
+<div
+key={exp.id}
+className="
+flex
+justify-between
+items-center
+border-b
+border-white/10
+py-3
+"
+>
+
+
+<div>
+
+<p className="font-bold">
+
+{exp.title}
+
+</p>
+
+<p className="text-sm text-slate-400">
+
+{exp.amount} {exp.currency}
+
+</p>
+
+
+</div>
+
+
+
+<button
+
+onClick={()=>
+onDelete(exp.id)
+}
+
+className="
+bg-red-600
+p-2
+rounded-lg
+"
+
+>
+
+<Trash2 size={15}/>
+
+</button>
+
+
+
+</div>
+
+)
+
+)
+
+}
+
+
+
+</div>
+
+);
+
 }

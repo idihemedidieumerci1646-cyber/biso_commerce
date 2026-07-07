@@ -1,13 +1,26 @@
-
 "use client";
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-import { Store, Phone, Lock, Loader2, Sparkles, Eye, EyeOff } from "lucide-react";
+import {
+  Store,
+  Phone,
+  Lock,
+  Loader2,
+  Sparkles,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  ShieldCheck,
+  Gift,
+} from "lucide-react";
+
 
 export default function RegisterPage() {
+
   const router = useRouter();
 
   const [businessName, setBusinessName] = useState("");
@@ -15,15 +28,20 @@ export default function RegisterPage() {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [showPin, setShowPin] = useState(false); // 👈 NEW
+  const [showPin, setShowPin] = useState(false);
+
+
 
   const handleRegister = async () => {
+
     if (!businessName || !phone || !pin) {
       alert("Veuillez remplir tous les champs");
       return;
     }
 
+
     setLoading(true);
+
 
     const { data: user, error: userError } = await supabase
       .from("users")
@@ -35,163 +53,464 @@ export default function RegisterPage() {
       .select()
       .single();
 
+
+
     if (userError || !user) {
+
       alert("Erreur utilisateur : " + userError?.message);
       setLoading(false);
       return;
+
     }
 
+
+
+
     const startDate = new Date();
+
     const endDate = new Date();
+
     endDate.setDate(endDate.getDate() + 30);
+
+
+
 
     const { error: subError } = await supabase
       .from("subscriptions")
       .insert({
+
         user_id: user.id,
+
         full_name: businessName,
+
         phone: phone,
+
         start_date: startDate.toISOString(),
+
         end_date: endDate.toISOString(),
+
         is_active: true,
+
         status: "trial",
+
       });
 
+
+
     if (subError) {
+
       alert("Erreur abonnement : " + subError.message);
+
       setLoading(false);
+
       return;
+
     }
+
+
 
     alert("Compte créé 🚀 30 jours gratuits activés");
 
+
     localStorage.setItem("phone", phone);
+
+    localStorage.setItem("user_id", user.id);
+
+
 
     setLoading(false);
 
+
     router.push("/dashboard");
+
   };
 
+
+
+
   return (
-    <main className="min-h-screen bg-black flex items-center justify-center px-5">
 
-      <div className="w-full max-w-md">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
 
-        {/* HEADER */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-3">
-            <div className="bg-green-500/10 p-3 rounded-2xl border border-green-500/30">
-              <Store className="text-green-400" />
-            </div>
-          </div>
 
-          <h1 className="text-2xl font-bold text-white">
-            Biso Commerce
-          </h1>
 
-          <p className="text-xs text-slate-400 mt-1">
-            Crée ton compte caisse en 30 secondes
-          </p>
-        </div>
+      {/* BACKGROUND */}
 
-        {/* FORM CARD */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+      <div className="absolute inset-0">
 
-          {/* BUSINESS NAME */}
-          <div>
-            <label className="text-xs text-slate-400">
-              Nom du commerce
-            </label>
 
-            <div className="flex items-center gap-2 bg-black/40 border border-slate-800 rounded-xl p-3 mt-1">
-              <Store size={18} className="text-green-400" />
-              <input
-                type="text"
-                placeholder="Ex: Boutique Amani"
-                value={businessName}
-                onChange={(e) =>
-                  setBusinessName(e.target.value)
-                }
-                className="bg-transparent w-full outline-none text-white text-sm"
-              />
-            </div>
-          </div>
+        <div className="absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[160px]" />
 
-          {/* PHONE */}
-          <div>
-            <label className="text-xs text-slate-400">
-              Téléphone
-            </label>
 
-            <div className="flex items-center gap-2 bg-black/40 border border-slate-800 rounded-xl p-3 mt-1">
-              <Phone size={18} className="text-blue-400" />
-              <input
-                type="tel"
-                placeholder="XXXXXXXXX"
-                value={phone}
-                onChange={(e) =>
-                  setPhone(e.target.value)
-                }
-                className="bg-transparent w-full outline-none text-white text-sm"
-              />
-            </div>
-          </div>
+        <div className="absolute bottom-0 right-0 h-[350px] w-[350px] rounded-full bg-blue-600/20 blur-[130px]" />
 
-          {/* PIN */}
-          <div>
-            <label className="text-xs text-slate-400">
-              Code PIN
-            </label>
 
-            <div className="flex items-center gap-2 bg-black/40 border border-slate-800 rounded-xl p-3 mt-1">
-              <Lock size={18} className="text-yellow-400" />
+        <div className="absolute left-0 top-1/3 h-[300px] w-[300px] rounded-full bg-purple-600/20 blur-[120px]" />
 
-              <input
-                type={showPin ? "text" : "password"} // 👈 TOGGLE
-                placeholder="••••"
-                value={pin}
-                onChange={(e) =>
-                  setPin(e.target.value)
-                }
-                className="bg-transparent w-full outline-none text-white text-sm"
-              />
 
-              {/* 👁️ BUTTON */}
-              <button
-                type="button"
-                onClick={() => setShowPin(!showPin)}
-                className="text-slate-400 hover:text-white"
-              >
-                {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          {/* BUTTON */}
-          <button
-            onClick={handleRegister}
-            disabled={loading}
-            className="w-full bg-green-600 hover:bg-green-700 transition p-4 rounded-2xl font-bold flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" />
-                Création...
-              </>
-            ) : (
-              <>
-                <Sparkles size={18} />
-                Créer mon compte
-              </>
-            )}
-          </button>
-
-          {/* FOOTER INFO */}
-          <p className="text-[10px] text-slate-500 text-center">
-            30 jours gratuits • Sans carte bancaire
-          </p>
-        </div>
       </div>
+
+
+
+
+
+      <div className="relative z-10 w-full max-w-md">
+
+
+        <Link
+          href="/"
+          className="mb-6 flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
+        >
+
+          <ArrowLeft size={16}/>
+
+          Retour
+
+        </Link>
+
+
+
+
+
+        <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-8 shadow-2xl backdrop-blur-2xl">
+
+
+
+
+
+          {/* HEADER */}
+
+          <div className="text-center">
+
+
+
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 shadow-xl shadow-orange-500/30">
+
+              <Store className="text-black" size={30}/>
+
+            </div>
+
+
+
+
+
+            <div className="mb-3 flex justify-center">
+
+              <span className="flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-500/10 px-4 py-2 text-xs text-orange-300">
+
+                <Gift size={14}/>
+
+                30 jours gratuits
+
+              </span>
+
+
+            </div>
+
+
+
+
+
+            <h1 className="text-3xl font-black">
+
+              Créer un compte
+
+            </h1>
+
+
+
+            <p className="mt-2 text-sm text-slate-400">
+
+              Lancez votre commerce digital en quelques secondes
+
+            </p>
+
+
+
+          </div>
+
+
+
+
+
+
+          {/* FORM */}
+
+
+          <div className="mt-8 space-y-5">
+
+
+
+
+
+            {/* BUSINESS */}
+
+
+            <div>
+
+
+              <label className="mb-2 block text-xs text-slate-400">
+
+                NOM DU COMMERCE
+
+              </label>
+
+
+
+              <div className="flex items-center rounded-2xl border border-white/10 bg-black/30 px-4">
+
+
+                <Store
+                  size={18}
+                  className="text-orange-400"
+                />
+
+
+                <input
+
+                  type="text"
+
+                  placeholder="Ex: Boutique Amani"
+
+                  value={businessName}
+
+                  onChange={(e)=>setBusinessName(e.target.value)}
+
+                  className="w-full bg-transparent p-4 text-white outline-none placeholder:text-slate-600"
+
+                />
+
+
+              </div>
+
+
+            </div>
+
+
+
+
+
+
+
+            {/* PHONE */}
+
+
+
+            <div>
+
+
+              <label className="mb-2 block text-xs text-slate-400">
+
+                TÉLÉPHONE
+
+              </label>
+
+
+
+              <div className="flex items-center rounded-2xl border border-white/10 bg-black/30 px-4">
+
+
+                <Phone
+                  size={18}
+                  className="text-orange-400"
+                />
+
+
+                <input
+
+                  type="tel"
+
+                  placeholder="XXXXXXXXXX"
+
+                  value={phone}
+
+                  onChange={(e)=>setPhone(e.target.value)}
+
+                  className="w-full bg-transparent p-4 text-white outline-none placeholder:text-slate-600"
+
+                />
+
+
+              </div>
+
+
+            </div>
+
+
+
+
+
+
+
+            {/* PIN */}
+
+
+
+            <div>
+
+
+              <label className="mb-2 block text-xs text-slate-400">
+
+                CODE PIN
+
+              </label>
+
+
+
+              <div className="flex items-center rounded-2xl border border-white/10 bg-black/30 px-4">
+
+
+                <Lock
+                  size={18}
+                  className="text-orange-400"
+                />
+
+
+
+                <input
+
+                  type={showPin ? "text" : "password"}
+
+                  placeholder="••••"
+
+                  value={pin}
+
+                  onChange={(e)=>setPin(e.target.value)}
+
+                  className="w-full bg-transparent p-4 text-white outline-none placeholder:text-slate-600"
+
+                />
+
+
+
+
+                <button
+
+                  type="button"
+
+                  onClick={()=>setShowPin(!showPin)}
+
+                  className="text-slate-400 hover:text-white"
+
+                >
+
+                  {
+                    showPin
+                    ?
+                    <EyeOff size={18}/>
+                    :
+                    <Eye size={18}/>
+                  }
+
+
+                </button>
+
+
+
+              </div>
+
+
+            </div>
+
+
+
+
+
+
+
+            {/* BUTTON */}
+
+
+
+            <button
+
+              onClick={handleRegister}
+
+              disabled={loading}
+
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-bold text-black transition hover:scale-[1.02] disabled:opacity-50"
+
+            >
+
+
+              {
+
+                loading
+
+                ?
+
+                <>
+
+                  <Loader2
+                    className="animate-spin"
+                  />
+
+                  Création...
+
+                </>
+
+
+                :
+
+                <>
+
+                  <Sparkles size={18}/>
+
+                  Créer mon compte
+
+                </>
+
+              }
+
+
+            </button>
+
+
+
+
+          </div>
+
+
+
+
+
+
+
+          <div className="mt-7 space-y-3 border-t border-white/10 pt-6 text-sm text-slate-300">
+
+
+            <div className="flex items-center justify-center gap-2 text-xs">
+
+              <ShieldCheck
+                size={15}
+                className="text-orange-400"
+              />
+
+              Aucun paiement nécessaire pendant l'essai
+
+            </div>
+
+
+
+            <p className="text-center text-xs text-slate-500">
+
+              30 jours gratuits • Sans carte bancaire
+
+            </p>
+
+
+          </div>
+
+
+
+
+        </div>
+
+
+      </div>
+
+
     </main>
+
   );
 }

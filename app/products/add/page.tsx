@@ -2,212 +2,630 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  PackagePlus,
+  Sparkles,
+  Lightbulb,
+  Boxes,
+  DollarSign,
+  Loader2,
+  CheckCircle,
+} from "lucide-react";
+
 
 export default function AddProductPage() {
-  const [name, setName] = useState("");
-  const [type, setType] = useState("Pièce");
-  const [quantity, setQuantity] = useState("");
-  const [piecesPerUnit, setPiecesPerUnit] = useState("");
-  const [buyPrice, setBuyPrice] = useState("");
-  const [sellPrice, setSellPrice] = useState("");
-  const [currency, setCurrency] = useState("FC");
-  const [loading, setLoading] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
 
-  const saveProduct = async () => {
-    // Logique intelligente : 
-    // Si c'est une pièce ou si le champ est vide, on considère 1 unité.
-    // Sinon, on calcule le stock total en pièces.
-    const nPieces = (type !== "Pièce" && piecesPerUnit) ? Number(piecesPerUnit) : 1;
-    const totalStock = Number(quantity) * nPieces;
-    const unitCost = Number(buyPrice) / totalStock;
 
-    if (!name || !quantity || !buyPrice || !sellPrice) {
-      alert("Veuillez remplir tous les champs.");
+  const [name,setName]=useState("");
+  const [type,setType]=useState("Pièce");
+  const [quantity,setQuantity]=useState("");
+  const [piecesPerUnit,setPiecesPerUnit]=useState("");
+  const [buyPrice,setBuyPrice]=useState("");
+  const [sellPrice,setSellPrice]=useState("");
+  const [currency,setCurrency]=useState("FC");
+  const [loading,setLoading]=useState(false);
+
+
+
+  const saveProduct = async()=>{
+
+
+    if(!name || !quantity || !buyPrice || !sellPrice){
+
+      alert("Veuillez remplir tous les champs");
       return;
+
     }
 
-    const phone = localStorage.getItem("phone");
-    if (!phone) {
-      alert("Non connecté");
+
+
+    const nPieces =
+      type !== "Pièce" && piecesPerUnit
+      ? Number(piecesPerUnit)
+      : 1;
+
+
+
+    const totalStock =
+      Number(quantity) * nPieces;
+
+
+
+    const unitCost =
+      Number(buyPrice) / totalStock;
+
+
+
+    const phone =
+      localStorage.getItem("phone");
+
+
+
+    if(!phone){
+
+      alert("Utilisateur non connecté");
       return;
+
     }
 
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("phone", phone)
-      .single();
 
-    if (userError || !user?.id) {
-      alert("Utilisateur introuvable");
-      return;
-    }
 
     setLoading(true);
 
-    const { error } = await supabase.from("products").insert({
-      user_id: user.id,
-      name,
-      unit: type,
-      stock: totalStock,
-      initial_stock: totalStock,
-      purchase_price: unitCost,
-      selling_price: Number(sellPrice),
-      currency,
-    });
+
+
+    const {data:user}=await supabase
+      .from("users")
+      .select("id")
+      .eq("phone",phone)
+      .single();
+
+
+
+    if(!user){
+
+      setLoading(false);
+      return;
+
+    }
+
+
+
+
+
+    const {error}=await supabase
+      .from("products")
+      .insert({
+
+        user_id:user.id,
+
+        name,
+
+        unit:type,
+
+        stock:totalStock,
+
+        initial_stock:totalStock,
+
+        purchase_price:unitCost,
+
+        selling_price:Number(sellPrice),
+
+        currency
+
+      });
+
+
+
+
 
     setLoading(false);
 
-    if (error) {
+
+
+    if(error){
+
       alert(error.message);
       return;
+
     }
 
+
+
     alert("Produit ajouté avec succès ✅");
+
+
 
     setName("");
     setQuantity("");
     setBuyPrice("");
     setSellPrice("");
     setPiecesPerUnit("");
+
   };
 
-  return (
-    <main className="min-h-screen bg-black text-white p-4">
-      <div className="max-w-xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">➕ Nouveau produit</h1>
-          <button 
-            onClick={() => setShowGuide(!showGuide)}
-            className="text-xs bg-green-600 px-3 py-1 rounded-full font-bold"
-          >
-            
-          </button>
-        </div>
 
-        {/* GUIDE DE L'UTILISATEUR */}
-       {/* GUIDE COMPLET */}
-        <div className="bg-slate-900 border border-green-500/50 p-6 rounded-2xl mb-6">
-          <h3 className="font-bold text-green-400 mb-4 text-xl">💡 Guide simple pour bien vendre</h3>
-          
-          <div className="space-y-6 text-sm text-slate-300">
-            {/* ÉTAPE 1 */}
-            <div>
-              <p className="font-bold text-white mb-2">1. Si tu achètes des cartons/boîtes :</p>
-              <div className="bg-black p-2 rounded-lg border border-slate-500">
-                <p>Ex: 1 carton qui contient 100 médicaments acheté à 20 000 FC.</p>
-                <ul className="text-green-400 mt-1">
-                  <li>• Quantité : <b>1</b></li>
-                  <li>• Nombre de pièces dedans : <b>100</b></li>
-                  <li>• Prix d'achat TOTAL : <b>20 000</b></li>
-                </ul>
-              </div>
-            </div>
 
-            {/* ÉTAPE 2 */}
-            <div>
-              <p className="font-bold text-white mb-2">2. Si tu achètes à la pièce :</p>
-              <div className="bg-black p-3 rounded-lg border border-slate-700">
-                <p>Ex: 10 stylos achetés à 500 FC au total.</p>
-                <ul className="text-green-400 mt-1">
-                  <li>• Quantité : <b>10</b></li>
-                  <li>• Prix d'achat TOTAL : <b>500</b></li>
-                </ul>
-              </div>
-            </div>
 
-            {/* ÉTAPE 3 */}
-            <div>
-              <p className="font-bold text-white mb-2">3. Le Prix de Vente :</p>
-              <p>Mets ici le prix auquel tu vends <b>une seule unité</b> (ex: 250 FC pour un seul médicament).</p>
-            </div>
-            
-            <p className="text-xs text-slate-500 italic">Le système est magique : il prend ton prix total, le divise, et calcule tout seul ton bénéfice !</p>
-          </div>
-        </div>
 
-        <div className="bg-slate-900 p-4 rounded-2xl space-y-3">
-          <input
-            className="w-full p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
-            style={{ color: "#fff", WebkitTextFillColor: "#fff", caretColor: "#fff" }}
-            placeholder="Nom du produit"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
 
-          <select
-            className="w-full p-3 rounded-xl bg-black border border-white/10 text-white"
-            style={{ color: "#fff", WebkitTextFillColor: "#fff" }}
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-          >
-            <option>Pièce</option>
-            <option>Carton</option>
-            <option>Boîte</option>
-            <option>Sachet</option>
-            <option>Kg</option>
-          </select>
 
-          <input
-            type="number"
-            className="w-full p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
-            style={{ color: "#fff", WebkitTextFillColor: "#fff", caretColor: "#fff" }}
-            placeholder={`Nombre de ${type}(s) acheté(s)`}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
+return (
 
-          {type !== "Pièce" && (
-            <input
-              type="number"
-              className="w-full p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
-              style={{ color: "#fff", WebkitTextFillColor: "#fff", caretColor: "#fff" }}
-              placeholder={`Combien de pièces dans un(e) ${type} ?`}
-              value={piecesPerUnit}
-              onChange={(e) => setPiecesPerUnit(e.target.value)}
-            />
-          )}
+<main className="relative min-h-screen overflow-hidden bg-[#060d1b] pb-24 text-white">
 
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="number"
-              className="p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
-              style={{ color: "#fff", WebkitTextFillColor: "#fff", caretColor: "#fff" }}
-              placeholder="Prix d'Achat TOTAL"
-              value={buyPrice}
-              onChange={(e) => setBuyPrice(e.target.value)}
-            />
 
-            <input
-              type="number"
-              className="p-3 rounded-xl bg-black border border-white/10 text-white placeholder:text-slate-400"
-              style={{ color: "#fff", WebkitTextFillColor: "#fff", caretColor: "#fff" }}
-              placeholder="Prix de Vente"
-              value={sellPrice}
-              onChange={(e) => setSellPrice(e.target.value)}
-            />
-          </div>
+{/* BACKGROUND */}
 
-          <select
-            className="w-full p-3 rounded-xl bg-black border border-white/10 text-white"
-            style={{ color: "#fff", WebkitTextFillColor: "#fff" }}
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-          >
-            <option value="FC">FC</option>
-            <option value="$">$ USD</option>
-          </select>
+<div className="absolute inset-0 pointer-events-none">
 
-          <button
-            onClick={saveProduct}
-            disabled={loading}
-            className="w-full bg-green-600 p-3 rounded-xl font-bold"
-          >
-            {loading ? "..." : "Ajouter le produit"}
-          </button>
-        </div>
+
+<div className="absolute -top-40 left-1/2 h-[450px] w-[450px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[150px]"/>
+
+
+<div className="absolute bottom-0 right-0 h-[350px] w-[350px] rounded-full bg-blue-600/20 blur-[130px]"/>
+
+
+</div>
+
+
+
+
+
+<div className="relative z-10 mx-auto max-w-xl p-5">
+
+
+
+
+
+{/* HEADER */}
+
+<div className="mb-7">
+
+
+<div className="flex items-center gap-3">
+
+
+<div className="rounded-2xl bg-orange-500/20 p-3">
+
+
+<PackagePlus
+className="text-orange-400"
+/>
+
+
+</div>
+
+
+<h1 className="text-3xl font-black">
+
+Nouveau produit
+
+</h1>
+
+
+</div>
+
+
+
+<p className="mt-2 text-xs text-slate-400">
+
+Ajoutez votre stock facilement
+
+</p>
+
+
+</div>
+
+
+
+
+
+
+
+
+{/* GUIDE UTILISATEUR */}
+
+<div className="relative overflow-hidden rounded-3xl border border-orange-500/30 bg-white/5 p-6 backdrop-blur-xl shadow-2xl">
+
+  {/* Glow */}
+  <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full bg-orange-500/20 blur-3xl" />
+  <div className="absolute -bottom-20 -left-20 h-40 w-40 rounded-full bg-blue-500/20 blur-3xl" />
+
+
+  <div className="relative z-10">
+
+    {/* HEADER */}
+    <div className="mb-6 flex items-center gap-3">
+
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/20 border border-orange-400/30">
+        💡
       </div>
-    </main>
-  );
+
+      <div>
+        <h3 className="text-xl font-black text-white">
+          Guide intelligent
+        </h3>
+
+        <p className="text-xs text-slate-400">
+          Comment ajouter correctement vos produits
+        </p>
+      </div>
+
+    </div>
+
+
+
+    <div className="space-y-5 text-sm text-slate-300">
+
+
+      {/* ETAPE 1 */}
+
+      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+
+        <h4 className="mb-3 font-bold text-orange-400">
+          📦 1. Achat en carton ou boîte
+        </h4>
+
+
+        <p className="text-slate-300">
+          Exemple : 1 carton contient 100 médicaments acheté à 
+          <span className="font-bold text-white"> 20 000 FC</span>
+        </p>
+
+
+        <div className="mt-3 rounded-xl bg-white/5 p-3">
+
+          <p className="text-green-400">
+            ✓ Quantité : <b>1</b>
+          </p>
+
+          <p className="text-green-400">
+            ✓ Pièces dans le carton : <b>100</b>
+          </p>
+
+          <p className="text-green-400">
+            ✓ Prix d'achat total : <b>20 000 FC</b>
+          </p>
+
+        </div>
+
+      </div>
+
+
+
+
+      {/* ETAPE 2 */}
+
+      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+
+
+        <h4 className="mb-3 font-bold text-blue-400">
+          🛒 2. Achat à la pièce
+        </h4>
+
+
+        <p>
+          Exemple : 10 stylos achetés ensemble à 
+          <span className="font-bold text-white"> 500 FC</span>
+        </p>
+
+
+        <div className="mt-3 rounded-xl bg-white/5 p-3">
+
+          <p className="text-green-400">
+            ✓ Quantité : <b>10</b>
+          </p>
+
+          <p className="text-green-400">
+            ✓ Prix d'achat total : <b>500 FC</b>
+          </p>
+
+        </div>
+
+
+      </div>
+
+
+
+
+      {/* ETAPE 3 */}
+
+      <div className="rounded-2xl border border-orange-400/20 bg-orange-500/5 p-4">
+
+
+        <h4 className="mb-3 font-bold text-yellow-300">
+          💰 3. Prix de vente
+        </h4>
+
+
+        <p>
+          Indique ici le prix auquel tu vends 
+          <span className="font-bold text-white">
+            {" "}une seule unité
+          </span>.
+        </p>
+
+
+        <p className="mt-2 text-xs text-slate-400">
+          Exemple : un médicament vendu à 250 FC la pièce.
+        </p>
+
+
+      </div>
+
+
+
+
+      {/* MESSAGE FINAL */}
+
+      <div className="rounded-2xl border border-green-400/20 bg-green-500/10 p-4">
+
+        <p className="text-green-300 font-semibold">
+
+          🚀 Biso-Commerce calcule automatiquement :
+
+        </p>
+
+
+        <ul className="mt-2 space-y-1 text-xs text-slate-300">
+
+          <li>✓ Le prix d'achat par unité</li>
+          <li>✓ Votre bénéfice réel</li>
+          <li>✓ La valeur de votre stock</li>
+
+        </ul>
+
+
+      </div>
+
+
+
+    </div>
+
+
+  </div>
+
+</div>
+
+
+
+
+
+{/* FORMULAIRE */}
+
+
+<div className="space-y-4 rounded-[2rem] border border-white/10 bg-white/[0.07] p-6 backdrop-blur-xl">
+
+
+
+
+
+
+<input
+
+value={name}
+
+onChange={(e)=>setName(e.target.value)}
+
+placeholder="Nom du produit"
+
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none placeholder:text-slate-500"
+
+/>
+
+
+
+
+
+
+
+<select
+
+value={type}
+
+onChange={(e)=>setType(e.target.value)}
+
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4"
+
+>
+
+
+<option>Pièce</option>
+
+<option>Carton</option>
+
+<option>Boîte</option>
+
+<option>Sachet</option>
+
+<option>Kg</option>
+
+
+</select>
+
+
+
+
+
+
+
+
+<input
+
+type="number"
+
+value={quantity}
+
+onChange={(e)=>setQuantity(e.target.value)}
+
+placeholder={`Nombre de ${type}(s)`}
+
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none"
+
+/>
+
+
+
+
+
+
+
+
+{
+type!=="Pièce" &&
+
+<input
+
+type="number"
+
+value={piecesPerUnit}
+
+onChange={(e)=>setPiecesPerUnit(e.target.value)}
+
+placeholder="Nombre de pièces par unité"
+
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none"
+
+/>
+
+}
+
+
+
+
+
+
+
+
+
+<div className="grid grid-cols-2 gap-3">
+
+
+<input
+
+type="number"
+
+value={buyPrice}
+
+onChange={(e)=>setBuyPrice(e.target.value)}
+
+placeholder="Prix achat total"
+
+className="rounded-2xl border border-white/10 bg-black/40 p-4"
+
+/>
+
+
+
+<input
+
+type="number"
+
+value={sellPrice}
+
+onChange={(e)=>setSellPrice(e.target.value)}
+
+placeholder="Prix vente"
+
+className="rounded-2xl border border-white/10 bg-black/40 p-4"
+
+/>
+
+
+</div>
+
+
+
+
+
+
+
+<select
+
+value={currency}
+
+onChange={(e)=>setCurrency(e.target.value)}
+
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4"
+
+>
+
+
+<option value="FC">
+
+FC
+
+</option>
+
+
+<option value="$">
+
+$ USD
+
+</option>
+
+
+</select>
+
+
+
+
+
+
+
+
+
+<button
+
+onClick={saveProduct}
+
+disabled={loading}
+
+className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black shadow-lg transition hover:scale-[1.02]"
+
+>
+
+
+{
+loading ?
+
+<>
+
+<Loader2 className="animate-spin"/>
+
+Ajout...
+
+</>
+
+:
+
+<>
+
+<CheckCircle/>
+
+Ajouter le produit
+
+</>
+
+}
+
+
+</button>
+
+
+
+</div>
+
+
+
+</div>
+
+
+</main>
+
+
+);
+
+
 }
