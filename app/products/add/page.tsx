@@ -160,8 +160,6 @@ return (
 
 
 
-
-
 <div className="relative z-10 mx-auto max-w-xl p-5">
 
 
@@ -179,7 +177,9 @@ return (
 <div className="rounded-2xl bg-orange-500/20 p-3">
 
 
-
+<PackagePlus
+className="text-orange-400"
+/>
 
 
 </div>
@@ -212,7 +212,8 @@ Ajoutez votre stock facilement
 
 
 
-{/* GUIDE UTILISATEUR */}
+
+{/* GUIDE UTILISATEUR  */}
 
 <div className="relative overflow-hidden rounded-3xl border border-orange-500/30 bg-white/5 p-6 backdrop-blur-xl shadow-2xl">
 
@@ -375,8 +376,6 @@ Ajoutez votre stock facilement
   </div>
 
 </div>
-
-
 
 
 

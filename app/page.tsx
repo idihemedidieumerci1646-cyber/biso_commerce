@@ -27,7 +27,12 @@ export default function Home() {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
 
-      {/* Background premium 
+      {/* Background premium */}
+      <div className="absolute inset-0 overflow-hidden">
+
+      
+
+        
 
       </div>
 
