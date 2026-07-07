@@ -1288,7 +1288,7 @@ export default function DashboardPage() {
           />
 
 
-          BISO-COMMERCE • Gestion sécurisée ( PDG DIEUMERCI IDI )
+          BISO-COMMERCE  ( PDG DIEUMERCI IDI )
 
 
         </div>
