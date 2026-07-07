@@ -280,34 +280,6 @@ pb-28
 
 
 
-{/* LUMIERES */}
-
-<div className="
-absolute
--top-40
-left-1/2
-h-[450px]
-w-[450px]
--translate-x-1/2
-rounded-full
-bg-orange-500/20
-blur-[150px]
-"/>
-
-
-
-<div className="
-absolute
-bottom-0
-right-0
-h-[350px]
-w-[350px]
-rounded-full
-bg-blue-500/20
-blur-[130px]
-"/>
-
-
 
 <div className="
 relative

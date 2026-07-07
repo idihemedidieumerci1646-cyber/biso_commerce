@@ -178,26 +178,7 @@ return (
 
 
 
-{/* HEADER */}
-
-<div className="mb-7">
-
-
-<div className="flex items-center gap-3">
-
-
-<div className="rounded-2xl bg-orange-500/20 p-3">
-
-
-<PackagePlus
-className="text-orange-400"
-/>
-
-
-</div>
-
-
-<h1 className="text-3xl font-black">
+{/* HEADER *
 
 Nouveau produit
 

@@ -351,29 +351,6 @@ pb-20
 
 {/* LIGHT EFFECT */}
 
-<div className="
-absolute
-top-[-150px]
-left-1/2
-h-[400px]
-w-[400px]
--translate-x-1/2
-rounded-full
-bg-orange-500/20
-blur-[130px]
-"/>
-
-
-<div className="
-absolute
-bottom-0
-right-0
-h-[350px]
-w-[350px]
-rounded-full
-bg-blue-500/20
-blur-[120px]
-"/>
 
 
 

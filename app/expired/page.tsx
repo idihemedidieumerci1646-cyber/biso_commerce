@@ -13,7 +13,7 @@ export default function ExpiredPage() {
 
         {/* TITLE */}
         <h1 className="text-2xl sm:text-3xl font-bold mb-3 text-red-400">
-          Abonnement expiré
+         cher client votre Abonnement est expiré
         </h1>
 
         {/* TEXT */}
@@ -38,7 +38,7 @@ export default function ExpiredPage() {
           href="/subscription"
           className="block bg-green-600 hover:bg-green-700 transition p-4 rounded-2xl font-bold shadow-lg active:scale-95"
         >
-          💳 Renouveler maintenant
+          💳 Clique ici pour Renouveler maintenant
         </a>
 
         {/* FOOTER SMALL TEXT */}

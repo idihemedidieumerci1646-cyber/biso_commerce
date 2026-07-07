@@ -118,17 +118,8 @@ export default function LoginPage() {
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
 
 
-      {/* LIGHTS */}
-
-      <div className="absolute inset-0">
-
-        <div className="absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[160px]" />
-
-        <div className="absolute bottom-0 right-0 h-[350px] w-[350px] rounded-full bg-blue-600/20 blur-[130px]" />
-
-        <div className="absolute left-0 top-1/3 h-[300px] w-[300px] rounded-full bg-purple-600/20 blur-[120px]" />
-
-      </div>
+  {/* Background simple */}
+<div className="absolute inset-0 bg-[#060d1b]" />
 
 
 

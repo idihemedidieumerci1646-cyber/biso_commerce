@@ -409,32 +409,7 @@ export default function ReportsPage() {
 
       {/* LUMIERES BACKGROUND */}
 
-      <div
-        className="
-        absolute
-        top-0
-        left-0
-        w-72
-        h-72
-        bg-orange-500/20
-        blur-3xl
-        rounded-full
-        "
-      />
-
-
-      <div
-        className="
-        absolute
-        right-0
-        top-40
-        w-80
-        h-80
-        bg-blue-500/20
-        blur-3xl
-        rounded-full
-        "
-      />
+      
 
 
 
