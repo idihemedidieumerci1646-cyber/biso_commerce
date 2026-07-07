@@ -716,7 +716,7 @@ export default function DashboardPage() {
 
               <p className="text-xs text-slate-400">
 
-                BIENVENUE DANS VOTRE ESPACE CHER CLIENT
+                
 
               </p>
 
