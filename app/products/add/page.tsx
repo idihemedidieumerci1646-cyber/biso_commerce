@@ -155,18 +155,8 @@ return (
 <main className="relative min-h-screen overflow-hidden bg-[#060d1b] pb-24 text-white">
 
 
-{/* BACKGROUND */}
-
-<div className="absolute inset-0 pointer-events-none">
 
 
-<div className="absolute -top-40 left-1/2 h-[450px] w-[450px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[150px]"/>
-
-
-<div className="absolute bottom-0 right-0 h-[350px] w-[350px] rounded-full bg-blue-600/20 blur-[130px]"/>
-
-
-</div>
 
 
 
@@ -178,7 +168,24 @@ return (
 
 
 
-{/* HEADER *
+{/* HEADER */}
+
+<div className="mb-7">
+
+
+<div className="flex items-center gap-3">
+
+
+<div className="rounded-2xl bg-orange-500/20 p-3">
+
+
+
+
+
+</div>
+
+
+<h1 className="text-3xl font-black">
 
 Nouveau produit
 

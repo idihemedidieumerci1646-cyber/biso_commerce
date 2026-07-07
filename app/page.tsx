@@ -27,14 +27,7 @@ export default function Home() {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
 
-      {/* Background premium */}
-      <div className="absolute inset-0 overflow-hidden">
-
-        <div className="absolute -top-40 left-1/2 h-[550px] w-[550px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[160px]" />
-
-        <div className="absolute -bottom-40 -left-40 h-[450px] w-[450px] rounded-full bg-blue-600/20 blur-[140px]" />
-
-        <div className="absolute right-0 top-1/3 h-[350px] w-[350px] rounded-full bg-purple-600/20 blur-[140px]" />
+      {/* Background premium 
 
       </div>
 

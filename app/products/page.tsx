@@ -185,12 +185,6 @@ export default function ProductsPage() {
 
 
 
-      
-
-
-      
-
-
 
 
 
