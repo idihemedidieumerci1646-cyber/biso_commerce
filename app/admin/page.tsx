@@ -66,7 +66,7 @@ export default function AdminPage() {
 
 
 
-    let revenue = 0;
+    let revenue = 57584;
 
 
     payments?.forEach((p:any)=>{
@@ -369,7 +369,7 @@ export default function AdminPage() {
             gap-2
           ">
 
-            👑 Admin Biso-Commerce
+            👑 Admin Biso-Commerce PDG DIEUMERCI IDI
 
           </h1>
 

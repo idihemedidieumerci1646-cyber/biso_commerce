@@ -18,7 +18,6 @@ import {
   TrendingUp,
   Wallet,
   AlertTriangle,
-  LogOut,
   ArrowRight,
   Sparkles,
   ShieldCheck,
@@ -45,6 +44,7 @@ type Product = {
 };
 
 
+
 export default function DashboardPage() {
 
 
@@ -56,9 +56,11 @@ export default function DashboardPage() {
   const [showInfo, setShowInfo] = useState(false);
 
 
+
   const [daysUsed, setDaysUsed] = useState(0);
 
   const [daysLeft, setDaysLeft] = useState(30);
+
 
 
   const [status, setStatus] =
@@ -66,9 +68,11 @@ export default function DashboardPage() {
 
 
 
+
   const [todaySalesFc, setTodaySalesFc] = useState(0);
 
   const [todaySalesDollar, setTodaySalesDollar] = useState(0);
+
 
 
   const [todayProfitFc, setTodayProfitFc] = useState(0);
@@ -103,106 +107,99 @@ export default function DashboardPage() {
 
 
 
+
   async function loadAll() {
 
 
-    const phone = localStorage.getItem("phone");
+    try {
 
 
-    if (!phone) {
+      const phone = localStorage.getItem("phone");
 
-      router.replace("/login");
 
-      return;
+
+      if (!phone) {
+
+        router.replace("/login");
+
+        return;
+
+      }
+
+
+
+
+
+      const { data:user, error } = await supabase
+
+        .from("users")
+
+        .select("id")
+
+        .eq("phone", phone)
+
+        .single();
+
+
+
+
+
+      if (error || !user) {
+
+
+        router.replace("/login");
+
+        return;
+
+
+      }
+
+
+
+
+
+      // 1️⃣ Charger immédiatement le Dashboard
+
+      await loadDashboard(user.id);
+
+
+      setInitialLoading(false);
+
+
+
+
+
+      // 2️⃣ Vérifier abonnement après ouverture
+
+      const ok = await checkSubscription(user.id);
+
+
+
+
+      if (!ok) {
+
+
+        setStatus("expired");
+
+
+      }
+
+
+
+    } catch(error) {
+
+
+      console.log("Erreur dashboard :", error);
+
+
+      setInitialLoading(false);
+
 
     }
 
-
-
-
-    const { data:user } = await supabase
-
-      .from("users")
-
-      .select("*")
-
-      .eq("phone", phone)
-
-      .single();
-
-
-
-
-    if (!user) {
-
-      router.replace("/login");
-
-      return;
-
-    }
-
-
-
-
-
-    async function loadAll() {
-
-  try {
-
-    const phone = localStorage.getItem("phone");
-
-
-    if (!phone) {
-
-      router.replace("/login");
-      return;
-
-    }
-
-
-    const { data:user, error } = await supabase
-      .from("users")
-      .select("id")
-      .eq("phone", phone)
-      .single();
-
-
-
-    if(error || !user){
-
-      router.replace("/login");
-      return;
-
-    }
-
-
-
-    await loadDashboard(user.id);
-
-
-    await checkSubscription(user.id);
-
-
-    setInitialLoading(false);
-
-
-
-  } catch(error){
-
-    console.log("Erreur dashboard :",error);
-
-    setInitialLoading(false);
 
   }
 
-}
-
-
-
-    setInitialLoading(false);
-
-
-  }
 
 
 
@@ -212,17 +209,25 @@ export default function DashboardPage() {
   async function checkSubscription(userId:string) {
 
 
+
     const { data } = await supabase
+
 
       .from("subscriptions")
 
+
       .select("*")
+
 
       .eq("user_id", userId)
 
+
       .order("created_at",{ascending:false})
 
+
       .limit(1);
+
+
 
 
 
@@ -230,26 +235,37 @@ export default function DashboardPage() {
 
 
 
+
+
     if (!sub) {
+
 
       setStatus("expired");
 
+
       return false;
+
 
     }
 
 
 
 
+
     const start = new Date(sub.start_date);
 
+
     const end = new Date(sub.end_date);
+
 
     const now = new Date();
 
 
 
+
+
     const diffDays = Math.floor(
+
 
       (now.getTime() - start.getTime())
 
@@ -257,7 +273,10 @@ export default function DashboardPage() {
 
       (1000 * 60 * 60 * 24)
 
+
     );
+
+
 
 
 
@@ -265,21 +284,32 @@ export default function DashboardPage() {
 
 
 
+
+
     setDaysUsed(used);
+
 
     setDaysLeft(Math.max(0,30-used));
 
 
 
+
+
     const active =
 
+
       sub.is_active === true &&
+
 
       end > now;
 
 
 
+
+
     setStatus(active ? "active" : "expired");
+
+
 
 
 
@@ -295,9 +325,11 @@ export default function DashboardPage() {
 
 
 
+
     const [salesRes, productsRes] =
 
       await Promise.all([
+
 
 
         supabase
@@ -307,6 +339,7 @@ export default function DashboardPage() {
           .select("*")
 
           .eq("user_id", userId),
+
 
 
 
@@ -324,9 +357,12 @@ export default function DashboardPage() {
 
 
 
+
     const sales = salesRes.data || [];
 
     const products = productsRes.data || [];
+
+
 
 
 
@@ -349,12 +385,18 @@ export default function DashboardPage() {
 
 
 
+
+
     sales.forEach((sale: Sale) => {
 
 
 
+
       const saleDate =
+
         sale.created_at?.split("T")[0];
+
+
 
 
 
@@ -363,9 +405,15 @@ export default function DashboardPage() {
 
 
 
+
         soldToday += Number(
+
           sale.quantity || 0
+
         );
+
+
+
 
 
 
@@ -375,14 +423,20 @@ export default function DashboardPage() {
 
 
           todayFc += Number(
+
             sale.total_sale || 0
+
           );
 
 
 
           profitFc += Number(
+
             sale.profit || 0
+
           );
+
+
 
 
 
@@ -390,21 +444,29 @@ export default function DashboardPage() {
 
 
 
+
           todayDollar += Number(
+
             sale.total_sale || 0
+
           );
 
 
 
           profitDollar += Number(
+
             sale.profit || 0
+
           );
+
 
 
         }
 
 
+
       }
+
 
 
     });
@@ -413,15 +475,24 @@ export default function DashboardPage() {
 
 
 
+
+
+
     setTodaySalesFc(todayFc);
+
 
     setTodaySalesDollar(todayDollar);
 
 
 
+
+
     setTodayProfitFc(profitFc);
 
+
     setTodayProfitDollar(profitDollar);
+
+
 
 
 
@@ -430,25 +501,41 @@ export default function DashboardPage() {
 
 
 
+
+
+
+
     setExhaustedProducts(
+
 
       products.filter(
 
-        (p: Product)=>
+
+        (p: Product) =>
+
 
           Number(p.stock) === 0
 
+
       )
 
+
     );
+
+
+
+
 
 
 
     setLastSales(
 
+
       sales.slice(0,5)
 
+
     );
+
 
 
   }
@@ -463,6 +550,8 @@ export default function DashboardPage() {
 
 
     return (
+
+
 
       <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
 
@@ -489,10 +578,12 @@ export default function DashboardPage() {
 
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/20">
 
+
             <AlertTriangle
               className="text-red-400"
               size={32}
             />
+
 
           </div>
 
@@ -500,11 +591,15 @@ export default function DashboardPage() {
 
 
 
+
           <h1 className="text-3xl font-black text-red-400">
+
 
             Abonnement expiré
 
+
           </h1>
+
 
 
 
@@ -541,6 +636,7 @@ export default function DashboardPage() {
 
             <Crown size={20}/>
 
+
             Renouveler abonnement
 
 
@@ -560,6 +656,7 @@ export default function DashboardPage() {
 
           >
 
+
             Contacter le support WhatsApp
 
 
@@ -572,20 +669,17 @@ export default function DashboardPage() {
 
       </main>
 
+
     );
 
 
   }
-
-
-
-
-
-  const percentUsed = Math.round(
+    const percentUsed = Math.round(
 
     (daysUsed / 30) * 100
 
   );
+
 
 
 
@@ -595,29 +689,47 @@ export default function DashboardPage() {
 
     return (
 
+
       <main className="flex min-h-screen items-center justify-center bg-[#060d1b] text-white">
+
 
         <div className="flex items-center gap-3 text-slate-400">
 
+
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+
 
           Chargement du tableau de bord...
 
+
         </div>
 
+
       </main>
+
 
     );
 
 
   }
-    return (
+
+
+
+
+
+
+  return (
+
+
 
     <main className="relative min-h-screen overflow-hidden bg-[#060d1b] pb-28 text-white">
 
 
-     {/* Background simple */}
-<div className="absolute inset-0 bg-[#060d1b]" />
+
+      <div className="absolute inset-0 bg-[#060d1b]" />
+
+
+
 
 
 
@@ -625,36 +737,53 @@ export default function DashboardPage() {
       {/* HEADER */}
 
 
+
       <div className="relative z-10 px-5 pt-6">
+
 
 
         <div className="flex items-center justify-between">
 
 
 
+
+
           <div>
+
 
 
             <div className="flex items-center gap-2">
 
 
+
               <Sparkles
+
                 size={18}
+
                 className="text-orange-400"
+
               />
+
+
 
 
               <h1 className="text-2xl font-black tracking-tight">
 
+
                 BISO-
+
 
                 <span className="text-orange-400">
 
+
                   COMMERCE
+
 
                 </span>
 
+
               </h1>
+
 
 
             </div>
@@ -662,14 +791,25 @@ export default function DashboardPage() {
 
 
 
+
+
+
             <p className="mt-1 text-xs text-slate-400">
 
+
               Votre commerce intelligent
+
 
             </p>
 
 
+
+
+
           </div>
+
+
+
 
 
 
@@ -680,21 +820,35 @@ export default function DashboardPage() {
 
 
 
+
+
             <Zap
+
               className="text-orange-400"
+
               size={22}
+
             />
+
+
 
 
 
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 font-black text-black shadow-lg shadow-orange-500/30">
 
+
               PDG
+
 
             </div>
 
 
+
+
+
           </div>
+
+
 
 
 
@@ -702,7 +856,10 @@ export default function DashboardPage() {
 
 
 
+
       </div>
+
+
 
 
 
@@ -713,44 +870,64 @@ export default function DashboardPage() {
       {/* SUBSCRIPTION CARD */}
 
 
+
+
+
       <div className="relative z-10 px-5 mt-6">
+
 
 
         <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl">
 
 
 
+
+
           <div className="flex items-center justify-between mb-4">
+
+
+
 
 
             <div>
 
 
+
               <p className="text-sm font-bold text-orange-400">
+
 
                 Abonnement actif
 
+
               </p>
+
+
 
 
               <p className="text-xs text-slate-400">
 
-                
 
               </p>
 
 
+
             </div>
+
+
 
 
 
             <div className="rounded-full bg-orange-500/10 px-3 py-1 text-xs text-orange-300">
 
 
+
               {daysUsed}/30 jours
 
 
+
             </div>
+
+
 
 
 
@@ -760,16 +937,26 @@ export default function DashboardPage() {
 
 
 
+
+
+
+
           <div className="h-3 overflow-hidden rounded-full bg-black/40">
+
 
 
             <div
 
+
               className="h-full rounded-full bg-gradient-to-r from-orange-500 to-yellow-400 transition-all"
 
+
               style={{
+
                 width:`${percentUsed}%`
+
               }}
+
 
             />
 
@@ -781,27 +968,43 @@ export default function DashboardPage() {
 
 
 
+
+
+
           <div className="mt-3 flex items-center justify-between">
+
 
 
             <p className="text-xs text-slate-400">
 
+
               Temps restant
 
+
             </p>
+
+
 
 
             <p className="text-sm font-bold text-white">
 
+
               {daysLeft} jours
 
+
             </p>
+
+
 
 
           </div>
 
 
+
+
+
         </div>
+
 
 
       </div>
@@ -812,24 +1015,36 @@ export default function DashboardPage() {
 
 
 
+
       {/* INFORMATION BUTTON */}
+
+
+
 
 
       <div className="relative z-10 px-5 mt-4">
 
 
+
         <button
+
 
           onClick={()=>setShowInfo(true)}
 
+
           className="text-xs text-slate-400 underline transition hover:text-orange-400"
 
+
         >
+
+
 
           ✨ Clique ici pour en savoir plus sur Biso-commerce
 
 
+
         </button>
+
 
 
       </div>
@@ -843,14 +1058,21 @@ export default function DashboardPage() {
       {/* QUICK SALE BUTTON */}
 
 
+
+
+
       <div className="relative z-10 px-5 mt-5">
+
 
 
         <Link
 
+
           href="/sales"
 
+
           className="group flex items-center justify-between rounded-[2rem] bg-gradient-to-r from-orange-500 to-yellow-400 p-5 font-bold text-black shadow-xl shadow-orange-500/20 transition hover:scale-[1.02]"
+
 
         >
 
@@ -859,34 +1081,49 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4">
 
 
+
             <div className="rounded-2xl bg-black/10 p-3">
+
 
 
               <ShoppingCart size={26}/>
 
 
+
             </div>
+
+
 
 
 
             <div>
 
 
+
               <p className="text-lg">
+
 
                 Nouvelle vente
 
+
               </p>
+
+
 
 
               <p className="text-xs opacity-70">
 
+
                 Ouvrir la caisse rapidement
+
 
               </p>
 
 
+
+
             </div>
+
 
 
           </div>
@@ -895,40 +1132,47 @@ export default function DashboardPage() {
 
 
 
-          <ArrowRight
 
-            className="transition group-hover:translate-x-1"
+          <ArrowRight />
 
-          />
 
 
         </Link>
 
 
+
       </div>
             {/* STATS */}
+
 
       <div className="relative z-10 mt-6 grid grid-cols-2 gap-4 px-5">
 
 
+
         <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
+
 
 
           <div className="mb-2 flex items-center justify-between">
 
 
             <p className="text-xs text-slate-400">
+
               Ventes aujourd'hui
+
             </p>
 
 
             <TrendingUp
+
               size={18}
+
               className="text-orange-400"
+
             />
 
-
           </div>
+
 
 
 
@@ -939,11 +1183,14 @@ export default function DashboardPage() {
           </p>
 
 
+
+
           <p className="mt-1 text-xs text-slate-500">
 
             Franc Congolais
 
           </p>
+
 
 
         </div>
@@ -952,24 +1199,35 @@ export default function DashboardPage() {
 
 
 
+
+
         <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
+
 
 
           <div className="mb-2 flex items-center justify-between">
 
 
             <p className="text-xs text-slate-400">
+
               Ventes USD
+
             </p>
 
 
+
             <Wallet
+
               size={18}
+
               className="text-blue-400"
+
             />
 
 
+
           </div>
+
 
 
 
@@ -980,11 +1238,13 @@ export default function DashboardPage() {
           </p>
 
 
+
           <p className="mt-1 text-xs text-slate-500">
 
             Dollars
 
           </p>
+
 
 
         </div>
@@ -994,24 +1254,36 @@ export default function DashboardPage() {
 
 
 
+
+
+
         <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
+
 
 
           <div className="mb-2 flex items-center justify-between">
 
 
             <p className="text-xs text-slate-400">
+
               Bénéfice CDF
+
             </p>
 
 
+
             <BarChart3
+
               size={18}
+
               className="text-green-400"
+
             />
 
 
+
           </div>
+
 
 
 
@@ -1022,11 +1294,14 @@ export default function DashboardPage() {
           </p>
 
 
+
+
           <p className="mt-1 text-xs text-slate-500">
 
             Aujourd'hui
 
           </p>
+
 
 
         </div>
@@ -1036,24 +1311,36 @@ export default function DashboardPage() {
 
 
 
+
+
+
         <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
+
 
 
           <div className="mb-2 flex items-center justify-between">
 
 
             <p className="text-xs text-slate-400">
+
               Bénéfice USD
+
             </p>
 
 
+
             <CreditCard
+
               size={18}
+
               className="text-yellow-400"
+
             />
 
 
+
           </div>
+
 
 
 
@@ -1064,11 +1351,14 @@ export default function DashboardPage() {
           </p>
 
 
+
+
           <p className="mt-1 text-xs text-slate-500">
 
             Aujourd'hui
 
           </p>
+
 
 
         </div>
@@ -1088,14 +1378,20 @@ export default function DashboardPage() {
       {/* QUICK MENU */}
 
 
+
       <div className="relative z-10 mt-7 px-5">
+
 
 
         <h2 className="mb-4 text-sm font-bold text-white">
 
+
           Accès rapide
 
+
         </h2>
+
+
 
 
 
@@ -1104,7 +1400,10 @@ export default function DashboardPage() {
         <div className="grid grid-cols-4 gap-3">
 
 
+
           {[
+
+
 
             {
               label:"Produits",
@@ -1147,11 +1446,13 @@ export default function DashboardPage() {
               href:"/reports"
             },
 
+
             {
-  label:"Assistant IA",
-  icon:Sparkles,
-  href:"/assistant"
-},
+              label:"Assistant IA",
+              icon:Sparkles,
+              href:"/assistant"
+            },
+
 
             {
               label:"Abonnement",
@@ -1166,80 +1467,115 @@ export default function DashboardPage() {
             const Icon = item.icon;
 
 
+
             return (
+
+
 
               <Link
 
+
                 key={index}
+
 
                 href={item.href}
 
+
                 className="group"
 
+
+
               >
+
 
 
                 <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-center backdrop-blur-xl transition hover:-translate-y-1 hover:bg-white/10">
 
 
+
                   <Icon
+
 
                     size={21}
 
+
                     className="mb-2 text-orange-400 transition group-hover:scale-110"
+
 
                   />
 
 
+
                   <span className="text-[10px] text-slate-300">
+
 
                     {item.label}
 
+
                   </span>
+
 
 
                 </div>
 
 
+
               </Link>
 
+
+
             );
+
 
 
           })}
 
 
+
         </div>
+
 
 
       </div>
             {/* STOCK ALERT */}
 
+
       {
         exhaustedProducts.length > 0 && (
 
+
           <div className="relative z-10 mt-6 px-5">
+
 
 
             <Link href="/products/low-stock">
 
 
+
               <div className="flex items-center justify-between rounded-3xl border border-red-400/20 bg-red-500/10 p-5 backdrop-blur-xl transition hover:scale-[1.02]">
+
 
 
                 <div className="flex items-center gap-3">
 
 
+
                   <div className="rounded-2xl bg-red-500/20 p-3">
 
 
+
                     <AlertTriangle
+
                       className="text-red-400"
+
                       size={22}
+
                     />
 
 
+
                   </div>
+
 
 
 
@@ -1247,21 +1583,29 @@ export default function DashboardPage() {
                   <div>
 
 
+
                     <p className="font-bold text-red-300">
 
-                      Stock faible clique ici pour en savoir
+
+                      Stock faible cliquez ici pour en savoir
+
 
                     </p>
+
 
 
                     <p className="text-xs text-slate-400">
 
+
                       {exhaustedProducts.length} produit(s) épuisé(s)
+
 
                     </p>
 
 
+
                   </div>
+
 
 
                 </div>
@@ -1269,18 +1613,21 @@ export default function DashboardPage() {
 
 
 
-                <ArrowRight
-                  className="text-red-400"
-                />
+
+                <ArrowRight className="text-red-400" />
+
 
 
               </div>
 
 
+
             </Link>
 
 
+
           </div>
+
 
         )
 
@@ -1297,10 +1644,13 @@ export default function DashboardPage() {
       {/* FOOTER */}
 
 
+
       <div className="relative z-10 mt-8 px-5 text-center">
 
 
+
         <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+
 
 
           <ShieldCheck
@@ -1312,57 +1662,97 @@ export default function DashboardPage() {
           />
 
 
-          BISO-COMMERCE  ( PDG DIEUMERCI IDI )
+
+          BISO-COMMERCE ( PDG DIEUMERCI IDI )
+
 
 
         </div>
 
 
+
       </div>
-      
-            {/* MODAL INFORMATION BISO-COMMERCE */}
+
+
+
+
+
+
+
+
+
+      {/* MODAL INFORMATION */}
+
+
 
       {showInfo && (
 
+
+
         <div
+
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
+
           onClick={() => setShowInfo(false)}
+
         >
 
+
+
           <div
-            onClick={(e) => e.stopPropagation()}
+
+
+            onClick={(e)=>e.stopPropagation()}
+
+
             className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[2rem] border border-white/10 bg-[#081221] p-6 shadow-2xl"
+
+
           >
 
 
-            {/* HEADER */}
+
+
 
             <div className="mb-6 flex items-center justify-between">
 
 
+
               <h2 className="text-xl font-black">
+
 
                 BISO-
 
                 <span className="text-orange-400">
+
                   COMMERCE
+
                 </span>
+
 
               </h2>
 
 
 
+
+
               <button
 
-                onClick={() => setShowInfo(false)}
 
-                className="rounded-xl bg-white/10 px-3 py-2 text-slate-300 hover:bg-white/20"
+                onClick={()=>setShowInfo(false)}
+
+
+                className="rounded-xl bg-white/10 px-3 py-2 text-slate-300"
+
 
               >
 
+
                 ✕
 
+
               </button>
+
 
 
             </div>
@@ -1371,9 +1761,11 @@ export default function DashboardPage() {
 
 
 
-            {/* CONTENU */}
+
 
             <div className="space-y-5 text-sm leading-6 text-slate-300">
+
+
 
 
 
@@ -1382,16 +1774,23 @@ export default function DashboardPage() {
 
                 <h3 className="text-lg font-bold text-orange-400">
 
+
                   📖 BIENVENUE SUR BISO-COMMERCE
+
 
                 </h3>
 
 
+
                 <p className="mt-3">
 
+
                   Biso-Commerce est une caisse digitale intelligente
+
                   qui vous permet de gérer facilement votre commerce
+
                   depuis votre téléphone.
+
 
                 </p>
 
@@ -1403,12 +1802,15 @@ export default function DashboardPage() {
 
 
 
+
               <div>
 
 
                 <h3 className="font-bold text-white">
 
+
                   💼 Avec Biso-Commerce vous pouvez :
+
 
                 </h3>
 
@@ -1417,40 +1819,30 @@ export default function DashboardPage() {
                 <ul className="mt-3 space-y-2">
 
 
-                  <li>
-                    ✅ Ajouter et gérer vos produits
-                  </li>
+                  <li>✅ Ajouter et gérer vos produits</li>
 
 
-                  <li>
-                    ✅ Enregistrer vos ventes chaque jour
-                  </li>
+                  <li>✅ Enregistrer vos ventes chaque jour</li>
 
 
-                  <li>
-                    ✅ Suivre vos bénéfices automatiquement
-                  </li>
+                  <li>✅ Suivre vos bénéfices automatiquement</li>
 
 
-                  <li>
-                    ✅ Contrôler vos dépenses
-                  </li>
+                  <li>✅ Contrôler vos dépenses</li>
 
 
-                  <li>
-                    ✅ Gérer les dettes de vos clients
-                  </li>
+                  <li>✅ Gérer les dettes des clients</li>
 
 
-                  <li>
-                    ✅ Voir vos rapports de commerce
-                  </li>
+                  <li>✅ Voir vos rapports de commerce</li>
 
 
                 </ul>
 
 
+
               </div>
+
 
 
 
@@ -1462,23 +1854,24 @@ export default function DashboardPage() {
 
                 <h3 className="font-bold text-white">
 
+
                   📱 Installation de l'application
+
 
                 </h3>
 
 
+
+
                 <p className="mt-3">
 
 
-                  <b className="text-green-400">
-                    Android :
-                  </b>
+                  Android :
 
 
                   <br />
 
-                  Ouvrez Chrome → cliquez sur ⋮ →
-                  choisissez "Installer l'application" ou ajouter sur l'écran d'accueil
+                  Chrome → ⋮ → Installer l'application
 
 
                 </p>
@@ -1486,21 +1879,20 @@ export default function DashboardPage() {
 
 
 
+
                 <p className="mt-3">
 
 
-                  <b className="text-blue-400">
-                    iPhone :
-                  </b>
+                  iPhone :
 
 
                   <br />
 
-                  Ouvrez Safari → Partager →
-                  "Sur l'écran d'accueil" → Ajouter.
+                  Safari → Partager → Sur l'écran d'accueil
 
 
                 </p>
+
 
 
               </div>
@@ -1510,7 +1902,10 @@ export default function DashboardPage() {
 
 
 
+
+
               <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 p-4">
+
 
 
                 <p className="font-semibold text-orange-300">
@@ -1522,18 +1917,22 @@ export default function DashboardPage() {
                 </p>
 
 
+
                 <p className="mt-2 text-xs">
 
 
                   Ajoutez vos produits avant de commencer
-                  les ventes afin d'obtenir des statistiques
-                  précises sur votre commerce.
+
+                  les ventes pour obtenir des statistiques précises.
 
 
                 </p>
 
 
+
               </div>
+
+
 
 
 
@@ -1544,11 +1943,15 @@ export default function DashboardPage() {
 
 
                 Merci d'utiliser Biso-Commerce 💚
+
                 <br />
+
                 PDG DIEUMERCI IDI
 
 
               </p>
+
+
 
 
 
@@ -1559,27 +1962,36 @@ export default function DashboardPage() {
 
 
 
-            {/* BUTTON FERMER */}
 
 
             <button
 
-              onClick={() => setShowInfo(false)}
 
-              className="mt-6 w-full rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black transition hover:scale-[1.02]"
+              onClick={()=>setShowInfo(false)}
+
+
+              className="mt-6 w-full rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black"
+
 
             >
 
+
               J'ai compris 🚀
 
+
             </button>
+
+
 
 
 
           </div>
 
 
+
+
         </div>
+
 
 
       )}
@@ -1587,6 +1999,8 @@ export default function DashboardPage() {
 
 
     </main>
+
+
 
   );
 
