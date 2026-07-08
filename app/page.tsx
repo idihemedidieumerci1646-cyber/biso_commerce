@@ -192,7 +192,7 @@ export default function Home() {
 
         <p className="mt-6 text-center text-xs text-slate-500">
 
-          © {new Date().getFullYear()} BISO-COMMERCE • Tous droits réservés
+          © {new Date().getFullYear()} BISO-COMMERCE • PDG DIEUMERCI IDI
 
         </p>
 

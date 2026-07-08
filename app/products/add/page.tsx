@@ -413,7 +413,7 @@ value={type}
 
 onChange={(e)=>setType(e.target.value)}
 
-className="w-full rounded-2xl border border-white/10 bg-black/40 p-4"
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none placeholder:text-slate-500"
 
 >
 
@@ -448,7 +448,7 @@ onChange={(e)=>setQuantity(e.target.value)}
 
 placeholder={`Nombre de ${type}(s)`}
 
-className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none"
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none placeholder:text-slate-500"
 
 />
 
@@ -472,7 +472,7 @@ onChange={(e)=>setPiecesPerUnit(e.target.value)}
 
 placeholder="Nombre de pièces par unité"
 
-className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none"
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none placeholder:text-slate-500"
 
 />
 
@@ -499,7 +499,7 @@ onChange={(e)=>setBuyPrice(e.target.value)}
 
 placeholder="Prix achat total"
 
-className="rounded-2xl border border-white/10 bg-black/40 p-4"
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none placeholder:text-slate-500"
 
 />
 
@@ -515,7 +515,7 @@ onChange={(e)=>setSellPrice(e.target.value)}
 
 placeholder="Prix vente"
 
-className="rounded-2xl border border-white/10 bg-black/40 p-4"
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none placeholder:text-slate-500"
 
 />
 
@@ -534,7 +534,7 @@ value={currency}
 
 onChange={(e)=>setCurrency(e.target.value)}
 
-className="w-full rounded-2xl border border-white/10 bg-black/40 p-4"
+className="w-full rounded-2xl border border-white/10 bg-black/40 p-4 outline-none placeholder:text-slate-500"
 
 >
 

@@ -127,6 +127,12 @@ export default function EditProductPage() {
       : 1;
 
 
+const totalStock =
+      unit !== "Pièce"
+      ? Number(stock) * pieces
+      : Number(stock);
+
+
 
     const {error}=await supabase
       .from("products")
@@ -134,7 +140,7 @@ export default function EditProductPage() {
 
         name,
 
-        stock:Number(stock),
+        stock:totalStock,
 
         purchase_price:Number(purchasePrice),
 
@@ -466,7 +472,7 @@ export default function EditProductPage() {
                 Stock :
                 </b>
 
-                nombre total de pièces disponibles.
+                quantité réelle disponible dans votre stock.
 
               </p>
 

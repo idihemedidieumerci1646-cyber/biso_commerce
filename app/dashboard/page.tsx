@@ -145,24 +145,57 @@ export default function DashboardPage() {
 
 
 
-    const ok = await checkSubscription(user.id);
+    async function loadAll() {
+
+  try {
+
+    const phone = localStorage.getItem("phone");
+
+
+    if (!phone) {
+
+      router.replace("/login");
+      return;
+
+    }
+
+
+    const { data:user, error } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
+      .single();
 
 
 
+    if(error || !user){
 
-    if (!ok) {
-
-      router.replace("/subscription");
-
+      router.replace("/login");
       return;
 
     }
 
 
 
-
-
     await loadDashboard(user.id);
+
+
+    await checkSubscription(user.id);
+
+
+    setInitialLoading(false);
+
+
+
+  } catch(error){
+
+    console.log("Erreur dashboard :",error);
+
+    setInitialLoading(false);
+
+  }
+
+}
 
 
 
@@ -1114,6 +1147,11 @@ export default function DashboardPage() {
               href:"/reports"
             },
 
+            {
+  label:"Assistant IA",
+  icon:Sparkles,
+  href:"/assistant"
+},
 
             {
               label:"Abonnement",
