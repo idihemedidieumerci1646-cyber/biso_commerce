@@ -142,7 +142,7 @@ const totalStock =
 
         stock:totalStock,
 
-        purchase_price:Number(purchasePrice),
+        purchase_price: Number(purchasePrice) / totalStock,
 
         selling_price:Number(sellingPrice),
 

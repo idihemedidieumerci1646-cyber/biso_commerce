@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import {
+ getOffline,
+ saveOffline
+} from "@/lib/offlineDB";
 
 import {
   Package,
@@ -130,29 +134,71 @@ export default function DashboardPage() {
 
 
 
-      const { data:user, error } = await supabase
-
-        .from("users")
-
-        .select("id")
-
-        .eq("phone", phone)
-
-        .single();
+      let userId = "";
 
 
+// INTERNET
+
+if(navigator.onLine){
+
+
+const { data:user, error } = await supabase
+
+.from("users")
+
+.select("id")
+
+.eq("phone", phone)
+
+.single();
 
 
 
-      if (error || !user) {
+if(error || !user){
+
+router.replace("/login");
+
+return;
+
+}
 
 
-        router.replace("/login");
-
-        return;
+userId = user.id;
 
 
-      }
+// sauvegarde pour hors connexion
+
+localStorage.setItem(
+"user_id",
+user.id
+);
+
+
+
+}else{
+
+
+// HORS CONNEXION
+
+userId =
+localStorage.getItem("user_id") || "";
+
+
+
+if(!userId){
+
+alert(
+"Aucune donnée utilisateur hors connexion"
+);
+
+router.replace("/login");
+
+return;
+
+}
+
+
+}
 
 
 
@@ -160,7 +206,7 @@ export default function DashboardPage() {
 
       // 1️⃣ Charger immédiatement le Dashboard
 
-      await loadDashboard(user.id);
+      await loadDashboard(userId);
 
 
       setInitialLoading(false);
@@ -171,18 +217,23 @@ export default function DashboardPage() {
 
       // 2️⃣ Vérifier abonnement après ouverture
 
-      const ok = await checkSubscription(user.id);
+      if(navigator.onLine){
+
+const ok = await checkSubscription(userId);
+
+
+if(!ok){
+
+setStatus("expired");
+
+}
+
+}
 
 
 
 
-      if (!ok) {
-
-
-        setStatus("expired");
-
-
-      }
+      
 
 
 
@@ -326,41 +377,97 @@ export default function DashboardPage() {
 
 
 
-    const [salesRes, productsRes] =
+    let sales:any[] = [];
 
-      await Promise.all([
-
-
-
-        supabase
-
-          .from("sales")
-
-          .select("*")
-
-          .eq("user_id", userId),
+let products:any[] = [];
 
 
+// INTERNET
+if(navigator.onLine){
 
 
-        supabase
+const [salesRes, productsRes] =
 
-          .from("products")
-
-          .select("*")
-
-          .eq("user_id", userId),
+await Promise.all([
 
 
-      ]);
+supabase
+.from("sales")
+.select("*")
+.eq("user_id",userId),
 
 
 
+supabase
+.from("products")
+.select("*")
+.eq("user_id",userId)
 
 
-    const sales = salesRes.data || [];
 
-    const products = productsRes.data || [];
+]);
+
+
+
+sales = salesRes.data || [];
+
+products = productsRes.data || [];
+
+
+
+
+// sauvegarde locale
+
+for(const sale of sales){
+
+await saveOffline(
+"sales",
+sale
+);
+
+}
+
+
+
+for(const product of products){
+
+await saveOffline(
+"products",
+product
+);
+
+}
+
+
+
+}else{
+
+
+// MODE HORS LIGNE
+
+
+const offlineSales =
+await getOffline("sales");
+
+
+const offlineProducts =
+await getOffline("products");
+
+
+
+sales = offlineSales.filter(
+(s:any)=>s.user_id===userId
+);
+
+
+
+products = offlineProducts.filter(
+(p:any)=>p.user_id===userId
+);
+
+
+
+}
 
 
 

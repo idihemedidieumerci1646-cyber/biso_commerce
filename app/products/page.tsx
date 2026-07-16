@@ -1,11 +1,10 @@
-
-
-
 "use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getOffline, saveOffline } from "@/lib/offlineDB";
 import Link from "next/link";
+
 import {
   Package,
   Plus,
@@ -17,466 +16,802 @@ import {
   Sparkles,
 } from "lucide-react";
 
+
 type Product = {
-  id: string;
-  name: string | null;
-  stock: number;
-  unit: string | null;
-  purchase_price: number;
-  selling_price: number;
-  currency: string;
+
+  id:string;
+
+  name:string | null;
+
+  stock:number;
+
+  unit:string | null;
+
+  purchase_price:number;
+
+  selling_price:number;
+
+  currency:string;
+
+  user_id:string;
+
+  created_at?:string;
+
 };
 
-export default function ProductsPage() {
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
 
 
 
-  const fetchProducts = async () => {
+export default function ProductsPage(){
 
-    try {
 
-      setLoading(true);
+const [products,setProducts] = useState<Product[]>([]);
 
-      const phone = localStorage.getItem("phone");
+const [loading,setLoading] = useState(true);
 
+const [searchTerm,setSearchTerm] = useState("");
 
-      if (!phone) {
-        setLoading(false);
-        return;
-      }
 
 
 
-      const { data:user } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone", phone)
-        .single();
 
+// CHARGEMENT PRODUITS ONLINE + OFFLINE
 
+const fetchProducts = async()=>{
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
 
+try{
 
 
-      const { data,error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("user_id",user.id)
-        .order("created_at",{ascending:false});
+setLoading(true);
 
 
 
-      if(error){
+const userId =
+localStorage.getItem("user_id");
 
-        alert(error.message);
 
-      }else{
 
-        setProducts(data || []);
+if(!userId){
 
-      }
+setLoading(false);
 
+return;
 
-    }catch(err){
+}
 
-      console.log(err);
 
-    }
 
 
-    setLoading(false);
+if(navigator.onLine){
 
-  };
 
 
+const {data,error}=await supabase
 
+.from("products")
 
+.select("*")
 
+.eq("user_id",userId)
 
-  const deleteProduct = async(id:string)=>{
+.order("created_at",{ascending:false});
 
 
-    const ok = confirm(
-      "Voulez-vous supprimer ce produit ?"
-    );
 
 
-    if(!ok)return;
+if(!error && data){
 
 
+setProducts(data);
 
-    const phone = localStorage.getItem("phone");
 
 
-    if(!phone)return;
+// sauvegarde locale
 
+for(const product of data){
 
 
-    const {data:user}=await supabase
-      .from("users")
-      .select("id")
-      .eq("phone",phone)
-      .single();
+await saveOffline(
+"products",
+product
+);
 
 
+}
 
-    if(!user)return;
 
+}
 
 
 
-    const {error}=await supabase
-      .from("products")
-      .delete()
-      .eq("id",id)
-      .eq("user_id",user.id);
 
+}else{
 
 
-    if(error){
+// HORS CONNEXION
 
-      alert(error.message);
 
-    }else{
+const offlineProducts =
+await getOffline("products");
 
-      await fetchProducts();
 
-    }
 
+const userProducts =
+offlineProducts.filter(
+(p:any)=>p.user_id===userId
+);
 
-  };
 
 
+setProducts(userProducts);
 
 
 
+}
 
-  useEffect(()=>{
 
-    fetchProducts();
 
-  },[]);
+}catch(error){
 
 
+console.log(error);
 
 
+}
 
 
-  const filteredProducts = products.filter((p)=>
 
-    (p.name || "")
-    .toLowerCase()
-    .includes(searchTerm.toLowerCase())
+setLoading(false);
 
-  );
 
 
+};
 
 
 
-  return (
 
-    <main className="relative min-h-screen overflow-hidden bg-[#060d1b] pb-24 text-white">
+useEffect(()=>{
 
 
+fetchProducts();
 
-      
 
+},[]);
 
-      
 
 
 
 
+const filteredProducts = products.filter((p)=>
 
+(p.name || "")
+.toLowerCase()
+.includes(searchTerm.toLowerCase())
 
+);
+const deleteProduct = async(id:string)=>{
 
-      <div className="relative z-10 p-5">
 
+const ok = confirm(
+"Voulez-vous supprimer ce produit ?"
+);
 
 
-        {/* HEADER */}
 
+if(!ok){
 
-        <div className="mb-6 flex items-center justify-between">
+return;
 
+}
 
-          <div>
 
 
-            <div className="flex items-center gap-2">
 
+const userId =
+localStorage.getItem("user_id");
 
-              <Package className="text-orange-400"/>
 
 
-              <h1 className="text-3xl font-black">
+if(!userId){
 
-                Produits
+alert("Utilisateur non connecté");
 
-              </h1>
+return;
 
+}
 
-            </div>
 
 
-            <p className="mt-1 text-xs text-slate-400">
 
-              Gestion intelligente de votre stock
+if(navigator.onLine){
 
-            </p>
 
 
-          </div>
+const {error}=await supabase
 
+.from("products")
 
+.delete()
 
-          <Sparkles className="text-orange-400"/>
+.eq("id",id)
 
+.eq("user_id",userId);
 
-        </div>
 
 
 
 
+if(error){
 
 
+alert(error.message);
 
-        {/* SEARCH + ADD */}
 
+}else{
 
-        <div className="mb-6 flex gap-3">
 
+await fetchProducts();
 
-          <div className="flex flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-4 backdrop-blur-xl">
 
+}
 
-            <Search
-              size={18}
-              className="text-slate-400"
-            />
 
 
-            <input
 
-              value={searchTerm}
 
-              onChange={(e)=>setSearchTerm(e.target.value)}
+}else{
 
-              placeholder="Rechercher..."
 
-              className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-slate-500"
 
-            />
+// SUPPRESSION HORS CONNEXION
 
 
-          </div>
+await saveOffline(
 
+"deletedProducts",
 
+{
 
+id,
 
+user_id:userId,
 
-          <Link
+created_at:new Date().toISOString()
 
-            href="/products/add"
+}
 
-            className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 px-5 text-black shadow-lg"
+);
 
-          >
 
-            <Plus size={24}/>
 
-          </Link>
 
+setProducts(
 
+products.filter(
 
-        </div>
+(p)=>p.id!==id
 
+)
 
+);
 
 
 
+alert(
+"Produit supprimé hors ligne ✅\nSynchronisation dès le retour d'internet."
+);
 
 
-        {/* LISTE */}
 
+}
 
-        <div className="space-y-4">
 
 
+};
 
-        {
-          loading ? (
 
-            <p className="py-10 text-center text-slate-400">
 
-              Chargement...
 
-            </p>
 
 
-          ) : filteredProducts.length===0 ? (
+return (
 
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-8 text-center">
 
-              Aucun produit trouvé
+<main className="
+relative
+min-h-screen
+overflow-hidden
+bg-[#060d1b]
+pb-24
+text-white
+">
 
-            </div>
 
 
-          ) : (
+<div className="
+relative
+z-10
+p-5
+">
 
 
-            filteredProducts.map((p)=>(
 
+{/* HEADER */}
 
-              <div
 
-                key={p.id}
+<div className="
+mb-6
+flex
+items-center
+justify-between
+">
 
-                className="rounded-3xl border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl"
 
-              >
 
+<div>
 
 
-                <div className="flex justify-between">
 
+<div className="
+flex
+items-center
+gap-2
+">
 
-                  <div>
 
+<Package
+className="text-orange-400"
+/>
 
-                    <h2 className="text-lg font-black">
 
-                      {p.name || "Produit sans nom"}
 
-                    </h2>
+<h1 className="
+text-3xl
+font-black
+">
 
+Produits
 
-                    <p className="mt-1 text-xs text-slate-400">
+</h1>
 
-                      Stock : {p.stock} {p.unit || ""}
 
-                    </p>
 
+</div>
 
-                  </div>
 
 
+<p className="
+mt-1
+text-xs
+text-slate-400
+">
 
+Gestion intelligente de votre stock
 
+</p>
 
-                  <div>
 
 
-                  {
-                    p.stock===0 ? (
+</div>
 
-                      <span className="flex items-center gap-1 rounded-full bg-red-500/20 px-3 py-1 text-xs text-red-300">
 
-                        <AlertTriangle size={13}/>
 
-                        Épuisé
+<Sparkles
+className="text-orange-400"
+/>
 
-                      </span>
 
 
-                    ) : p.stock<=3 ? (
+</div>
 
-                      <span className="rounded-full bg-yellow-500/20 px-3 py-1 text-xs text-yellow-300">
 
-                        Faible
 
-                      </span>
 
 
-                    ) : (
+{/* RECHERCHE + AJOUT */}
 
-                      <span className="flex items-center gap-1 rounded-full bg-green-500/20 px-3 py-1 text-xs text-green-300">
 
-                        <CheckCircle size={13}/>
+<div className="
+mb-6
+flex
+gap-3
+">
 
-                        OK
 
-                      </span>
 
+<div className="
+flex
+flex-1
+items-center
+gap-2
+rounded-2xl
+border
+border-white/10
+bg-white/[0.07]
+px-4
+backdrop-blur-xl
+">
 
-                    )
-                  }
 
+<Search
+size={18}
+className="text-slate-400"
+/>
 
-                  </div>
 
 
-                </div>
+<input
 
+value={searchTerm}
 
+onChange={(e)=>
+setSearchTerm(e.target.value)
+}
 
 
+placeholder="Rechercher..."
 
-                <div className="mt-5 flex gap-3">
 
+className="
+w-full
+bg-transparent
+py-3
+text-sm
+outline-none
+placeholder:text-slate-500
+"
 
-                  <Link
+/>
 
-                    href={`/products/edit/${p.id}`}
 
-                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-500/20 py-3 text-sm font-bold text-blue-300"
 
-                  >
+</div>
 
-                    <Edit size={16}/>
 
-                    Modifier
 
-                  </Link>
 
 
+<Link
 
+href="/products/add"
 
+className="
+flex
+items-center
+justify-center
+rounded-2xl
+bg-gradient-to-r
+from-orange-500
+to-yellow-400
+px-5
+text-black
+shadow-lg
+"
 
-                  <button
+>
 
-                    onClick={()=>deleteProduct(p.id)}
 
-                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-500/20 py-3 text-sm font-bold text-red-300"
+<Plus size={24}/>
 
-                  >
 
-                    <Trash2 size={16}/>
+</Link>
 
-                    Supprimer
 
-                  </button>
 
+</div>
+{/* LISTE PRODUITS */}
 
+<div className="
+space-y-4
+">
 
-                </div>
 
 
-              </div>
+{
 
+loading ? (
 
-            ))
 
-          )
-        }
+<p className="
+py-10
+text-center
+text-slate-400
+">
 
+Chargement...
 
-        </div>
+</p>
 
 
+
+) : filteredProducts.length===0 ? (
+
+
+
+<div className="
+rounded-3xl
+border
+border-white/10
+bg-white/[0.06]
+p-8
+text-center
+">
+
+Aucun produit trouvé
+
+
+</div>
+
+
+
+
+) : (
+
+
+
+filteredProducts.map((p)=>(
+
+
+
+<div
+
+key={p.id}
+
+className="
+rounded-3xl
+border
+border-white/10
+bg-white/[0.07]
+p-5
+backdrop-blur-xl
+"
+
+>
+
+
+
+<div className="
+flex
+justify-between
+">
+
+
+
+<div>
+
+
+<h2 className="
+text-lg
+font-black
+">
+
+{p.name || "Produit sans nom"}
+
+</h2>
+
+
+
+<p className="
+mt-1
+text-xs
+text-slate-400
+">
+
+Stock : {p.stock} {p.unit || ""}
+
+</p>
+
+
+
+</div>
+
+
+
+
+
+<div>
+
+
+
+{
+
+p.stock===0 ? (
+
+
+
+<span className="
+flex
+items-center
+gap-1
+rounded-full
+bg-red-500/20
+px-3
+py-1
+text-xs
+text-red-300
+">
+
+
+<AlertTriangle size={13}/>
+
+
+Épuisé
+
+
+</span>
+
+
+
+
+) : p.stock<=3 ? (
+
+
+
+<span className="
+rounded-full
+bg-yellow-500/20
+px-3
+py-1
+text-xs
+text-yellow-300
+">
+
+
+Faible
+
+
+</span>
+
+
+
+
+) : (
+
+
+
+<span className="
+flex
+items-center
+gap-1
+rounded-full
+bg-green-500/20
+px-3
+py-1
+text-xs
+text-green-300
+">
+
+
+
+<CheckCircle size={13}/>
+
+
+OK
+
+
+</span>
+
+
+
+)
+
+}
+
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+
+
+<div className="
+mt-5
+flex
+gap-3
+">
+
+
+
+<Link
+
+
+href={`/products/edit/${p.id}`}
+
+
+className="
+flex
+flex-1
+items-center
+justify-center
+gap-2
+rounded-2xl
+bg-blue-500/20
+py-3
+text-sm
+font-bold
+text-blue-300
+"
+
+
+>
+
+
+<Edit size={16}/>
+
+
+Modifier
+
+
+
+</Link>
+
+
+
+
+
+<button
+
+
+onClick={()=>deleteProduct(p.id)}
+
+
+className="
+flex
+flex-1
+items-center
+justify-center
+gap-2
+rounded-2xl
+bg-red-500/20
+py-3
+text-sm
+font-bold
+text-red-300
+"
+
+
+>
+
+
+<Trash2 size={16}/>
+
+
+Supprimer
+
+
+
+</button>
+
+
+
+</div>
+
+
+
+</div>
+
+
+
+))
+
+)
+
+
+}
+
+
+
+</div>
       </div>
-
 
     </main>
 

@@ -3,237 +3,597 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
+  saveOffline,
+  getOffline
+} from "@/lib/offlineDB";
+
+import {
   Search,
   ShoppingCart,
   Package,
   Sparkles,
   CheckCircle,
-  X,
   Plus,
   Minus,
 } from "lucide-react";
 
+
+
 type Product = {
-  id: string;
-  name: string;
-  stock: number;
-  initial_stock: number;
-  purchase_price: number;
-  selling_price: number;
-  currency: string;
-  pieces_per_unit: number;
+
+  id:string;
+
+  name:string;
+
+  stock:number;
+
+  initial_stock:number;
+
+  purchase_price:number;
+
+  selling_price:number;
+
+  currency:string;
+
+  pieces_per_unit:number;
+
 };
 
-export default function SalesPage() {
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productId, setProductId] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const [showGuide, setShowGuide] = useState(false);
 
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
 
+export default function SalesPage(){
 
-  const loadProducts = async () => {
 
-    const phone = localStorage.getItem("phone");
 
-    if (!phone) return;
+const [products,setProducts]=useState<Product[]>([]);
 
+const [productId,setProductId]=useState("");
 
-    const { data:user } = await supabase
-      .from("users")
-      .select("id")
-      .eq("phone", phone)
-      .single();
+const [searchTerm,setSearchTerm]=useState("");
 
+const [quantity,setQuantity]=useState("");
 
-    if(!user) return;
+const [loading,setLoading]=useState(false);
 
+const [showGuide,setShowGuide]=useState(false);
 
-    const { data } = await supabase
-      .from("products")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("name");
 
 
-    setProducts(data || []);
 
-  };
 
 
 
-  const selectedProduct =
-    products.find((p)=>p.id===productId);
+useEffect(()=>{
 
+loadProducts();
 
+},[]);
 
-  const filteredProducts =
-    products.filter((p)=>
-      p.name
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
-    );
 
 
 
-  const increaseQty = () => {
-    setQuantity(String(Number(quantity || 0)+1));
-  };
 
 
-  const decreaseQty = () => {
 
-    const value = Number(quantity || 0);
 
-    if(value > 1){
-      setQuantity(String(value-1));
-    }
+// CHARGEMENT PRODUITS ONLINE + OFFLINE
 
-  };
+const loadProducts = async()=>{
 
 
+try{
 
-  const saveSale = async()=>{
 
+const userId =
+localStorage.getItem("user_id");
 
-    if(!selectedProduct || !quantity){
 
-      alert("Sélectionnez un produit et une quantité");
-      return;
 
-    }
+if(!userId)
+return;
 
 
-    const qty = Number(quantity);
 
 
 
-    if(qty<=0){
+if(navigator.onLine){
 
-      alert("Quantité invalide");
-      return;
 
-    }
 
+const {data,error}=await supabase
 
+.from("products")
 
-    if(qty > selectedProduct.stock){
+.select("*")
 
-      alert("Stock insuffisant !");
-      return;
+.eq("user_id",userId)
 
-    }
+.order("name");
 
 
 
-    const phone =
-      localStorage.getItem("phone");
 
 
-    if(!phone)return;
+if(!error && data){
 
 
+setProducts(data);
 
-    const {data:user}=await supabase
-      .from("users")
-      .select("id")
-      .eq("phone",phone)
-      .single();
 
 
+// sauvegarde locale
 
-    if(!user)return;
+for(const product of data){
 
 
+await saveOffline(
+"products",
+product
+);
 
-    setLoading(true);
 
+}
 
 
-    const prixVente =
-      Number(selectedProduct.selling_price);
+}
 
 
-    const prixAchat =
-      Number(selectedProduct.purchase_price);
 
 
+}else{
 
-    const totalSale =
-      prixVente * qty;
 
 
+// HORS CONNEXION
 
-    const profit =
-      (prixVente - prixAchat) * qty;
 
+const offlineProducts =
+await getOffline("products");
 
 
-    await supabase
-      .from("sales")
-      .insert({
 
-        user_id:user.id,
+const myProducts =
+offlineProducts.filter(
+(p:any)=>p.user_id===userId
+);
 
-        product_id:selectedProduct.id,
 
-        product_name:selectedProduct.name,
 
-        quantity:qty,
+setProducts(myProducts);
 
-        purchase_price:prixAchat,
 
-        selling_price:prixVente,
 
-        total_sale:totalSale,
+}
 
-        profit:profit,
 
-        currency:selectedProduct.currency,
 
-      });
+}catch(error){
 
 
+console.log(error);
 
-    await supabase
-      .from("products")
-      .update({
 
-        stock:selectedProduct.stock - qty
+}
 
-      })
 
-      .eq("id",selectedProduct.id)
 
-      .eq("user_id",user.id);
+};
 
 
 
-    setLoading(false);
 
 
-    alert("Vente enregistrée ✅");
 
 
-    setQuantity("");
-    setProductId("");
-    setSearchTerm("");
 
-    loadProducts();
+const selectedProduct =
 
-  };
+products.find(
 
+(p)=>p.id===productId
 
+);
 
-  return (
+
+
+
+
+
+
+
+const filteredProducts =
+
+products.filter((p)=>
+
+
+p.name
+
+.toLowerCase()
+
+.includes(
+
+searchTerm.toLowerCase()
+
+)
+
+
+);
+
+
+
+
+
+
+
+const increaseQty=()=>{
+
+
+setQuantity(
+
+String(
+
+Number(quantity || 0)+1
+
+)
+
+);
+
+
+};
+
+
+
+
+
+
+
+const decreaseQty=()=>{
+
+
+const value =
+Number(quantity || 0);
+
+
+
+if(value>1){
+
+
+setQuantity(
+
+String(value-1)
+
+);
+
+
+}
+
+
+};
+const saveSale = async()=>{
+
+
+if(!selectedProduct || !quantity){
+
+
+alert(
+"Sélectionnez un produit et une quantité"
+);
+
+
+return;
+
+
+}
+
+
+
+
+
+const qty =
+Number(quantity);
+
+
+
+
+if(qty<=0){
+
+
+alert(
+"Quantité invalide"
+);
+
+
+return;
+
+
+}
+
+
+
+
+
+if(qty > selectedProduct.stock){
+
+
+alert(
+"Stock insuffisant !"
+);
+
+
+return;
+
+
+}
+
+
+
+
+
+const userId =
+localStorage.getItem("user_id");
+
+
+
+
+if(!userId){
+
+
+alert(
+"Utilisateur non connecté"
+);
+
+
+return;
+
+
+}
+
+
+
+
+
+setLoading(true);
+
+
+
+
+
+const prixVente =
+Number(selectedProduct.selling_price);
+
+
+
+const prixAchat =
+Number(selectedProduct.purchase_price);
+
+
+
+
+
+const totalSale =
+prixVente * qty;
+
+
+
+
+const profit =
+(prixVente - prixAchat) * qty;
+
+
+
+
+
+
+
+const saleData = {
+
+
+id:crypto.randomUUID(),
+
+
+user_id:userId,
+
+
+product_id:selectedProduct.id,
+
+
+product_name:selectedProduct.name,
+
+
+quantity:qty,
+
+
+purchase_price:prixAchat,
+
+
+selling_price:prixVente,
+
+
+total_sale:totalSale,
+
+
+profit:profit,
+
+
+currency:selectedProduct.currency,
+
+
+created_at:new Date().toISOString()
+
+
+};
+
+
+
+
+
+
+
+if(navigator.onLine){
+
+
+
+// EN LIGNE
+
+
+const {error}=await supabase
+
+.from("sales")
+
+.insert(saleData);
+
+
+
+
+
+if(error){
+
+
+setLoading(false);
+
+
+alert(error.message);
+
+
+return;
+
+
+}
+
+
+
+
+
+
+
+await supabase
+
+.from("products")
+
+.update({
+
+stock:
+selectedProduct.stock - qty
+
+})
+
+.eq(
+"id",
+selectedProduct.id
+)
+
+.eq(
+"user_id",
+userId
+);
+
+
+
+
+
+
+alert(
+"Vente enregistrée ✅"
+);
+
+
+
+
+
+}else{
+
+
+
+// HORS CONNEXION
+
+
+await saveOffline(
+
+"sales",
+
+saleData
+
+);
+
+
+
+
+
+
+
+const updatedProduct={
+
+
+...selectedProduct,
+
+
+stock:
+
+selectedProduct.stock - qty
+
+
+};
+
+
+
+
+
+
+
+await saveOffline(
+
+"products",
+
+updatedProduct
+
+);
+
+
+
+
+
+
+
+alert(
+
+"Vente sauvegardée hors ligne ✅\nSynchronisation automatique au retour d'internet."
+
+);
+
+
+
+}
+
+
+
+
+
+setLoading(false);
+
+
+
+setQuantity("");
+
+setProductId("");
+
+setSearchTerm("");
+
+
+
+loadProducts();
+
+
+
+};
+
+
+
+
+
+return (
 
 <main className="
 relative
@@ -247,16 +607,19 @@ pb-28
 ">
 
 
-{/* LUMIERES */}
+<div className="
+relative
+z-10
+max-w-xl
+mx-auto
+">
 
 
 
-
-
-<div className="relative z-10 max-w-xl mx-auto">
 
 
 {/* HEADER */}
+
 
 <div className="
 flex
@@ -267,6 +630,7 @@ mb-6
 
 
 <div>
+
 
 <h1 className="
 text-3xl
@@ -282,7 +646,9 @@ text-orange-400
  vente
 </span>
 
+
 </h1>
+
 
 
 <p className="
@@ -297,9 +663,6 @@ Enregistrez vos ventes rapidement
 
 
 </div>
-
-
-
 <button
 
 onClick={()=>setShowGuide(!showGuide)}
@@ -318,17 +681,39 @@ text-orange-300
 
 >
 
-<Sparkles size={14} className="inline mr-1"/>
 
-{showGuide ? "Fermer":"Guide"}
+<Sparkles 
+size={14}
+className="inline mr-1"
+/>
+
+
+{
+showGuide
+?
+"Fermer"
+:
+"Guide"
+}
+
 
 </button>
 
 
-</div>
-{/* GUIDE */}
 
-{showGuide && (
+</div>
+
+
+
+
+
+
+
+
+
+{
+showGuide && (
+
 
 <div className="
 mb-5
@@ -341,6 +726,8 @@ backdrop-blur-xl
 shadow-xl
 ">
 
+
+
 <div className="
 flex
 items-center
@@ -348,13 +735,27 @@ gap-2
 mb-4
 ">
 
-<Sparkles className="text-orange-400"/>
 
-<h2 className="font-bold text-orange-300">
+<Sparkles
+className="text-orange-400"
+/>
+
+
+
+<h2 className="
+font-bold
+text-orange-300
+">
+
 Comment faire une vente ?
+
 </h2>
 
+
 </div>
+
+
+
 
 
 <div className="
@@ -364,18 +765,6 @@ text-slate-300
 ">
 
 
-<div className="
-rounded-2xl
-bg-black/30
-p-3
-border
-border-white/10
-">
-
-1️⃣ Recherchez votre produit dans la liste.
-
-</div>
-
 
 <div className="
 rounded-2xl
@@ -385,9 +774,10 @@ border
 border-white/10
 ">
 
-2️⃣ Sélectionnez le produit puis entrez la quantité vendue.
+1️⃣ Recherchez votre produit.
 
 </div>
+
 
 
 <div className="
@@ -398,9 +788,27 @@ border
 border-white/10
 ">
 
-3️⃣ Le système calcule automatiquement le montant total et le bénéfice.
+2️⃣ Choisissez la quantité vendue.
 
 </div>
+
+
+
+
+<div className="
+rounded-2xl
+bg-black/30
+p-3
+border
+border-white/10
+">
+
+3️⃣ BISO-COMMERCE calcule automatiquement le total et le bénéfice.
+
+</div>
+
+
+
 
 
 <div className="
@@ -412,7 +820,11 @@ p-3
 text-orange-200
 ">
 
-✅ Cliquez sur "Valider la vente" pour enregistrer.
+✅ Cliquez sur "Valider la vente".
+
+</div>
+
+
 
 </div>
 
@@ -420,14 +832,20 @@ text-orange-200
 </div>
 
 
-</div>
+)
 
-)}
+}
+
+
+
+
+
 
 
 
 
 {/* CARTE CAISSE */}
+
 
 <div className="
 rounded-3xl
@@ -442,7 +860,13 @@ space-y-5
 
 
 
-{/* RECHERCHE */}
+
+
+
+
+{/* RECHERCHE PRODUIT */}
+
+
 
 <div>
 
@@ -460,6 +884,8 @@ Produit
 
 
 
+
+
 <div className="
 flex
 items-center
@@ -472,24 +898,37 @@ px-4
 ">
 
 
+
 <Search
 size={18}
 className="text-orange-400"
 />
 
 
+
+
+
 <input
+
 
 value={searchTerm}
 
+
 onChange={(e)=>{
 
+
 setSearchTerm(e.target.value);
+
 setProductId("");
+
 
 }}
 
+
+
 placeholder="Rechercher un produit..."
+
+
 
 className="
 w-full
@@ -500,14 +939,16 @@ text-white
 placeholder:text-slate-500
 "
 
+
+
 />
 
 
+
 </div>
+{
+searchTerm && !productId && (
 
-
-
-{searchTerm && !productId && (
 
 <div className="
 mt-3
@@ -520,19 +961,28 @@ bg-black/60
 ">
 
 
-{filteredProducts.map((p)=>(
+
+{
+filteredProducts.map((p)=>(
+
 
 
 <button
 
 key={p.id}
 
+
 onClick={()=>{
 
+
 setProductId(p.id);
+
 setSearchTerm(p.name);
 
+
 }}
+
+
 
 className="
 flex
@@ -543,7 +993,6 @@ border-b
 border-white/5
 px-4
 py-3
-transition
 hover:bg-white/10
 "
 
@@ -575,34 +1024,53 @@ className="text-orange-400"
 
 
 
+
+
 <span className="
 text-xs
 text-slate-400
 ">
 
+
 Stock {p.stock}
 
+
 </span>
+
 
 
 </button>
 
 
-))}
+
+))
+
+
+}
+
 
 
 </div>
 
-)}
+
+)
+
+}
+
+
+
 
 
 </div>
+
+
 
 
 
 
 
 {/* QUANTITE */}
+
 
 <div>
 
@@ -619,11 +1087,17 @@ Quantité
 </label>
 
 
+
+
+
 <div className="
 flex
 items-center
 gap-3
 ">
+
+
+
 
 
 <button
@@ -638,8 +1112,8 @@ bg-white/10
 flex
 items-center
 justify-center
-hover:bg-white/20
 "
+
 
 >
 
@@ -649,15 +1123,24 @@ hover:bg-white/20
 
 
 
+
+
+
+
 <input
+
 
 type="number"
 
+
 value={quantity}
+
 
 onChange={(e)=>setQuantity(e.target.value)}
 
+
 placeholder="Ex: 5"
+
 
 className="
 flex-1
@@ -670,13 +1153,19 @@ text-center
 outline-none
 "
 
+
 />
+
+
+
+
 
 
 
 <button
 
 onClick={increaseQty}
+
 
 className="
 h-12
@@ -687,28 +1176,37 @@ text-orange-300
 flex
 items-center
 justify-center
-hover:bg-orange-500/30
 "
+
 
 >
 
+
 <Plus size={18}/>
+
 
 </button>
 
 
-</div>
 
 
 </div>
 
 
+</div>
 
 
 
-{/* RESUME */}
 
-{selectedProduct && Number(quantity)>0 && (
+
+
+
+
+
+{
+selectedProduct && Number(quantity)>0 && (
+
+
 
 <div className="
 rounded-2xl
@@ -717,6 +1215,7 @@ border-orange-400/30
 bg-orange-500/10
 p-5
 ">
+
 
 
 <div className="
@@ -732,6 +1231,7 @@ className="text-orange-400"
 />
 
 
+
 <p className="
 font-bold
 text-orange-200
@@ -742,7 +1242,10 @@ Résumé
 </p>
 
 
+
 </div>
+
+
 
 
 
@@ -754,7 +1257,10 @@ text-slate-300
 
 Produit :
 
-<span className="font-bold text-white">
+<span className="
+font-bold
+text-white
+">
 
 {" "}
 {selectedProduct.name}
@@ -766,6 +1272,10 @@ Produit :
 
 
 
+
+
+
+
 <p className="
 mt-2
 text-sm
@@ -774,16 +1284,24 @@ text-slate-300
 
 Prix unité :
 
-<span className="font-bold text-white">
+<span className="
+font-bold
+text-white
+">
 
 {" "}
 {selectedProduct.selling_price}
+
 {" "}
 {selectedProduct.currency}
 
 </span>
 
+
 </p>
+
+
+
 
 
 
@@ -793,6 +1311,8 @@ rounded-xl
 bg-black/30
 p-3
 ">
+
+
 
 <p className="
 text-xs
@@ -804,40 +1324,68 @@ Total à payer
 </p>
 
 
+
+
 <p className="
 text-3xl
 font-black
 text-orange-400
 ">
 
-{selectedProduct.selling_price *
-Number(quantity)}
+
+{
+
+selectedProduct.selling_price *
+
+Number(quantity)
+
+}
+
 
 {" "}
 
 {selectedProduct.currency}
 
+
+
 </p>
 
 
-</div>
 
 
 </div>
 
-)}
 
 
 
 
 
-{/* BUTTON */}
+</div>
+
+
+
+)
+
+}
+
+
+
+
+
+
+
+
+
 
 <button
 
+
 onClick={saveSale}
 
+
 disabled={loading}
+
+
 
 className="
 group
@@ -859,14 +1407,20 @@ hover:scale-[1.02]
 disabled:opacity-50
 "
 
+
+
 >
 
 
-{loading ? (
+{
+
+loading
+
+?
 
 "Enregistrement..."
 
-):(
+:
 
 
 <>
@@ -878,14 +1432,23 @@ Valider la vente
 </>
 
 
-)}
+}
+
 
 
 </button>
 
 
 
+
+
+
+
 </div>
+
+
+
+
 
 
 
@@ -897,5 +1460,6 @@ Valider la vente
 
 
 );
+
 
 }
