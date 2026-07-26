@@ -1,6 +1,6 @@
 {
   "name": "Biso-Commerce",
-  "short_name": "Biso",
+  "short_name": "Biso-Commerce",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
