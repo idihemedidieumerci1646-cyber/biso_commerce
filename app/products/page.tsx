@@ -262,6 +262,30 @@ alert(error.message);
 }else{
 
 
+// supprimer aussi dans le cache du téléphone
+
+const offlineProducts =
+await getOffline("products");
+
+
+const newProducts =
+offlineProducts.filter(
+(p:any)=>p.id !== id
+);
+
+
+// remettre le cache propre
+for(const p of newProducts){
+
+await saveOffline(
+"products",
+p
+);
+
+}
+
+
+// recharger la liste
 await fetchProducts();
 
 
@@ -272,9 +296,11 @@ await fetchProducts();
 
 
 }else{
+  
 
 
 
+  
 // SUPPRESSION HORS CONNEXION
 
 

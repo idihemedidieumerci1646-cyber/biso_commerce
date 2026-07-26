@@ -14,7 +14,7 @@ export async function syncProducts(){
 
 
   const products =
-    await getOffline("products");
+    await getOffline("newProducts");
 
 
 
@@ -37,10 +37,7 @@ export async function syncProducts(){
     if(!error){
 
 
-      await removeOffline(
-        "products",
-        product.id
-      );
+      await removeOffline("newProducts", product.id);
 
 
     }

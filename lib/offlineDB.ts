@@ -46,6 +46,11 @@ typeof window !== "undefined"
           );
 
         }
+        if (!db.objectStoreNames.contains("newProducts")) {
+  db.createObjectStore("newProducts", {
+    keyPath: "id",
+  });
+}
 
 
 

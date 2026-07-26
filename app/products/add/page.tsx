@@ -233,34 +233,30 @@ let error = null;
 
 if(navigator.onLine){
 
-
-
 const result =
 await supabase
-
 .from("products")
-
 .insert(productData);
-
-
 
 error = result.error;
 
 
+if(!error){
+
+await saveOffline(
+"products",
+productData
+);
+
+}
+
 
 }else{
 
-
-
 await saveOffline(
-
 "products",
-
 productData
-
 );
-
-
 
 }
 
