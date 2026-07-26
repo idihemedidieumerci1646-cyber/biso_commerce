@@ -234,16 +234,13 @@ export async function syncAll(){
   try{
 
 
-    await syncProducts();
-
-
-    await syncSales();
-
-
     await syncUpdatedProducts();
 
+await syncDeletedProducts();
 
-    await syncDeletedProducts();
+await syncProducts();
+
+await syncSales();
 
 
 

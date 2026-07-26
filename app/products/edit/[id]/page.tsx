@@ -202,17 +202,21 @@ if(navigator.onLine){
   const res = await supabase
     .from("products")
     .update(updatedProduct)
-.eq("id", id)
-.eq("user_id", userId);
+    .eq("id", id)
+    .eq("user_id", userId);
 
 
   error = res.error;
 
 
-  await saveOffline(
-    "products",
-    updatedProduct
-  );
+  if(!error){
+
+    await saveOffline(
+      "products",
+      updatedProduct
+    );
+
+  }
 
 
 }else{

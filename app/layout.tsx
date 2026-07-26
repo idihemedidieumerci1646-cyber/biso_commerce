@@ -4,7 +4,7 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import OnlineSync from "./components/OnlineSync";
 import Navbar from "../components/Navbar";
-
+import RegisterSW from "./components/RegisterSW";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,6 +75,8 @@ export default function RootLayout({
 
 
       <body className="bg-slate-950 min-h-screen">
+        
+        <RegisterSW />
 
 
         {/* Synchronisation automatique hors ligne */}
