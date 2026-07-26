@@ -254,10 +254,14 @@ if(navigator.onLine){
 
 
 
-    alert("Produit modifié avec succès ✅");
+    alert(
+  navigator.onLine
+  ? "Produit modifié avec succès ✅"
+  : "Produit modifié hors connexion ✅"
+);
 
 
-    router.push("/products");
+window.location.href = "/products";
 
   }
 

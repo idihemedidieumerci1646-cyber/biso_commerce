@@ -1,7 +1,9 @@
-const CACHE_NAME = "biso-commerce-v3";
+const CACHE_NAME = "biso-commerce-v4";
 
 const APP_SHELL = [
   "/",
+  "/dashboard",
+  "/products",
   "/manifest.json",
   "/icon.png"
 ];
