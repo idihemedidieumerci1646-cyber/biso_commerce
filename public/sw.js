@@ -1,24 +1,19 @@
-const CACHE_NAME = "biso-commerce-v4";
+const CACHE_NAME = "biso-commerce-v3";
 
-const OFFLINE_PAGES = [
+const APP_SHELL = [
   "/",
-  "/dashboard",
-  "/products",
-  "/sales"
+  "/manifest.json",
+  "/icon.png"
 ];
 
 
 self.addEventListener("install", (event)=>{
 
   event.waitUntil(
-
     caches.open(CACHE_NAME)
     .then((cache)=>{
-
-      return cache.addAll(OFFLINE_PAGES);
-
+      return cache.addAll(APP_SHELL);
     })
-
   );
 
   self.skipWaiting();
@@ -40,55 +35,59 @@ self.addEventListener("activate",(event)=>{
 self.addEventListener("fetch",(event)=>{
 
 
-  if(event.request.method !== "GET"){
-    return;
-  }
-
-
-
   event.respondWith(
 
-    fetch(event.request)
-
-    .then((response)=>{
-
-
-      const clone = response.clone();
+    caches.match(event.request)
+    .then((cached)=>{
 
 
-      caches.open(CACHE_NAME)
-      .then((cache)=>{
+      if(cached){
 
-        cache.put(
-          event.request,
-          clone
-        );
+        return cached;
+
+      }
+
+
+      return fetch(event.request)
+      .then((response)=>{
+
+
+        if(
+          response &&
+          response.status === 200 &&
+          response.type === "basic"
+        ){
+
+          const clone = response.clone();
+
+
+          caches.open(CACHE_NAME)
+          .then((cache)=>{
+
+            cache.put(
+              event.request,
+              clone
+            );
+
+          });
+
+        }
+
+
+        return response;
+
+
+      })
+      .catch(()=>{
+
+
+        return caches.match("/");
+
 
       });
 
 
-      return response;
-
-
     })
-
-
-    .catch(()=>{
-
-
-      return caches.match(event.request)
-
-      .then((cached)=>{
-
-
-        return cached || caches.match("/");
-
-
-      });
-
-
-    })
-
 
   );
 
