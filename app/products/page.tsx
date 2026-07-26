@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getOffline, saveOffline } from "@/lib/offlineDB";
 import Link from "next/link";
+import { syncAll } from "@/lib/sync";
 
 import {
   Package,
@@ -175,7 +176,16 @@ setLoading(false);
 useEffect(()=>{
 
 
-fetchProducts();
+async function start(){
+
+  await syncAll();
+
+  await fetchProducts();
+
+}
+
+
+start();
 
 
 },[]);
