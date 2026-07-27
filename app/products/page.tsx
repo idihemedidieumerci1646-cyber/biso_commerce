@@ -2,827 +2,883 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getOffline, saveOffline } from "@/lib/offlineDB";
-import Link from "next/link";
-import { syncAll } from "@/lib/sync";
-
 import {
-  Package,
-  Plus,
   Search,
-  Trash2,
-  Edit,
-  AlertTriangle,
-  CheckCircle,
+  ShoppingCart,
+  Package,
   Sparkles,
+  CheckCircle,
+  X,
+  Plus,
+  Minus,
 } from "lucide-react";
 
-
 type Product = {
-
-  id:string;
-
-  name:string | null;
-
-  stock:number;
-
-  unit:string | null;
-
-  purchase_price:number;
-
-  selling_price:number;
-
-  currency:string;
-
-  user_id:string;
-
-  created_at?:string;
-
+  id: string;
+  name: string;
+  stock: number;
+  initial_stock: number;
+  purchase_price: number;
+  selling_price: number;
+  currency: string;
+  pieces_per_unit: number;
 };
 
+export default function SalesPage() {
 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productId, setProductId] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  const [showGuide, setShowGuide] = useState(false);
 
 
-export default function ProductsPage(){
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
 
-const [products,setProducts] = useState<Product[]>([]);
+  const loadProducts = async () => {
 
-const [loading,setLoading] = useState(true);
+    const phone = localStorage.getItem("phone");
 
-const [searchTerm,setSearchTerm] = useState("");
+    if (!phone) return;
 
 
+    const { data:user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
+      .single();
 
 
+    if(!user) return;
 
-// CHARGEMENT PRODUITS ONLINE + OFFLINE
 
-const fetchProducts = async()=>{
+    const { data } = await supabase
+      .from("products")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("name");
 
 
-try{
+    setProducts(data || []);
 
+  };
 
-setLoading(true);
 
 
+  const selectedProduct =
+    products.find((p)=>p.id===productId);
 
-const userId =
-localStorage.getItem("user_id");
 
 
+  const filteredProducts =
+    products.filter((p)=>
+      p.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+    );
 
-if(!userId){
 
-setLoading(false);
 
-return;
+  const increaseQty = () => {
+    setQuantity(String(Number(quantity || 0)+1));
+  };
 
-}
 
+  const decreaseQty = () => {
 
+    const value = Number(quantity || 0);
 
+    if(value > 1){
+      setQuantity(String(value-1));
+    }
 
-if(navigator.onLine){
+  };
 
 
 
-const {data,error}=await supabase
+  const saveSale = async()=>{
 
-.from("products")
 
-.select("*")
+    if(!selectedProduct || !quantity){
 
-.eq("user_id",userId)
+      alert("Sélectionnez un produit et une quantité");
+      return;
 
-.order("created_at",{ascending:false});
+    }
 
 
+    const qty = Number(quantity);
 
 
-if(!error && data){
 
+    if(qty<=0){
 
-setProducts(data);
+      alert("Quantité invalide");
+      return;
 
+    }
 
 
-// sauvegarde locale
 
-for(const product of data){
+    if(qty > selectedProduct.stock){
 
+      alert("Stock insuffisant !");
+      return;
 
-await saveOffline(
-"products",
-product
-);
+    }
 
 
-}
 
+    const phone =
+      localStorage.getItem("phone");
 
-}
 
+    if(!phone)return;
 
 
 
-}else{
+    const {data:user}=await supabase
+      .from("users")
+      .select("id")
+      .eq("phone",phone)
+      .single();
 
 
-// HORS CONNEXION
 
+    if(!user)return;
 
-const offlineProducts =
-await getOffline("products");
 
 
+    setLoading(true);
 
-const userProducts =
-offlineProducts.filter(
-(p:any)=>p.user_id===userId
-);
 
 
+    const prixVente =
+      Number(selectedProduct.selling_price);
 
-setProducts(userProducts);
 
+    const prixAchat =
+      Number(selectedProduct.purchase_price);
 
 
-}
 
+    const totalSale =
+      prixVente * qty;
 
 
-}catch(error){
 
+    const profit =
+      (prixVente - prixAchat) * qty;
 
-console.log(error);
 
 
-}
+    await supabase
+      .from("sales")
+      .insert({
 
+        user_id:user.id,
 
+        product_id:selectedProduct.id,
 
-setLoading(false);
+        product_name:selectedProduct.name,
 
+        quantity:qty,
 
+        purchase_price:prixAchat,
 
-};
+        selling_price:prixVente,
 
+        total_sale:totalSale,
 
+        profit:profit,
 
+        currency:selectedProduct.currency,
 
-useEffect(()=>{
+      });
 
 
-async function start(){
 
-  await syncAll();
+    await supabase
+      .from("products")
+      .update({
 
-  await fetchProducts();
+        stock:selectedProduct.stock - qty
 
-}
+      })
 
+      .eq("id",selectedProduct.id)
 
-start();
+      .eq("user_id",user.id);
 
 
-},[]);
 
+    setLoading(false);
 
 
+    alert("Vente enregistrée ✅");
 
 
-const filteredProducts = products.filter((p)=>
+    setQuantity("");
+    setProductId("");
+    setSearchTerm("");
 
-(p.name || "")
-.toLowerCase()
-.includes(searchTerm.toLowerCase())
+    loadProducts();
 
-);
-const deleteProduct = async(id:string)=>{
+  };
 
 
-const ok = confirm(
-"Voulez-vous supprimer ce produit ?"
-);
 
-
-
-if(!ok){
-
-return;
-
-}
-
-
-
-
-const userId =
-localStorage.getItem("user_id");
-
-
-
-if(!userId){
-
-alert("Utilisateur non connecté");
-
-return;
-
-}
-
-
-
-
-if(navigator.onLine){
-
-
-
-const {error}=await supabase
-
-.from("products")
-
-.delete()
-
-.eq("id",id)
-
-.eq("user_id",userId);
-
-
-
-
-
-if(error){
-
-
-alert(error.message);
-
-
-}else{
-
-
-// supprimer aussi dans le cache du téléphone
-
-const offlineProducts =
-await getOffline("products");
-
-
-const newProducts =
-offlineProducts.filter(
-(p:any)=>p.id !== id
-);
-
-
-// remettre le cache propre
-for(const p of newProducts){
-
-await saveOffline(
-"products",
-p
-);
-
-}
-
-
-// recharger la liste
-await fetchProducts();
-
-
-}
-
-
-
-
-
-}else{
-  
-
-
-
-  
-// SUPPRESSION HORS CONNEXION
-
-
-await saveOffline(
-
-"deletedProducts",
-
-{
-
-id,
-
-user_id:userId,
-
-created_at:new Date().toISOString()
-
-}
-
-);
-
-
-
-
-setProducts(
-
-products.filter(
-
-(p)=>p.id!==id
-
-)
-
-);
-
-
-
-alert(
-"Produit supprimé hors ligne ✅\nSynchronisation dès le retour d'internet."
-);
-
-
-
-}
-
-
-
-};
-
-
-
-
-
-
-return (
-
-
+  return (
 
 <main className="
 relative
 min-h-screen
 overflow-hidden
-bg-[#060d1b]
-pb-24
+bg-[#081221]
 text-white
+px-4
+py-6
+pb-28
 ">
 
 
+{/* LUMIERES */}
 
-<div className="
-relative
-z-10
-p-5
-">
 
+
+
+
+<div className="relative z-10 max-w-xl mx-auto">
 
 
 {/* HEADER */}
 
-
 <div className="
-mb-6
 flex
 items-center
 justify-between
+mb-6
 ">
-
 
 
 <div>
 
-
-
-<div className="
-flex
-items-center
-gap-2
-">
-
-
-<Package
-className="text-orange-400"
-/>
-
-
-
 <h1 className="
 text-3xl
 font-black
+tracking-tight
 ">
 
-Produits
+💰 Caisse
+
+<span className="
+text-orange-400
+">
+ vente
+</span>
 
 </h1>
 
 
-
-</div>
-
-
-
 <p className="
-mt-1
-text-xs
+text-sm
 text-slate-400
+mt-1
 ">
 
-Gestion intelligente de votre stock
+Enregistrez vos ventes rapidement
 
 </p>
 
 
-
 </div>
 
 
 
-<Sparkles
-className="text-orange-400"
-/>
+<button
 
+onClick={()=>setShowGuide(!showGuide)}
+
+className="
+rounded-full
+border
+border-orange-400/30
+bg-orange-500/10
+px-4
+py-2
+text-xs
+font-bold
+text-orange-300
+"
+
+>
+
+<Sparkles size={14} className="inline mr-1"/>
+
+{showGuide ? "Fermer":"Guide"}
+
+</button>
 
 
 </div>
+{/* GUIDE */}
 
+{showGuide && (
 
+<div className="
+mb-5
+rounded-3xl
+border
+border-orange-400/20
+bg-white/5
+p-5
+backdrop-blur-xl
+shadow-xl
+">
 
+<div className="
+flex
+items-center
+gap-2
+mb-4
+">
 
+<Sparkles className="text-orange-400"/>
 
-{/* RECHERCHE + AJOUT */}
+<h2 className="font-bold text-orange-300">
+Comment faire une vente ?
+</h2>
+
+</div>
 
 
 <div className="
-mb-6
-flex
-gap-3
+space-y-3
+text-sm
+text-slate-300
+">
+
+
+<div className="
+rounded-2xl
+bg-black/30
+p-3
+border
+border-white/10
+">
+
+1️⃣ Recherchez votre produit dans la liste.
+
+</div>
+
+
+<div className="
+rounded-2xl
+bg-black/30
+p-3
+border
+border-white/10
+">
+
+2️⃣ Sélectionnez le produit puis entrez la quantité vendue.
+
+</div>
+
+
+<div className="
+rounded-2xl
+bg-black/30
+p-3
+border
+border-white/10
+">
+
+3️⃣ Le système calcule automatiquement le montant total et le bénéfice.
+
+</div>
+
+
+<div className="
+rounded-2xl
+bg-orange-500/10
+border
+border-orange-400/30
+p-3
+text-orange-200
+">
+
+✅ Cliquez sur "Valider la vente" pour enregistrer.
+
+</div>
+
+
+</div>
+
+
+</div>
+
+)}
+
+
+
+
+{/* CARTE CAISSE */}
+
+<div className="
+rounded-3xl
+border
+border-white/10
+bg-white/5
+p-5
+backdrop-blur-xl
+shadow-2xl
+space-y-5
 ">
 
 
 
+{/* RECHERCHE */}
+
+<div>
+
+
+<label className="
+text-xs
+text-slate-400
+mb-2
+block
+">
+
+Produit
+
+</label>
+
+
+
 <div className="
 flex
-flex-1
 items-center
-gap-2
+gap-3
 rounded-2xl
 border
 border-white/10
-bg-white/[0.07]
+bg-black/30
 px-4
-backdrop-blur-xl
 ">
 
 
 <Search
 size={18}
-className="text-slate-400"
+className="text-orange-400"
 />
-
 
 
 <input
 
 value={searchTerm}
 
-onChange={(e)=>
-setSearchTerm(e.target.value)
-}
+onChange={(e)=>{
 
+setSearchTerm(e.target.value);
+setProductId("");
 
-placeholder="Rechercher..."
+}}
 
+placeholder="Rechercher un produit..."
 
 className="
 w-full
 bg-transparent
 py-3
-text-sm
 outline-none
+text-white
 placeholder:text-slate-500
 "
 
 />
 
 
-
 </div>
 
 
 
+{searchTerm && !productId && (
 
-
-<Link
-
-href="/products/add"
-
-className="
-flex
-items-center
-justify-center
+<div className="
+mt-3
+max-h-60
+overflow-y-auto
 rounded-2xl
-bg-gradient-to-r
-from-orange-500
-to-yellow-400
-px-5
-text-black
-shadow-lg
-"
-
->
-
-
-<Plus size={24}/>
-
-
-</Link>
-
-
-
-</div>
-{/* LISTE PRODUITS */}
-
-<div className="
-space-y-4
-">
-
-
-
-{
-
-loading ? (
-
-
-<p className="
-py-10
-text-center
-text-slate-400
-">
-
-Chargement...
-
-</p>
-
-
-
-) : filteredProducts.length===0 ? (
-
-
-
-<div className="
-rounded-3xl
 border
 border-white/10
-bg-white/[0.06]
-p-8
-text-center
+bg-black/60
 ">
 
-Aucun produit trouvé
+
+{filteredProducts.map((p)=>(
 
 
-</div>
-
-
-
-
-) : (
-
-
-
-filteredProducts.map((p)=>(
-
-
-
-<div
+<button
 
 key={p.id}
 
+onClick={()=>{
+
+setProductId(p.id);
+setSearchTerm(p.name);
+
+}}
+
 className="
-rounded-3xl
-border
-border-white/10
-bg-white/[0.07]
-p-5
-backdrop-blur-xl
+flex
+w-full
+items-center
+justify-between
+border-b
+border-white/5
+px-4
+py-3
+transition
+hover:bg-white/10
 "
+
 
 >
 
 
-
 <div className="
 flex
-justify-between
-">
-
-
-
-<div>
-
-
-<h2 className="
-text-lg
-font-black
-">
-
-{p.name || "Produit sans nom"}
-
-</h2>
-
-
-
-<p className="
-mt-1
-text-xs
-text-slate-400
-">
-
-Stock : {p.stock} {p.unit || ""}
-
-</p>
-
-
-
-</div>
-
-
-
-
-
-<div>
-
-
-
-{
-
-p.stock===0 ? (
-
-
-
-<span className="
-flex
 items-center
-gap-1
-rounded-full
-bg-red-500/20
-px-3
-py-1
-text-xs
-text-red-300
-">
-
-
-<AlertTriangle size={13}/>
-
-
-Épuisé
-
-
-</span>
-
-
-
-
-) : p.stock<=3 ? (
-
-
-
-<span className="
-rounded-full
-bg-yellow-500/20
-px-3
-py-1
-text-xs
-text-yellow-300
-">
-
-
-Faible
-
-
-</span>
-
-
-
-
-) : (
-
-
-
-<span className="
-flex
-items-center
-gap-1
-rounded-full
-bg-green-500/20
-px-3
-py-1
-text-xs
-text-green-300
-">
-
-
-
-<CheckCircle size={13}/>
-
-
-OK
-
-
-</span>
-
-
-
-)
-
-}
-
-
-
-</div>
-
-
-
-</div>
-
-
-
-
-
-
-<div className="
-mt-5
-flex
 gap-3
 ">
 
 
+<Package
+size={18}
+className="text-orange-400"
+/>
 
-<Link
+
+<span>
+
+{p.name}
+
+</span>
 
 
-href={`/products/edit/${p.id}`}
+</div>
 
+
+
+<span className="
+text-xs
+text-slate-400
+">
+
+Stock {p.stock}
+
+</span>
+
+
+</button>
+
+
+))}
+
+
+</div>
+
+)}
+
+
+</div>
+
+
+
+
+
+{/* QUANTITE */}
+
+<div>
+
+
+<label className="
+text-xs
+text-slate-400
+mb-2
+block
+">
+
+Quantité
+
+</label>
+
+
+<div className="
+flex
+items-center
+gap-3
+">
+
+
+<button
+
+onClick={decreaseQty}
 
 className="
+h-12
+w-12
+rounded-xl
+bg-white/10
 flex
-flex-1
 items-center
 justify-center
-gap-2
-rounded-2xl
-bg-blue-500/20
-py-3
-text-sm
-font-bold
-text-blue-300
+hover:bg-white/20
 "
-
 
 >
 
+<Minus size={18}/>
 
-<Edit size={16}/>
-
-
-Modifier
+</button>
 
 
 
-</Link>
+<input
 
+type="number"
 
+value={quantity}
+
+onChange={(e)=>setQuantity(e.target.value)}
+
+placeholder="Ex: 5"
+
+className="
+flex-1
+rounded-xl
+border
+border-white/10
+bg-black/30
+p-3
+text-center
+outline-none
+"
+
+/>
 
 
 
 <button
 
-
-onClick={()=>deleteProduct(p.id)}
-
+onClick={increaseQty}
 
 className="
+h-12
+w-12
+rounded-xl
+bg-orange-500/20
+text-orange-300
 flex
-flex-1
+items-center
+justify-center
+hover:bg-orange-500/30
+"
+
+>
+
+<Plus size={18}/>
+
+</button>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+{/* RESUME */}
+
+{selectedProduct && Number(quantity)>0 && (
+
+<div className="
+rounded-2xl
+border
+border-orange-400/30
+bg-orange-500/10
+p-5
+">
+
+
+<div className="
+flex
+items-center
+gap-2
+mb-3
+">
+
+
+<ShoppingCart
+className="text-orange-400"
+/>
+
+
+<p className="
+font-bold
+text-orange-200
+">
+
+Résumé
+
+</p>
+
+
+</div>
+
+
+
+
+<p className="
+text-sm
+text-slate-300
+">
+
+Produit :
+
+<span className="font-bold text-white">
+
+{" "}
+{selectedProduct.name}
+
+</span>
+
+
+</p>
+
+
+
+<p className="
+mt-2
+text-sm
+text-slate-300
+">
+
+Prix unité :
+
+<span className="font-bold text-white">
+
+{" "}
+{selectedProduct.selling_price}
+{" "}
+{selectedProduct.currency}
+
+</span>
+
+</p>
+
+
+
+<div className="
+mt-4
+rounded-xl
+bg-black/30
+p-3
+">
+
+<p className="
+text-xs
+text-slate-400
+">
+
+Total à payer
+
+</p>
+
+
+<p className="
+text-3xl
+font-black
+text-orange-400
+">
+
+{selectedProduct.selling_price *
+Number(quantity)}
+
+{" "}
+
+{selectedProduct.currency}
+
+</p>
+
+
+</div>
+
+
+</div>
+
+)}
+
+
+
+
+
+{/* BUTTON */}
+
+<button
+
+onClick={saveSale}
+
+disabled={loading}
+
+className="
+group
+flex
+w-full
 items-center
 justify-center
 gap-2
 rounded-2xl
-bg-red-500/20
-py-3
-text-sm
-font-bold
-text-red-300
+bg-gradient-to-r
+from-orange-500
+to-yellow-400
+py-4
+font-black
+text-black
+shadow-lg
+transition
+hover:scale-[1.02]
+disabled:opacity-50
 "
-
 
 >
 
 
-<Trash2 size={16}/>
+{loading ? (
+
+"Enregistrement..."
+
+):(
 
 
-Supprimer
+<>
 
+<CheckCircle size={20}/>
+
+Valider la vente
+
+</>
+
+
+)}
 
 
 </button>
@@ -837,20 +893,9 @@ Supprimer
 
 
 
-))
-
-)
+</main>
 
 
-}
-
-
-
-</div>
-      </div>
-
-    </main>
-
-  );
+);
 
 }
