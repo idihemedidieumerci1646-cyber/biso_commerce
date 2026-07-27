@@ -6,12 +6,18 @@ export default function ServiceWorkerRegister(){
 
   useEffect(()=>{
 
-    if(
-      process.env.NODE_ENV === "production" &&
-      "serviceWorker" in navigator
-    ){
+    if("serviceWorker" in navigator){
 
-      navigator.serviceWorker.register("/sw.js");
+      navigator.serviceWorker.getRegistrations()
+      .then((registrations)=>{
+
+        registrations.forEach((registration)=>{
+
+          registration.unregister();
+
+        });
+
+      });
 
     }
 
