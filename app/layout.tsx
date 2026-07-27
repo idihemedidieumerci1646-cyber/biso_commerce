@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
-import OnlineSync from "./components/OnlineSync";
 import Navbar from "../components/Navbar";
 
 const geistSans = Geist({
@@ -66,7 +65,7 @@ export default function RootLayout({
         
 
         {/* Synchronisation automatique hors ligne */}
-        <OnlineSync />
+        
 
         {/* Menu principal */}
         <Navbar />
