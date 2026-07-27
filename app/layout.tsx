@@ -4,20 +4,16 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import OnlineSync from "./components/OnlineSync";
 import Navbar from "../components/Navbar";
-import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
-
-
 
 export const metadata: Metadata = {
 
@@ -26,8 +22,6 @@ export const metadata: Metadata = {
   description: "Gestion moderne des commerces",
 
 };
-
-
 
 export const viewport = {
 
@@ -41,9 +35,6 @@ export const viewport = {
 
 };
 
-
-
-
 export default function RootLayout({
 
   children,
@@ -54,14 +45,13 @@ export default function RootLayout({
 
 }) {
 
-
   return (
 
     <html 
       lang="fr" 
       className={`${geistSans.variable} ${geistMono.variable}`}
+      
     >
-
 
       <head>
 
@@ -72,36 +62,23 @@ export default function RootLayout({
 
       </head>
 
-
-
       <body className="bg-slate-950 min-h-screen">
         
-        
-        <ServiceWorkerRegister />
-
 
         {/* Synchronisation automatique hors ligne */}
         <OnlineSync />
 
-
-
         {/* Menu principal */}
         <Navbar />
 
-
-
         {/* Une seule application */}
         {children}
-
-
 
         <Toaster 
           position="top-center" 
         />
 
-
       </body>
-
 
     </html>
 
