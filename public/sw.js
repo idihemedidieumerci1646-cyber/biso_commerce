@@ -1,97 +1,69 @@
-const CACHE_NAME = "biso-commerce-v4";
+const CACHE_NAME = "biso-commerce-v1";
 
-const APP_SHELL = [
-  "/",
-  "/dashboard",
-  "/products",
-  "/manifest.json",
-  "/icon.png"
-];
-
-
-self.addEventListener("install", (event)=>{
-
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-    .then((cache)=>{
-      return cache.addAll(APP_SHELL);
-    })
-  );
-
+self.addEventListener("install", () => {
   self.skipWaiting();
-
 });
 
 
-
-self.addEventListener("activate",(event)=>{
+self.addEventListener("activate", (event) => {
 
   event.waitUntil(
-    self.clients.claim()
+    caches.keys().then((keys)=>{
+
+      return Promise.all(
+        keys
+        .filter((key)=> key !== CACHE_NAME)
+        .map((key)=> caches.delete(key))
+      );
+
+    }).then(()=>self.clients.claim())
   );
 
 });
 
 
+self.addEventListener("fetch", (event)=>{
 
-self.addEventListener("fetch",(event)=>{
+  const url = new URL(event.request.url);
+
+
+  // Ne jamais toucher aux fichiers Next en développement
+  if(
+    url.pathname.startsWith("/_next/")
+  ){
+
+    return;
+
+  }
 
 
   event.respondWith(
 
-    caches.match(event.request)
-    .then((cached)=>{
+    fetch(event.request)
+    .then((response)=>{
 
+      const clone = response.clone();
 
-      if(cached){
+      caches.open(CACHE_NAME)
+      .then((cache)=>{
 
-        return cached;
-
-      }
-
-
-      return fetch(event.request)
-      .then((response)=>{
-
-
-        if(
-          response &&
-          response.status === 200 &&
-          response.type === "basic"
-        ){
-
-          const clone = response.clone();
-
-
-          caches.open(CACHE_NAME)
-          .then((cache)=>{
-
-            cache.put(
-              event.request,
-              clone
-            );
-
-          });
-
-        }
-
-
-        return response;
-
-
-      })
-      .catch(()=>{
-
-
-        return caches.match("/");
-
+        cache.put(
+          event.request,
+          clone
+        );
 
       });
 
 
+      return response;
+
+    })
+    .catch(()=>{
+
+      return caches.match(event.request);
+
     })
 
   );
-
 
 });

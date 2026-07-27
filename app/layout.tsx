@@ -77,7 +77,7 @@ export default function RootLayout({
 
       <body className="bg-slate-950 min-h-screen">
         
-        <RegisterSW />
+        
         <ServiceWorkerRegister />
 
 
