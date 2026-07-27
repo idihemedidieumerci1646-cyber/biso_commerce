@@ -1,31 +1,7 @@
-const CACHE_NAME = "biso-commerce-v7";
-
-
-const APP_SHELL = [
-  "/",
-  "/dashboard",
-  "/products",
-  "/products/edit",
-  "/sales",
-  "/manifest.json",
-  "/icon.png"
-];
-
+const CACHE_NAME = "biso-commerce-v8";
 
 
 self.addEventListener("install", (event)=>{
-
-  event.waitUntil(
-
-    caches.open(CACHE_NAME)
-    .then((cache)=>{
-
-      return cache.addAll(APP_SHELL);
-
-    })
-
-  );
-
 
   self.skipWaiting();
 
@@ -33,41 +9,77 @@ self.addEventListener("install", (event)=>{
 
 
 
-
-
 self.addEventListener("activate",(event)=>{
 
   event.waitUntil(
-
-    caches.keys()
-    .then((keys)=>{
-
-      return Promise.all(
-
-        keys
-        .filter((key)=> key !== CACHE_NAME)
-        .map((key)=> caches.delete(key))
-
-      );
-
-    })
-    .then(()=>self.clients.claim())
-
+    self.clients.claim()
   );
 
 });
 
 
 
-
-
 self.addEventListener("fetch",(event)=>{
+
+
+  // Laisser passer les requêtes Next.js et API
+  const url = new URL(event.request.url);
+
+
+  if(
+    url.pathname.startsWith("/_next/") ||
+    url.pathname.startsWith("/api/")
+  ){
+
+    return;
+
+  }
+
 
 
   event.respondWith(
 
-    caches.match(event.request)
-    .then((cached)=>{
+    fetch(event.request)
+
+    .then((response)=>{
+
+
+      if(
+        response &&
+        response.status === 200 &&
+        response.type === "basic"
+      ){
+
+
+        const clone = response.clone();
+
+
+        caches.open(CACHE_NAME)
+        .then((cache)=>{
+
+          cache.put(
+            event.request,
+            clone
+          );
+
+        });
+
+
+      }
+
+
+      return response;
+
+
+    })
+
+
+    .catch(async()=>{
+
+
+      const cached = await caches.match(
+        event.request
+      );
 
 
       if(cached){
@@ -78,77 +90,30 @@ self.addEventListener("fetch",(event)=>{
 
 
 
-      return fetch(event.request)
-
-      .then((response)=>{
+      const home = await caches.match("/");
 
 
-        if(
-          response &&
-          response.status === 200 &&
-          response.type === "basic"
-        ){
+      if(home){
 
+        return home;
 
-          const clone = response.clone();
-
-
-          caches.open(CACHE_NAME)
-          .then((cache)=>{
-
-            cache.put(
-              event.request,
-              clone
-            );
-
-          });
-
-
-        }
+      }
 
 
 
-        return response;
-
-
-      })
-
-
-
-      .catch(()=>{
-
-
-        return caches.match("/")
-        .then((home)=>{
-
-
-          if(home){
-
-            return home;
-
+      return new Response(
+        "Biso-Commerce hors connexion",
+        {
+          status:503,
+          headers:{
+            "Content-Type":"text/plain"
           }
-
-
-          return new Response(
-            "Biso-Commerce hors connexion",
-            {
-              status:503,
-              headers:{
-                "Content-Type":"text/plain"
-              }
-            }
-          );
-
-
-        });
-
-
-
-      });
-
+        }
+      );
 
 
     })
+
 
   );
 

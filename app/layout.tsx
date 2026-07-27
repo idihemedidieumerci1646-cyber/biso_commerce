@@ -4,7 +4,6 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import OnlineSync from "./components/OnlineSync";
 import Navbar from "../components/Navbar";
-import RegisterSW from "./components/RegisterSW";
 import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
 
 const geistSans = Geist({
