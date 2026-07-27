@@ -1,141 +1,119 @@
+
+
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 import {
-  Search,
-  ShoppingCart,
   Package,
-  Sparkles,
-  CheckCircle,
-  X,
   Plus,
-  Minus,
+  Search,
+  Trash2,
+  Edit,
+  AlertTriangle,
+  CheckCircle,
+  Sparkles,
 } from "lucide-react";
 
 type Product = {
   id: string;
-  name: string;
+  name: string | null;
   stock: number;
-  initial_stock: number;
+  unit: string | null;
   purchase_price: number;
   selling_price: number;
   currency: string;
-  pieces_per_unit: number;
 };
 
-export default function SalesPage() {
+export default function ProductsPage() {
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [productId, setProductId] = useState("");
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const [showGuide, setShowGuide] = useState(false);
 
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
+
+  const fetchProducts = async () => {
+
+    try {
+
+      setLoading(true);
+
+      const phone = localStorage.getItem("phone");
 
 
-  const loadProducts = async () => {
-
-    const phone = localStorage.getItem("phone");
-
-    if (!phone) return;
-
-
-    const { data:user } = await supabase
-      .from("users")
-      .select("id")
-      .eq("phone", phone)
-      .single();
+      if (!phone) {
+        setLoading(false);
+        return;
+      }
 
 
-    if(!user) return;
+
+      const { data:user } = await supabase
+        .from("users")
+        .select("id")
+        .eq("phone", phone)
+        .single();
 
 
-    const { data } = await supabase
-      .from("products")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("name");
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
 
-    setProducts(data || []);
+
+      const { data,error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("user_id",user.id)
+        .order("created_at",{ascending:false});
+
+
+
+      if(error){
+
+        alert(error.message);
+
+      }else{
+
+        setProducts(data || []);
+
+      }
+
+
+    }catch(err){
+
+      console.log(err);
+
+    }
+
+
+    setLoading(false);
 
   };
 
 
 
-  const selectedProduct =
-    products.find((p)=>p.id===productId);
 
 
 
-  const filteredProducts =
-    products.filter((p)=>
-      p.name
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
+  const deleteProduct = async(id:string)=>{
+
+
+    const ok = confirm(
+      "Voulez-vous supprimer ce produit ?"
     );
 
 
-
-  const increaseQty = () => {
-    setQuantity(String(Number(quantity || 0)+1));
-  };
-
-
-  const decreaseQty = () => {
-
-    const value = Number(quantity || 0);
-
-    if(value > 1){
-      setQuantity(String(value-1));
-    }
-
-  };
+    if(!ok)return;
 
 
 
-  const saveSale = async()=>{
-
-
-    if(!selectedProduct || !quantity){
-
-      alert("Sélectionnez un produit et une quantité");
-      return;
-
-    }
-
-
-    const qty = Number(quantity);
-
-
-
-    if(qty<=0){
-
-      alert("Quantité invalide");
-      return;
-
-    }
-
-
-
-    if(qty > selectedProduct.stock){
-
-      alert("Stock insuffisant !");
-      return;
-
-    }
-
-
-
-    const phone =
-      localStorage.getItem("phone");
+    const phone = localStorage.getItem("phone");
 
 
     if(!phone)return;
@@ -154,748 +132,354 @@ export default function SalesPage() {
 
 
 
-    setLoading(true);
 
-
-
-    const prixVente =
-      Number(selectedProduct.selling_price);
-
-
-    const prixAchat =
-      Number(selectedProduct.purchase_price);
-
-
-
-    const totalSale =
-      prixVente * qty;
-
-
-
-    const profit =
-      (prixVente - prixAchat) * qty;
-
-
-
-    await supabase
-      .from("sales")
-      .insert({
-
-        user_id:user.id,
-
-        product_id:selectedProduct.id,
-
-        product_name:selectedProduct.name,
-
-        quantity:qty,
-
-        purchase_price:prixAchat,
-
-        selling_price:prixVente,
-
-        total_sale:totalSale,
-
-        profit:profit,
-
-        currency:selectedProduct.currency,
-
-      });
-
-
-
-    await supabase
+    const {error}=await supabase
       .from("products")
-      .update({
-
-        stock:selectedProduct.stock - qty
-
-      })
-
-      .eq("id",selectedProduct.id)
-
+      .delete()
+      .eq("id",id)
       .eq("user_id",user.id);
 
 
 
-    setLoading(false);
+    if(error){
 
+      alert(error.message);
 
-    alert("Vente enregistrée ✅");
+    }else{
 
+      await fetchProducts();
 
-    setQuantity("");
-    setProductId("");
-    setSearchTerm("");
+    }
 
-    loadProducts();
 
   };
 
 
 
+
+
+
+  useEffect(()=>{
+
+    fetchProducts();
+
+  },[]);
+
+
+
+
+
+
+  const filteredProducts = products.filter((p)=>
+
+    (p.name || "")
+    .toLowerCase()
+    .includes(searchTerm.toLowerCase())
+
+  );
+
+
+
+
+
   return (
 
-<main className="
-relative
-min-h-screen
-overflow-hidden
-bg-[#081221]
-text-white
-px-4
-py-6
-pb-28
-">
+    <main className="relative min-h-screen overflow-hidden bg-[#060d1b] pb-24 text-white">
 
 
-{/* LUMIERES */}
 
+      
 
 
+      
 
 
-<div className="relative z-10 max-w-xl mx-auto">
 
 
-{/* HEADER */}
 
-<div className="
-flex
-items-center
-justify-between
-mb-6
-">
 
 
-<div>
+      <div className="relative z-10 p-5">
 
-<h1 className="
-text-3xl
-font-black
-tracking-tight
-">
 
-💰 Caisse
 
-<span className="
-text-orange-400
-">
- vente
-</span>
+        {/* HEADER */}
 
-</h1>
 
+        <div className="mb-6 flex items-center justify-between">
 
-<p className="
-text-sm
-text-slate-400
-mt-1
-">
 
-Enregistrez vos ventes rapidement
+          <div>
 
-</p>
 
+            <div className="flex items-center gap-2">
 
-</div>
 
+              <Package className="text-orange-400"/>
 
 
-<button
+              <h1 className="text-3xl font-black">
 
-onClick={()=>setShowGuide(!showGuide)}
+                Produits
 
-className="
-rounded-full
-border
-border-orange-400/30
-bg-orange-500/10
-px-4
-py-2
-text-xs
-font-bold
-text-orange-300
-"
+              </h1>
 
->
 
-<Sparkles size={14} className="inline mr-1"/>
+            </div>
 
-{showGuide ? "Fermer":"Guide"}
 
-</button>
+            <p className="mt-1 text-xs text-slate-400">
 
+              Gestion intelligente de votre stock
 
-</div>
-{/* GUIDE */}
+            </p>
 
-{showGuide && (
 
-<div className="
-mb-5
-rounded-3xl
-border
-border-orange-400/20
-bg-white/5
-p-5
-backdrop-blur-xl
-shadow-xl
-">
+          </div>
 
-<div className="
-flex
-items-center
-gap-2
-mb-4
-">
 
-<Sparkles className="text-orange-400"/>
 
-<h2 className="font-bold text-orange-300">
-Comment faire une vente ?
-</h2>
+          <Sparkles className="text-orange-400"/>
 
-</div>
 
+        </div>
 
-<div className="
-space-y-3
-text-sm
-text-slate-300
-">
 
 
-<div className="
-rounded-2xl
-bg-black/30
-p-3
-border
-border-white/10
-">
 
-1️⃣ Recherchez votre produit dans la liste.
 
-</div>
 
 
-<div className="
-rounded-2xl
-bg-black/30
-p-3
-border
-border-white/10
-">
+        {/* SEARCH + ADD */}
 
-2️⃣ Sélectionnez le produit puis entrez la quantité vendue.
 
-</div>
+        <div className="mb-6 flex gap-3">
 
 
-<div className="
-rounded-2xl
-bg-black/30
-p-3
-border
-border-white/10
-">
+          <div className="flex flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-4 backdrop-blur-xl">
 
-3️⃣ Le système calcule automatiquement le montant total et le bénéfice.
 
-</div>
+            <Search
+              size={18}
+              className="text-slate-400"
+            />
 
 
-<div className="
-rounded-2xl
-bg-orange-500/10
-border
-border-orange-400/30
-p-3
-text-orange-200
-">
+            <input
 
-✅ Cliquez sur "Valider la vente" pour enregistrer.
+              value={searchTerm}
 
-</div>
+              onChange={(e)=>setSearchTerm(e.target.value)}
 
+              placeholder="Rechercher..."
 
-</div>
+              className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-slate-500"
 
+            />
 
-</div>
 
-)}
+          </div>
 
 
 
 
-{/* CARTE CAISSE */}
 
-<div className="
-rounded-3xl
-border
-border-white/10
-bg-white/5
-p-5
-backdrop-blur-xl
-shadow-2xl
-space-y-5
-">
+          <Link
 
+            href="/products/add"
 
+            className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 px-5 text-black shadow-lg"
 
-{/* RECHERCHE */}
+          >
 
-<div>
+            <Plus size={24}/>
 
+          </Link>
 
-<label className="
-text-xs
-text-slate-400
-mb-2
-block
-">
 
-Produit
 
-</label>
+        </div>
 
 
 
-<div className="
-flex
-items-center
-gap-3
-rounded-2xl
-border
-border-white/10
-bg-black/30
-px-4
-">
 
 
-<Search
-size={18}
-className="text-orange-400"
-/>
 
 
-<input
+        {/* LISTE */}
 
-value={searchTerm}
 
-onChange={(e)=>{
+        <div className="space-y-4">
 
-setSearchTerm(e.target.value);
-setProductId("");
 
-}}
 
-placeholder="Rechercher un produit..."
+        {
+          loading ? (
 
-className="
-w-full
-bg-transparent
-py-3
-outline-none
-text-white
-placeholder:text-slate-500
-"
+            <p className="py-10 text-center text-slate-400">
 
-/>
+              Chargement...
 
+            </p>
 
-</div>
 
+          ) : filteredProducts.length===0 ? (
 
 
-{searchTerm && !productId && (
+            <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-8 text-center">
 
-<div className="
-mt-3
-max-h-60
-overflow-y-auto
-rounded-2xl
-border
-border-white/10
-bg-black/60
-">
+              Aucun produit trouvé
 
+            </div>
 
-{filteredProducts.map((p)=>(
 
+          ) : (
 
-<button
 
-key={p.id}
+            filteredProducts.map((p)=>(
 
-onClick={()=>{
 
-setProductId(p.id);
-setSearchTerm(p.name);
+              <div
 
-}}
+                key={p.id}
 
-className="
-flex
-w-full
-items-center
-justify-between
-border-b
-border-white/5
-px-4
-py-3
-transition
-hover:bg-white/10
-"
+                className="rounded-3xl border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl"
 
+              >
 
->
 
 
-<div className="
-flex
-items-center
-gap-3
-">
+                <div className="flex justify-between">
 
 
-<Package
-size={18}
-className="text-orange-400"
-/>
+                  <div>
 
 
-<span>
+                    <h2 className="text-lg font-black">
 
-{p.name}
+                      {p.name || "Produit sans nom"}
 
-</span>
+                    </h2>
 
 
-</div>
+                    <p className="mt-1 text-xs text-slate-400">
 
+                      Stock : {p.stock} {p.unit || ""}
 
+                    </p>
 
-<span className="
-text-xs
-text-slate-400
-">
 
-Stock {p.stock}
+                  </div>
 
-</span>
 
 
-</button>
 
 
-))}
+                  <div>
 
 
-</div>
+                  {
+                    p.stock===0 ? (
 
-)}
+                      <span className="flex items-center gap-1 rounded-full bg-red-500/20 px-3 py-1 text-xs text-red-300">
 
+                        <AlertTriangle size={13}/>
 
-</div>
+                        Épuisé
 
+                      </span>
 
 
+                    ) : p.stock<=3 ? (
 
+                      <span className="rounded-full bg-yellow-500/20 px-3 py-1 text-xs text-yellow-300">
 
-{/* QUANTITE */}
+                        Faible
 
-<div>
+                      </span>
 
 
-<label className="
-text-xs
-text-slate-400
-mb-2
-block
-">
+                    ) : (
 
-Quantité
+                      <span className="flex items-center gap-1 rounded-full bg-green-500/20 px-3 py-1 text-xs text-green-300">
 
-</label>
+                        <CheckCircle size={13}/>
 
+                        OK
 
-<div className="
-flex
-items-center
-gap-3
-">
+                      </span>
 
 
-<button
+                    )
+                  }
 
-onClick={decreaseQty}
 
-className="
-h-12
-w-12
-rounded-xl
-bg-white/10
-flex
-items-center
-justify-center
-hover:bg-white/20
-"
+                  </div>
 
->
 
-<Minus size={18}/>
+                </div>
 
-</button>
 
 
 
-<input
 
-type="number"
+                <div className="mt-5 flex gap-3">
 
-value={quantity}
 
-onChange={(e)=>setQuantity(e.target.value)}
+                  <Link
 
-placeholder="Ex: 5"
+                    href={`/products/edit/${p.id}`}
 
-className="
-flex-1
-rounded-xl
-border
-border-white/10
-bg-black/30
-p-3
-text-center
-outline-none
-"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-500/20 py-3 text-sm font-bold text-blue-300"
 
-/>
+                  >
 
+                    <Edit size={16}/>
 
+                    Modifier
 
-<button
+                  </Link>
 
-onClick={increaseQty}
 
-className="
-h-12
-w-12
-rounded-xl
-bg-orange-500/20
-text-orange-300
-flex
-items-center
-justify-center
-hover:bg-orange-500/30
-"
 
->
 
-<Plus size={18}/>
 
-</button>
+                  <button
 
+                    onClick={()=>deleteProduct(p.id)}
 
-</div>
+                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-500/20 py-3 text-sm font-bold text-red-300"
 
+                  >
 
-</div>
+                    <Trash2 size={16}/>
 
+                    Supprimer
 
+                  </button>
 
 
 
-{/* RESUME */}
+                </div>
 
-{selectedProduct && Number(quantity)>0 && (
 
-<div className="
-rounded-2xl
-border
-border-orange-400/30
-bg-orange-500/10
-p-5
-">
+              </div>
 
 
-<div className="
-flex
-items-center
-gap-2
-mb-3
-">
+            ))
 
+          )
+        }
 
-<ShoppingCart
-className="text-orange-400"
-/>
 
+        </div>
 
-<p className="
-font-bold
-text-orange-200
-">
 
-Résumé
+      </div>
 
-</p>
 
+    </main>
 
-</div>
-
-
-
-
-<p className="
-text-sm
-text-slate-300
-">
-
-Produit :
-
-<span className="font-bold text-white">
-
-{" "}
-{selectedProduct.name}
-
-</span>
-
-
-</p>
-
-
-
-<p className="
-mt-2
-text-sm
-text-slate-300
-">
-
-Prix unité :
-
-<span className="font-bold text-white">
-
-{" "}
-{selectedProduct.selling_price}
-{" "}
-{selectedProduct.currency}
-
-</span>
-
-</p>
-
-
-
-<div className="
-mt-4
-rounded-xl
-bg-black/30
-p-3
-">
-
-<p className="
-text-xs
-text-slate-400
-">
-
-Total à payer
-
-</p>
-
-
-<p className="
-text-3xl
-font-black
-text-orange-400
-">
-
-{selectedProduct.selling_price *
-Number(quantity)}
-
-{" "}
-
-{selectedProduct.currency}
-
-</p>
-
-
-</div>
-
-
-</div>
-
-)}
-
-
-
-
-
-{/* BUTTON */}
-
-<button
-
-onClick={saveSale}
-
-disabled={loading}
-
-className="
-group
-flex
-w-full
-items-center
-justify-center
-gap-2
-rounded-2xl
-bg-gradient-to-r
-from-orange-500
-to-yellow-400
-py-4
-font-black
-text-black
-shadow-lg
-transition
-hover:scale-[1.02]
-disabled:opacity-50
-"
-
->
-
-
-{loading ? (
-
-"Enregistrement..."
-
-):(
-
-
-<>
-
-<CheckCircle size={20}/>
-
-Valider la vente
-
-</>
-
-
-)}
-
-
-</button>
-
-
-
-</div>
-
-
-
-</div>
-
-
-
-</main>
-
-
-);
+  );
 
 }
