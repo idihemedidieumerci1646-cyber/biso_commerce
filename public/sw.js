@@ -1,40 +1,21 @@
-const CACHE_NAME = "biso-commerce-v1";
+const CACHE_NAME = "biso-commerce-v5";
 
-self.addEventListener("install", () => {
+
+self.addEventListener("install", (event)=>{
   self.skipWaiting();
 });
 
 
-self.addEventListener("activate", (event) => {
+self.addEventListener("activate",(event)=>{
 
   event.waitUntil(
-    caches.keys().then((keys)=>{
-
-      return Promise.all(
-        keys
-        .filter((key)=> key !== CACHE_NAME)
-        .map((key)=> caches.delete(key))
-      );
-
-    }).then(()=>self.clients.claim())
+    self.clients.claim()
   );
 
 });
 
 
-self.addEventListener("fetch", (event)=>{
-
-  const url = new URL(event.request.url);
-
-
-  // Ne jamais toucher aux fichiers Next en développement
-  if(
-    url.pathname.startsWith("/_next/")
-  ){
-
-    return;
-
-  }
+self.addEventListener("fetch",(event)=>{
 
 
   event.respondWith(
@@ -42,28 +23,62 @@ self.addEventListener("fetch", (event)=>{
     fetch(event.request)
     .then((response)=>{
 
-      const clone = response.clone();
 
-      caches.open(CACHE_NAME)
-      .then((cache)=>{
+      if(
+        response &&
+        response.status === 200 &&
+        response.type === "basic"
+      ){
 
-        cache.put(
-          event.request,
-          clone
-        );
+        const clone = response.clone();
 
-      });
+
+        caches.open(CACHE_NAME)
+        .then((cache)=>{
+
+          cache.put(
+            event.request,
+            clone
+          );
+
+        });
+
+      }
 
 
       return response;
 
-    })
-    .catch(()=>{
 
-      return caches.match(event.request);
+    })
+    .catch(async()=>{
+
+
+      const cached = await caches.match(
+        event.request
+      );
+
+
+      if(cached){
+
+        return cached;
+
+      }
+
+
+      return new Response(
+        "Biso-Commerce hors connexion",
+        {
+          status:503,
+          headers:{
+            "Content-Type":"text/plain"
+          }
+        }
+      );
+
 
     })
 
   );
+
 
 });
