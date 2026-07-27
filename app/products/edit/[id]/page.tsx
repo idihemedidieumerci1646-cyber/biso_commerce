@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
-import { saveOffline, getOffline } from "@/lib/offlineDB";
 
 import {
   Package,
@@ -53,87 +52,54 @@ export default function EditProductPage() {
 
   async function loadProduct(){
 
-setLoading(true);
-
-let data:any = null;
+    setLoading(true);
 
 
-// Avec connexion
-if(navigator.onLine){
-
-  const {data:onlineData,error}=await supabase
-  .from("products")
-  .select("*")
-  .eq("id",id)
-  .single();
+    const {data,error}=await supabase
+      .from("products")
+      .select("*")
+      .eq("id",id)
+      .single();
 
 
-  if(!error && onlineData){
 
-    data = onlineData;
+    if(error || !data){
 
-    // sauvegarde locale
-    await saveOffline(
-      "products",
-      onlineData
+      alert("Impossible de charger le produit");
+
+      setLoading(false);
+
+      return;
+    }
+
+
+
+    setName(data.name || "");
+
+    setStock(String(data.stock ?? 0));
+
+    setPurchasePrice(
+      String(data.purchase_price ?? 0)
     );
 
+    setSellingPrice(
+      String(data.selling_price ?? 0)
+    );
+
+
+    setUnit(data.unit || "Pièce");
+
+    setCurrency(data.currency || "FC");
+
+
+    setPiecesPerUnit(
+      String(data.pieces_per_unit ?? 1)
+    );
+
+
+    setLoading(false);
+
   }
-
-}
-
-
-
-// Sans connexion
-else{
-
-  const products = await getOffline("products");
-
-
-  data = products.find(
-    (p:any)=>p.id === id
-  );
-
-}
-
-
-
-if(!data){
-
- alert("Produit non disponible hors connexion");
-
- setLoading(false);
-
- return;
-
-}
-
-
-
-setName(data.name || "");
-
-setStock(String(data.stock ?? 0));
-
-setPurchasePrice(
- String(data.purchase_price ?? 0)
-);
-
-setSellingPrice(
- String(data.selling_price ?? 0)
-);
-
-setUnit(data.unit || "Pièce");
-
-setCurrency(data.currency || "FC");
-
-setPiecesPerUnit(
- String(data.pieces_per_unit ?? 1)
-);
-
-
-setLoading(false);
-
-}
 
 
 
@@ -166,75 +132,29 @@ const totalStock =
       ? Number(stock) * pieces
       : Number(stock);
 
-const userId = localStorage.getItem("user_id");
-
-    const updatedProduct = {
-
-  id,
-
-  user_id: userId,
-
-  name,
-
-  stock: totalStock,
-
-  purchase_price: Number(purchasePrice) / totalStock,
-
-  selling_price: Number(sellingPrice),
-
-  unit,
-
-  currency,
-
-  pieces_per_unit: pieces,
-
-};
 
 
+    const {error}=await supabase
+      .from("products")
+      .update({
 
-let error = null;
+        name,
 
+        stock:totalStock,
 
+        purchase_price:Number(purchasePrice),
 
-if(navigator.onLine){
+        selling_price:Number(sellingPrice),
 
+        unit,
 
-  const res = await supabase
-    .from("products")
-    .update(updatedProduct)
-    .eq("id", id)
-    .eq("user_id", userId);
+        currency,
 
+        pieces_per_unit:pieces,
 
-  error = res.error;
+      })
 
-
-  if(!error){
-
-    await saveOffline(
-      "products",
-      updatedProduct
-    );
-
-  }
-
-
-}else{
-
-
-  await saveOffline(
-    "products",
-    updatedProduct
-  );
-
-
-  await saveOffline(
-    "updatedProducts",
-    updatedProduct
-  );
-
-
-}
+      .eq("id",id);
 
 
 
@@ -254,14 +174,10 @@ if(navigator.onLine){
 
 
 
-    alert(
-  navigator.onLine
-  ? "Produit modifié avec succès ✅"
-  : "Produit modifié hors connexion ✅"
-);
+    alert("Produit modifié avec succès ✅");
 
 
-window.location.href = "/products";
+    router.push("/products");
 
   }
 
