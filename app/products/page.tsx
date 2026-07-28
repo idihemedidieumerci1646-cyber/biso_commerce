@@ -41,35 +41,18 @@ export default function ProductsPage() {
 
       setLoading(true);
 
-      const phone = localStorage.getItem("phone");
+     const userId = localStorage.getItem("user_id");
 
-
-      if (!phone) {
-        setLoading(false);
-        return;
-      }
-
-
-
-      const { data:user } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone", phone)
-        .single();
-
-
-
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
+if (!userId) {
+  setLoading(false);
+  return;
+}
 
 
       const { data,error } = await supabase
         .from("products")
         .select("*")
-        .eq("user_id",user.id)
+        .eq("user_id", userId)
         .order("created_at",{ascending:false});
 
 
@@ -113,22 +96,9 @@ export default function ProductsPage() {
 
 
 
-    const phone = localStorage.getItem("phone");
+    const userId = localStorage.getItem("user_id");
 
-
-    if(!phone)return;
-
-
-
-    const {data:user}=await supabase
-      .from("users")
-      .select("id")
-      .eq("phone",phone)
-      .single();
-
-
-
-    if(!user)return;
+if(!userId)return;
 
 
 
@@ -137,7 +107,7 @@ export default function ProductsPage() {
       .from("products")
       .delete()
       .eq("id",id)
-      .eq("user_id",user.id);
+      .eq("user_id", userId);
 
 
 
