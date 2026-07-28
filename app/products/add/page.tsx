@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { saveOffline } from "@/lib/offlineDB";
+
 
 import {
   PackagePlus,
@@ -231,8 +231,6 @@ let error = null;
 
 
 
-if(navigator.onLine){
-
 const result =
 await supabase
 .from("products")
@@ -240,75 +238,23 @@ await supabase
 
 error = result.error;
 
-
-if(!error){
-
-await saveOffline(
-"products",
-productData
-);
-
-}
-
-
-}else{
-
-await saveOffline(
-"products",
-productData
-);
-
-}
-
-
-
-
-
-
-
-setLoading(false);
-
-
-
-
-
-
 if(error){
-
 
 alert(error.message);
 
+setLoading(false);
 
 return;
-
 
 }
 
 
 
-
-
-
-if(navigator.onLine){
 
 
 alert(
 "Produit ajouté avec succès ✅"
 );
-
-
-
-}else{
-
-
-alert(
-"Produit enregistré hors ligne ✅\nSynchronisation automatique dès que internet revient."
-);
-
-
-}
-
-
 
 
 

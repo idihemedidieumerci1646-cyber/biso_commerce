@@ -349,7 +349,7 @@ const [salesRes, productsRes] = await Promise.all([
 
 
 
-    const sales = salesRes.data || []; 
+    const sales = salesRes.data || [];
 
     const products = productsRes.data || [];
 
