@@ -160,7 +160,7 @@ export default function DashboardPage() {
 
       // 1️⃣ Charger immédiatement le Dashboard
 
-      await loadDashboard(user.id);
+      loadDashboard(user.id);
 
 
       setInitialLoading(false);
