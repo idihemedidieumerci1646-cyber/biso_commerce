@@ -739,7 +739,7 @@ export default function SubscriptionPage() {
                   </p>
 
                   <p className="text-sm text-slate-400">
-                    +243XXXXXXXX
+                     +24 891 618 812
                   </p>
                 </div>
 

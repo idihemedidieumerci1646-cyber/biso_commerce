@@ -1,11 +1,9 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import {
-  saveOffline,
-  getOffline
-} from "@/lib/offlineDB";
+
 
 import {
   Search,
@@ -124,47 +122,7 @@ setProducts(data);
 
 
 
-// sauvegarde locale
-
-for(const product of data){
-
-
-await saveOffline(
-"products",
-product
-);
-
-
 }
-
-
-}
-
-
-
-
-}else{
-
-
-
-// HORS CONNEXION
-
-
-const offlineProducts =
-await getOffline("products");
-
-
-
-const myProducts =
-offlineProducts.filter(
-(p:any)=>p.user_id===userId
-);
-
-
-
-setProducts(myProducts);
-
-
 
 }
 
@@ -505,65 +463,7 @@ alert(
 
 }else{
 
-
-
-// HORS CONNEXION
-
-
-await saveOffline(
-
-"sales",
-
-saleData
-
-);
-
-
-
-
-
-
-
-const updatedProduct={
-
-
-...selectedProduct,
-
-
-stock:
-
-selectedProduct.stock - qty
-
-
-};
-
-
-
-
-
-
-
-await saveOffline(
-
-"products",
-
-updatedProduct
-
-);
-
-
-
-
-
-
-
-alert(
-
-"Vente sauvegardée hors ligne ✅\nSynchronisation automatique au retour d'internet."
-
-);
-
-
+  alert("Pas de connexion Internet.");
 
 }
 

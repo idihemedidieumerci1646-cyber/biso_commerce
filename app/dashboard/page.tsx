@@ -326,34 +326,25 @@ export default function DashboardPage() {
 
 
 
-    const [salesRes, productsRes] =
+    const startOfDay = new Date();
+startOfDay.setHours(0,0,0,0);
 
-      await Promise.all([
+const [salesRes, productsRes] = await Promise.all([
 
-
-
-        supabase
-
-          .from("sales")
-
-          .select("*")
-
-          .eq("user_id", userId),
+  supabase
+    .from("sales")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("created_at", startOfDay.toISOString())
+    .order("created_at", { ascending:false }),
 
 
+  supabase
+    .from("products")
+    .select("*")
+    .eq("user_id", userId),
 
-
-        supabase
-
-          .from("products")
-
-          .select("*")
-
-          .eq("user_id", userId),
-
-
-      ]);
-
+]);
 
 
 
@@ -514,7 +505,7 @@ export default function DashboardPage() {
         (p: Product) =>
 
 
-          Number(p.stock) === 0
+           Number(p.stock) <= 5
 
 
       )
