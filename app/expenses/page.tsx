@@ -255,11 +255,12 @@ export default function ReportsPage() {
       .from("expenses")
       .insert([
         {
-          title,
-          amount:Number(amount),
-          currency,
-          user_id:user.id
-        }
+  title,
+  amount:Number(amount),
+  currency,
+  user_id:user.id,
+  created_at: new Date().toISOString()
+}
       ]);
 
 

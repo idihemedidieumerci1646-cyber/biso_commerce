@@ -1,6 +1,15 @@
+
+
+
 "use client";
 
-import { useEffect, useState } from "react";
+/**
+ * BISO-COMMERCE — Dashboard Premium (fichier unique)
+ * Next.js App Router : app/dashboard/page.tsx
+ * Aucune dépendance externe hormis lucide-react + supabase.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -16,1983 +25,1262 @@ import {
   Zap,
   ShoppingCart,
   TrendingUp,
+  TrendingDown,
   Wallet,
   AlertTriangle,
   ArrowRight,
   Sparkles,
   ShieldCheck,
+  RefreshCw,
+  Clock,
+  Users,
+  Boxes,
+  ScanLine,
+  Activity,
+  CalendarClock,
   X,
 } from "lucide-react";
 
-
-// ---------------- TYPES ----------------
-
+/* ------------------------------------------------------------------ */
+/* TYPES                                                               */
+/* ------------------------------------------------------------------ */
 
 type Sale = {
+  id?: string;
   total_sale: number;
   profit: number;
   currency: string;
   product_name: string;
   quantity: number;
   created_at: string;
+  category?: string | null;
 };
-
 
 type Product = {
+  id?: string;
   product_name: string;
   stock: number;
+  price?: number | null;
+  purchase_price?: number | null;
+  currency?: string | null;
+  expiry_date?: string | null;
+  created_at?: string | null;
 };
 
+type Expense = {
+  id?: string;
+  amount: number;
+  currency?: string | null;
+  label?: string | null;
+  description?: string | null;
+   title?: string | null;
+  created_at: string;
+};
 
+type Debt = {
+  id?: string;
+  client_name?: string | null;
+  amount: number;
+  currency?: string | null;
+  is_paid?: boolean | null;
+  created_at: string;
+};
+
+type Money = { fc: number; usd: number };
+
+const zero = (): Money => ({ fc: 0, usd: 0 });
+
+/* ------------------------------------------------------------------ */
+/* HELPERS                                                             */
+/* ------------------------------------------------------------------ */
+
+const nf = new Intl.NumberFormat("fr-FR");
+
+function fmt(n: number) {
+  return nf.format(Math.round(Number(n) || 0));
+}
+
+function isUsd(currency?: string | null) {
+  const c = (currency || "FC").toUpperCase();
+  return c === "USD" || c === "$" || c === "DOLLAR";
+}
+
+function addTo(bucket: Money, currency: string | null | undefined, value: number) {
+  const v = Number(value) || 0;
+  if (isUsd(currency)) bucket.usd += v;
+  else bucket.fc += v;
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function startOfWeek() {
+  const d = startOfToday();
+  const day = (d.getDay() + 6) % 7; // lundi = 0
+  d.setDate(d.getDate() - day);
+  return d;
+}
+function startOfMonth() {
+  const d = startOfToday();
+  d.setDate(1);
+  return d;
+}
+
+function greeting(h: number) {
+  if (h < 12) return "Bonjour";
+  if (h < 18) return "Bon après-midi";
+  return "Bonsoir";
+}
+
+function relative(dateStr: string) {
+  const date = new Date(dateStr);
+
+  return date.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function daysBetween(a: Date, b: Date) {
+  return Math.floor((a.getTime() - b.getTime()) / 86400000);
+}
+
+/* ------------------------------------------------------------------ */
+/* PETITS COMPOSANTS UI (glassmorphism)                                */
+/* ------------------------------------------------------------------ */
+
+function GlassCard({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={
+        "rounded-[1.6rem] border border-white/10 bg-white/[0.04] p-4 shadow-[0_18px_50px_-25px_rgba(0,0,0,0.9)] backdrop-blur-xl " +
+        className
+      }
+    >
+      {children}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  tone = "orange",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone?: "orange" | "green" | "blue" | "red" | "violet";
+}) {
+  const tones: Record<string, string> = {
+    orange: "from-orange-500/25 to-amber-400/5 text-orange-300",
+    green: "from-emerald-500/25 to-emerald-400/5 text-emerald-300",
+    blue: "from-sky-500/25 to-cyan-400/5 text-sky-300",
+    red: "from-rose-500/25 to-red-400/5 text-rose-300",
+    violet: "from-violet-500/25 to-fuchsia-400/5 text-violet-300",
+  };
+  return (
+    <GlassCard className="relative overflow-hidden transition duration-300 hover:-translate-y-0.5 hover:border-white/20">
+      <div
+        className={`pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-gradient-to-br blur-2xl ${tones[tone]}`}
+      />
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          {label}
+        </p>
+        <span
+          className={`rounded-xl bg-gradient-to-br p-2 ${tones[tone]}`}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-3">
+  <p className="text-xl font-black leading-none text-white">
+    {value}
+  </p>
+
+  {hint ? (
+    <p className="mt-2 text-sm font-bold text-emerald-300">
+      {hint}
+    </p>
+  ) : null}
+</div>
+    </GlassCard>
+  );
+}
+
+function BarChartMini({
+  title,
+  data,
+  color,
+  suffix = "",
+}: {
+  title: string;
+  data: { label: string; value: number }[];
+  color: string;
+  suffix?: string;
+}) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  return (
+    <GlassCard>
+      <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-300">
+        {title}
+      </p>
+      <div className="flex h-32 items-end gap-2">
+        {data.map((d) => (
+          <div key={d.label} className="flex flex-1 flex-col items-center gap-1">
+            <span className="text-[9px] text-slate-400">
+              {d.value ? fmt(d.value) : ""}
+            </span>
+            <div
+              className="w-full rounded-t-lg transition-all duration-700"
+              style={{
+                height: `${Math.max(4, (d.value / max) * 90)}%`,
+                background: color,
+              }}
+            />
+            <span className="text-[9px] font-semibold text-slate-400">
+              {d.label}
+            </span>
+          </div>
+        ))}
+      </div>
+      {suffix ? (
+        <p className="mt-2 text-[10px] text-slate-500">{suffix}</p>
+      ) : null}
+    </GlassCard>
+  );
+}
+
+function RankList({
+  title,
+  items,
+  color,
+}: {
+  title: string;
+  items: { label: string; value: number }[];
+  color: string;
+}) {
+  const max = Math.max(1, ...items.map((i) => i.value));
+  return (
+    <GlassCard>
+      <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-300">
+        {title}
+      </p>
+      {items.length === 0 ? (
+        <p className="text-xs text-slate-500">Aucune donnée pour le moment.</p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((i) => (
+            <div key={i.label}>
+              <div className="mb-1 flex items-center justify-between text-[11px]">
+                <span className="truncate pr-2 font-semibold text-slate-200">
+                  {i.label}
+                </span>
+                <span className="text-slate-400">{fmt(i.value)}</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${(i.value / max) * 100}%`,
+                    background: color,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
+function Skeleton() {
+  return (
+    <div className="min-h-screen bg-[#050b16] p-4">
+      <div className="mx-auto max-w-md space-y-4">
+        <div className="h-24 animate-pulse rounded-[1.6rem] bg-white/5" />
+        <div className="h-28 animate-pulse rounded-[1.6rem] bg-white/5" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-[1.6rem] bg-white/5"
+            />
+          ))}
+        </div>
+        <div className="h-40 animate-pulse rounded-[1.6rem] bg-white/5" />
+        <p className="pt-2 text-center text-xs text-slate-500">
+          Chargement du tableau de bord...
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* PAGE                                                                */
+/* ------------------------------------------------------------------ */
 
 export default function DashboardPage() {
-
-
   const router = useRouter();
 
-
   const [initialLoading, setInitialLoading] = useState(true);
-
+  const [refreshing, setRefreshing] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
-
-
+const [showAllSales, setShowAllSales] = useState(false);
+const [showAllExpenses, setShowAllExpenses] = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [now, setNow] = useState<Date | null>(null);
 
   const [daysUsed, setDaysUsed] = useState(0);
-
   const [daysLeft, setDaysLeft] = useState(30);
+  const [status, setStatus] = useState<"active" | "expired">("active");
 
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [clientsCount, setClientsCount] = useState(0);
 
+  const userIdRef = useRef<string | null>(null);
 
-  const [status, setStatus] =
-    useState<"active" | "expired">("active");
-
-
-
-
-  const [todaySalesFc, setTodaySalesFc] = useState(0);
-
-  const [todaySalesDollar, setTodaySalesDollar] = useState(0);
-
-
-
-  const [todayProfitFc, setTodayProfitFc] = useState(0);
-
-  const [todayProfitDollar, setTodayProfitDollar] = useState(0);
-
-
-
-  const [todayProductsSold, setTodayProductsSold] = useState(0);
-
-
-
-  const [exhaustedProducts, setExhaustedProducts] =
-    useState<Product[]>([]);
-
-
-
-  const [lastSales, setLastSales] =
-    useState<Sale[]>([]);
-
-
-
-
-
+  /* ---------------- horloge temps réel ---------------- */
   useEffect(() => {
-
-    loadAll();
-
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
   }, []);
 
-
-
-
-
-
-  async function loadAll() {
-
-
-    try {
-
-
-      const phone = localStorage.getItem("phone");
-
-
-
-      if (!phone) {
-
-        router.replace("/login");
-
-        return;
-
-      }
-
-
-
-
-
-      const { data:user, error } = await supabase
-
-        .from("users")
-
-        .select("id")
-
-        .eq("phone", phone)
-
-        .single();
-
-
-
-
-
-      if (error || !user) {
-
-
-        router.replace("/login");
-
-        return;
-
-
-      }
-
-
-
-
-
-      // 1️⃣ Charger immédiatement le Dashboard
-
-      loadDashboard(user.id);
-
-
-      setInitialLoading(false);
-
-
-
-
-
-      // 2️⃣ Vérifier abonnement après ouverture
-
-      const ok = await checkSubscription(user.id);
-
-
-
-
-      if (!ok) {
-
-
-        setStatus("expired");
-
-
-      }
-
-
-
-    } catch(error) {
-
-
-      console.log("Erreur dashboard :", error);
-
-
-      setInitialLoading(false);
-
-
-    }
-
-
-  }
-
-
-
-
-
-
-
-  async function checkSubscription(userId:string) {
-
-
-
+  /* ---------------- abonnement ---------------- */
+  const checkSubscription = useCallback(async (userId: string) => {
     const { data } = await supabase
-
-
       .from("subscriptions")
-
-
       .select("*")
-
-
       .eq("user_id", userId)
-
-
-      .order("created_at",{ascending:false})
-
-
+      .order("created_at", { ascending: false })
       .limit(1);
 
-
-
-
-
     const sub = data?.[0];
-
-
-
-
-
     if (!sub) {
-
-
       setStatus("expired");
-
-
       return false;
+    }
 
+    const start = new Date(sub.start_date);
+    const end = new Date(sub.end_date);
+    const current = new Date();
+
+    const diffDays = daysBetween(current, start);
+    const used = diffDays < 0 ? 0 : diffDays;
+
+    setDaysUsed(used);
+    setDaysLeft(Math.max(0, 30 - used));
+
+    const active = sub.is_active === true && end > current;
+    setStatus(active ? "active" : "expired");
+    return active;
+  }, []);
+
+  /* ---------------- données ---------------- */
+  const loadDashboard = useCallback(async (userId: string) => {
+    const monthStart = startOfMonth();
+    // on prend 30 jours glissants minimum pour les graphiques
+    const chartStart = new Date(
+      Math.min(monthStart.getTime(), Date.now() - 29 * 86400000),
+    );
+
+    const [salesRes, productsRes, expensesRes, debtsRes] = await Promise.all([
+      supabase
+        .from("sales")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("created_at", chartStart.toISOString())
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("products")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("expenses")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("created_at", chartStart.toISOString())
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("debts")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    setSales((salesRes.data as Sale[]) || []);
+    setProducts((productsRes.data as Product[]) || []);
+    setExpenses((expensesRes.data as Expense[]) || []);
+
+    const debtRows = (debtsRes.data as Debt[]) || [];
+    setDebts(debtRows);
+
+    const uniqueClients = new Set(
+      debtRows.map((d) => (d.client_name || "").trim().toLowerCase()).filter(Boolean),
+    );
+    setClientsCount(uniqueClients.size);
+
+    setLastSync(new Date());
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    try {
+      const phone =
+        typeof window !== "undefined" ? localStorage.getItem("phone") : null;
+
+      if (!phone) {
+        router.replace("/login");
+        return;
+      }
+
+      const { data: user, error } = await supabase
+        .from("users")
+        .select("id")
+        .eq("phone", phone)
+        .single();
+
+      if (error || !user) {
+        router.replace("/login");
+        return;
+      }
+
+      userIdRef.current = user.id;
+
+      // 1️⃣ Charger immédiatement le Dashboard
+      await loadDashboard(user.id);
+      setInitialLoading(false);
+
+      // 2️⃣ Vérifier abonnement après ouverture
+      const ok = await checkSubscription(user.id);
+      if (!ok) setStatus("expired");
+    } catch (e) {
+      console.log("Erreur dashboard :", e);
+      setInitialLoading(false);
+    }
+  }, [router, loadDashboard, checkSubscription]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  const refresh = useCallback(async () => {
+    if (!userIdRef.current || refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadDashboard(userIdRef.current),
+        checkSubscription(userIdRef.current),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, loadDashboard, checkSubscription]);
+
+  /* ---------------- calculs mémoïsés ---------------- */
+  const stats = useMemo(() => {
+    const dayStart = startOfToday().getTime();
+    const weekStart = startOfWeek().getTime();
+    const monthStart = startOfMonth().getTime();
+
+    const salesToday = zero();
+    const salesWeek = zero();
+    const salesMonth = zero();
+    const profitToday = zero();
+    const profitWeek = zero();
+    const profitMonth = zero();
+    const expToday = zero();
+    const expMonth = zero();
+
+    let qtyToday = 0;
+    let countToday = 0;
+    let countWeek = 0;
+    let countMonth = 0;
+
+    for (const s of sales) {
+      const t = new Date(s.created_at).getTime();
+      if (Number.isNaN(t)) continue;
+      if (t >= monthStart) {
+        countMonth++;
+        addTo(salesMonth, s.currency, s.total_sale);
+        addTo(profitMonth, s.currency, s.profit);
+      }
+      if (t >= weekStart) {
+        countWeek++;
+        addTo(salesWeek, s.currency, s.total_sale);
+        addTo(profitWeek, s.currency, s.profit);
+      }
+      if (t >= dayStart) {
+        countToday++;
+        qtyToday += Number(s.quantity) || 0;
+        addTo(salesToday, s.currency, s.total_sale);
+        addTo(profitToday, s.currency, s.profit);
+      }
+    }
+
+    for (const e of expenses) {
+      const t = new Date(e.created_at).getTime();
+      if (Number.isNaN(t)) continue;
+      if (t >= monthStart) addTo(expMonth, e.currency, e.amount);
+      if (t >= dayStart) addTo(expToday, e.currency, e.amount);
+    }
+
+    const stockValue = zero();
+    for (const p of products) {
+      const unit = Number(p.purchase_price ?? p.price ?? 0);
+      addTo(stockValue, p.currency, unit * (Number(p.stock) || 0));
+    }
+
+    const outOfStock = products.filter((p) => Number(p.stock) <= 0);
+    const lowStock = products.filter(
+      (p) => Number(p.stock) > 0 && Number(p.stock) <= 5,
+    );
+
+    const today = startOfToday();
+    const soon = new Date(today.getTime() + 7 * 86400000);
+    const expired = products.filter(
+      (p) => p.expiry_date && new Date(p.expiry_date) < today,
+    );
+    const expiringSoon = products.filter(
+      (p) =>
+        p.expiry_date &&
+        new Date(p.expiry_date) >= today &&
+        new Date(p.expiry_date) <= soon,
+    );
+
+    const unpaidDebts = debts.filter((d) => !d.is_paid);
+    const debtTotal = zero();
+    for (const d of unpaidDebts) addTo(debtTotal, d.currency, d.amount);
+
+    return {
+      salesToday,
+      salesWeek,
+      salesMonth,
+      profitToday,
+      profitWeek,
+      profitMonth,
+      expToday,
+      expMonth,
+      qtyToday,
+      countToday,
+      countWeek,
+      countMonth,
+      stockValue,
+      outOfStock,
+      lowStock,
+      expired,
+      expiringSoon,
+      unpaidDebts,
+      debtTotal,
+    };
+  }, [sales, products, expenses, debts]);
+
+  const charts = useMemo(() => {
+    const days: { key: string; label: string }[] = [];
+    const labels = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(startOfToday().getTime() - i * 86400000);
+      days.push({
+        key: d.toISOString().slice(0, 10),
+        label: labels[d.getDay()],
+      });
+    }
+
+    const salesMap: Record<string, number> = {};
+    const profitMap: Record<string, number> = {};
+    const expenseMap: Record<string, number> = {};
+    const productMap: Record<string, number> = {};
+    const categoryMap: Record<string, number> = {};
+
+    for (const s of sales) {
+      const key = (s.created_at || "").slice(0, 10);
+      const amount = Number(s.total_sale) || 0;
+      const factor = isUsd(s.currency) ? 2800 : 1; // normalisation d'affichage
+      salesMap[key] = (salesMap[key] || 0) + amount * factor;
+      profitMap[key] =
+        (profitMap[key] || 0) + (Number(s.profit) || 0) * factor;
+
+      const name = s.product_name || "Inconnu";
+      productMap[name] = (productMap[name] || 0) + (Number(s.quantity) || 0);
+
+      const cat = s.category || "Sans catégorie";
 
     }
 
-
-
-
-
-    const start = new Date(sub.start_date);
-
-
-    const end = new Date(sub.end_date);
-
-
-    const now = new Date();
-
-
-
-
-
-    const diffDays = Math.floor(
-
-
-      (now.getTime() - start.getTime())
-
-      /
-
-      (1000 * 60 * 60 * 24)
-
-
-    );
-
-
-
-
-
-    const used = diffDays < 0 ? 0 : diffDays;
-
-
-
-
-
-    setDaysUsed(used);
-
-
-    setDaysLeft(Math.max(0,30-used));
-
-
-
-
-
-    const active =
-
-
-      sub.is_active === true &&
-
-
-      end > now;
-
-
-
-
-
-    setStatus(active ? "active" : "expired");
-
-
-
-
-
-    return active;
-
-
-  }
-    async function loadDashboard(userId: string) {
-
-
-    const today =
-      new Date().toISOString().split("T")[0];
-
-
-
-
-    const startOfDay = new Date();
-startOfDay.setHours(0,0,0,0);
-
-const [salesRes, productsRes] = await Promise.all([
-
-  supabase
-    .from("sales")
-    .select("*")
-    .eq("user_id", userId)
-    .gte("created_at", startOfDay.toISOString())
-    .order("created_at", { ascending:false }),
-
-
-  supabase
-    .from("products")
-    .select("*")
-    .eq("user_id", userId),
-
-]);
-
-
-
-
-    const sales = salesRes.data || [];
-
-    const products = productsRes.data || [];
-
-
-
-
-
-
-    let todayFc = 0;
-
-    let todayDollar = 0;
-
-
-
-    let profitFc = 0;
-
-    let profitDollar = 0;
-
-
-
-    let soldToday = 0;
-
-
-
-
-
-
-
-    sales.forEach((sale: Sale) => {
-
-
-
-
-      const saleDate =
-
-        sale.created_at?.split("T")[0];
-
-
-
-
-
-
-      if (saleDate === today) {
-
-
-
-
-        soldToday += Number(
-
-          sale.quantity || 0
-
-        );
-
-
-
-
-
-
-
-        if (sale.currency === "FC") {
-
-
-
-          todayFc += Number(
-
-            sale.total_sale || 0
-
-          );
-
-
-
-          profitFc += Number(
-
-            sale.profit || 0
-
-          );
-
-
-
-
-
-        } else {
-
-
-
-
-          todayDollar += Number(
-
-            sale.total_sale || 0
-
-          );
-
-
-
-          profitDollar += Number(
-
-            sale.profit || 0
-
-          );
-
-
-
-        }
-
-
-
-      }
-
-
-
-    });
-
-
-
-
-
-
-
-
-    setTodaySalesFc(todayFc);
-
-
-    setTodaySalesDollar(todayDollar);
-
-
-
-
-
-    setTodayProfitFc(profitFc);
-
-
-    setTodayProfitDollar(profitDollar);
-
-
-
-
-
-    setTodayProductsSold(soldToday);
-
-
-
-
-
-
-
-
-    setExhaustedProducts(
-
-
-      products.filter(
-
-
-        (p: Product) =>
-
-
-           Number(p.stock) <= 5
-
-
-      )
-
-
-    );
-
-
-
-
-
-
-
-    setLastSales(
-
-
-      sales.slice(0,5)
-
-
-    );
-
-
-
-  }
-
-
-
-
-
-
-
-  if (!initialLoading && status === "expired") {
-
-
-    return (
-
-
-
-      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
-
-
-
-        <div className="absolute inset-0">
-
-
-          <div className="absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-orange-500/20 blur-[150px]" />
-
-
-          <div className="absolute bottom-0 right-0 h-[350px] w-[350px] rounded-full bg-blue-600/20 blur-[120px]" />
-
-
-        </div>
-
-
-
-
-
-        <div className="relative z-10 max-w-md rounded-[2rem] border border-white/10 bg-white/[0.07] p-8 text-center backdrop-blur-xl">
-
-
-
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/20">
-
-
-            <AlertTriangle
-              className="text-red-400"
-              size={32}
-            />
-
-
-          </div>
-
-
-
-
-
-
-          <h1 className="text-3xl font-black text-red-400">
-
-
-            Abonnement expiré
-
-
-          </h1>
-
-
-
-
-
-
-          <p className="mt-4 text-sm leading-7 text-slate-300">
-
-
-            Votre période gratuite ou votre abonnement
-            est terminé.
-
-
-            <br />
-
-
-            Renouvelez votre accès pour continuer
-            à gérer votre commerce.
-
-
-          </p>
-
-
-
-
-
-          <Link
-
-            href="/subscription"
-
-            className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-bold text-black transition hover:scale-[1.03]"
-
-          >
-
-
-            <Crown size={20}/>
-
-
-            Renouveler abonnement
-
-
-          </Link>
-
-
-
-
-
-          <a
-
-            href="https://wa.me/243994864173"
-
-            target="_blank"
-
-            className="mt-5 block text-sm text-orange-400 hover:underline"
-
-          >
-
-
-            Contacter le support WhatsApp
-
-
-          </a>
-
-
-
-        </div>
-
-
-      </main>
-
-
-    );
-
-
-  }
-    const percentUsed = Math.round(
-
-    (daysUsed / 30) * 100
-
+    for (const e of expenses) {
+      const key = (e.created_at || "").slice(0, 10);
+      const factor = isUsd(e.currency) ? 2800 : 1;
+      expenseMap[key] = (expenseMap[key] || 0) + (Number(e.amount) || 0) * factor;
+    }
+
+    const top = (m: Record<string, number>) =>
+      Object.entries(m)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([label, value]) => ({ label, value }));
+
+    return {
+      salesSeries: days.map((d) => ({ label: d.label, value: salesMap[d.key] || 0 })),
+      profitSeries: days.map((d) => ({
+        label: d.label,
+        value: profitMap[d.key] || 0,
+      })),
+      expenseSeries: days.map((d) => ({
+        label: d.label,
+        value: expenseMap[d.key] || 0,
+      })),
+      topProducts: top(productMap),
+      topCategories: top(categoryMap),
+    };
+  }, [sales, expenses]);
+
+  const recentSales = useMemo(() => sales.slice(0, 5), [sales]);
+  const recentProducts = useMemo(() => products.slice(0, 5), [products]);
+  const recentExpenses = useMemo(() => expenses.slice(0, 5), [expenses]);
+  const recentPayments = useMemo(
+    () => debts.filter((d) => d.is_paid).slice(0, 5),
+    [debts],
   );
 
+  const percentUsed = Math.min(100, Math.round((daysUsed / 30) * 100));
 
+  /* ---------------- écrans d'état ---------------- */
 
+  if (initialLoading) return <Skeleton />;
 
-
-  if (initialLoading) {
-
-
+  if (status === "expired") {
     return (
-
-
-      <main className="flex min-h-screen items-center justify-center bg-[#060d1b] text-white">
-
-
-        <div className="flex items-center gap-3 text-slate-400">
-
-
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
-
-
-          Chargement du tableau de bord...
-
-
-        </div>
-
-
-      </main>
-
-
+      <div className="flex min-h-screen items-center justify-center bg-[#050b16] p-5">
+        <GlassCard className="w-full max-w-md text-center">
+          <div className="mx-auto mb-4 w-fit rounded-2xl bg-gradient-to-br from-rose-500/30 to-orange-400/10 p-4">
+            <ShieldCheck className="h-8 w-8 text-rose-300" />
+          </div>
+          <h1 className="text-2xl font-black text-white">Abonnement expiré</h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-400">
+            Votre période gratuite ou votre abonnement est terminé.
+            <br />
+            Renouvelez votre accès pour continuer à gérer votre commerce.
+          </p>
+          <Link
+            href="/subscription"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black"
+          >
+            <Crown className="h-5 w-5" />
+            Renouveler abonnement
+          </Link>
+          <a
+            href="https://wa.me/243000000000"
+            className="mt-3 block w-full rounded-2xl border border-white/10 p-4 text-sm font-semibold text-slate-300"
+          >
+            Contacter le support WhatsApp
+          </a>
+        </GlassCard>
+      </div>
     );
-
-
   }
 
+  /* ---------------- dashboard ---------------- */
 
+  const dateLabel = now
+    ? now.toLocaleDateString("fr-FR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : "";
+  const timeLabel = now
+    ? now.toLocaleTimeString("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    : "--:--:--";
 
+  const quickAccess = [
+    { label: "Nouvelle Vente", icon: ShoppingCart, href: "/sales" },
+    { label: "Ajouter Produit", icon: PlusCircle, href: "/products/add" },
+    { label: "Produits", icon: Package, href: "/products" },
+    { label: "Rapports", icon: FileText, href: "/reports" },
+    { label: "Dépenses", icon: Banknote, href: "/expenses" },
+    { label: "Dettes", icon: CreditCard, href: "/debts" },
+    { label: "Assistant IA", icon: Sparkles, href: "/assistant" },
+    { label: "Abonnement", icon: Crown, href: "/subscription" },
+  ];
 
-
+  const alerts = [
+    stats.lowStock.length > 0 && {
+      key: "low",
+      icon: AlertTriangle,
+      text: `${stats.lowStock.length} produit(s) presque épuisé(s)`,
+      href: "/products",
+      tone: "text-amber-300",
+    },
+    stats.outOfStock.length > 0 && {
+      key: "out",
+      icon: Boxes,
+      text: `${stats.outOfStock.length} produit(s) en rupture`,
+      href: "/products",
+      tone: "text-rose-300",
+    },
+    stats.expired.length > 0 && {
+      key: "exp",
+      icon: CalendarClock,
+      text: `${stats.expired.length} produit(s) expiré(s)`,
+      href: "/products",
+      tone: "text-rose-300",
+    },
+    stats.expiringSoon.length > 0 && {
+      key: "soon",
+      icon: CalendarClock,
+      text: `${stats.expiringSoon.length} produit(s) expirent bientôt`,
+      href: "/products",
+      tone: "text-amber-300",
+    },
+    stats.unpaidDebts.length > 0 && {
+      key: "debt",
+      icon: CreditCard,
+      text: `${stats.unpaidDebts.length} dette(s) à récupérer — ${fmt(stats.debtTotal.fc)} FC / ${fmt(stats.debtTotal.usd)} $`,
+      href: "/debts",
+      tone: "text-sky-300",
+    },
+    daysLeft <= 5 && {
+      key: "sub",
+      icon: Crown,
+      text: `Abonnement : ${daysLeft} jour(s) restant(s)`,
+      href: "/subscription",
+      tone: "text-orange-300",
+    },
+  ].filter(Boolean) as {
+    key: string;
+    icon: React.ComponentType<{ className?: string }>;
+    text: string;
+    href: string;
+    tone: string;
+  }[];
 
   return (
+    <div className="min-h-screen bg-[#050b16] pb-16 text-white">
+      {/* halos décoratifs */}
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(249,115,22,0.18),transparent)]" />
 
-
-
-    <main className="relative min-h-screen overflow-hidden bg-[#060d1b] pb-28 text-white">
-
-
-
-      <div className="absolute inset-0 bg-[#060d1b]" />
-
-
-
-
-
-
-
-      {/* HEADER */}
-
-
-
-      <div className="relative z-10 px-5 pt-6">
-
-
-
-        <div className="flex items-center justify-between">
-
-
-
-
-
-          <div>
-
-
-
-            <div className="flex items-center gap-2">
-
-
-
-              <Sparkles
-
-                size={18}
-
-                className="text-orange-400"
-
-              />
-
-
-
-
-              <h1 className="text-2xl font-black tracking-tight">
-
-
-                BISO-
-
-
-                <span className="text-orange-400">
-
-
-                  COMMERCE
-
-
+      <div className="relative mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
+        {/* HEADER */}
+        <GlassCard>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 p-2">
+                  <Zap className="h-4 w-4 text-black" />
                 </span>
-
-
-              </h1>
-
-
-
+                <h1 className="text-lg font-black tracking-tight">
+                  BISO-
+                  <span className="bg-gradient-to-r from-orange-400 to-yellow-300 bg-clip-text text-transparent">
+                    COMMERCE
+                  </span>
+                </h1>
+              </div>
+              <p className="mt-2 text-sm font-semibold text-slate-200">
+                {now ? greeting(now.getHours()) : "Bonjour"}, PDG 👋
+              </p>
+              <p className="text-[11px] capitalize text-slate-400">{dateLabel}</p>
             </div>
 
-
-
-
-
-
-
-            <p className="mt-1 text-xs text-slate-400">
-
-
-              Votre commerce intelligent
-
-
-            </p>
-
-
-
-
-
+            <div className="text-right">
+              <div className="flex items-center justify-end gap-1 text-sm font-black tabular-nums text-orange-300">
+                <Clock className="h-4 w-4" />
+                {timeLabel}
+              </div>
+              <button
+                onClick={refresh}
+                disabled={refreshing}
+                className="mt-2 inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`}
+                />
+                Actualiser
+              </button>
+            </div>
           </div>
 
+          <p className="mt-3 text-[10px] text-slate-500">
+            Dernière synchronisation :{" "}
+            {lastSync
+              ? lastSync.toLocaleTimeString("fr-FR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "—"}
+          </p>
+        </GlassCard>
 
-
-
-
-
-
-
-
-          <div className="flex items-center gap-3">
-
-
-
-
-
-            <Zap
-
-              className="text-orange-400"
-
-              size={22}
-
-            />
-
-
-
-
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 font-black text-black shadow-lg shadow-orange-500/30">
-
-
-              PDG
-
-
+        {/* SUBSCRIPTION CARD */}
+        <GlassCard className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-orange-500/20 blur-3xl" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Crown className="h-4 w-4 text-orange-300" />
+              <p className="text-sm font-bold">Abonnement actif</p>
             </div>
-
-
-
-
-
-          </div>
-
-
-
-
-
-        </div>
-
-
-
-
-      </div>
-
-
-
-
-
-
-
-
-
-      {/* SUBSCRIPTION CARD */}
-
-
-
-
-
-      <div className="relative z-10 px-5 mt-6">
-
-
-
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl">
-
-
-
-
-
-          <div className="flex items-center justify-between mb-4">
-
-
-
-
-
-            <div>
-
-
-
-              <p className="text-sm font-bold text-orange-400">
-
-
-                Abonnement actif
-
-
-              </p>
-
-
-
-
-              <p className="text-xs text-slate-400">
-
-
-              </p>
-
-
-
-            </div>
-
-
-
-
-
-            <div className="rounded-full bg-orange-500/10 px-3 py-1 text-xs text-orange-300">
-
-
-
+            <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-slate-200">
               {daysUsed}/30 jours
-
-
-
-            </div>
-
-
-
-
-
+            </span>
           </div>
-
-
-
-
-
-
-
-
-
-          <div className="h-3 overflow-hidden rounded-full bg-black/40">
-
-
-
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
             <div
-
-
-              className="h-full rounded-full bg-gradient-to-r from-orange-500 to-yellow-400 transition-all"
-
-
-              style={{
-
-                width:`${percentUsed}%`
-
-              }}
-
-
+              className="h-full rounded-full bg-gradient-to-r from-orange-500 to-yellow-400 transition-all duration-700"
+              style={{ width: `${percentUsed}%` }}
             />
-
-
-
           </div>
-
-
-
-
-
-
-
-
-          <div className="mt-3 flex items-center justify-between">
-
-
-
-            <p className="text-xs text-slate-400">
-
-
-              Temps restant
-
-
-            </p>
-
-
-
-
-            <p className="text-sm font-bold text-white">
-
-
-              {daysLeft} jours
-
-
-            </p>
-
-
-
-
+          <div className="mt-2 flex items-center justify-between text-[11px]">
+            <span className="text-slate-400">Temps restant</span>
+            <span className="font-bold text-orange-300">{daysLeft} jours</span>
           </div>
+        </GlassCard>
 
-
-
-
-
+        {/* INFORMATION BUTTON */}
+        <div className="text-center">
+          <button
+            onClick={() => setShowInfo(true)}
+            className="text-xs text-slate-400 underline transition hover:text-orange-400"
+          >
+            ✨ Clique ici pour en savoir plus sur Biso-commerce
+          </button>
         </div>
+        
 
-
-
-      </div>
-
-
-
-
-
-
-
-
-      {/* INFORMATION BUTTON */}
-
-
-
-
-
-      <div className="relative z-10 px-5 mt-4">
-
-
-
-        <button
-
-
-          onClick={()=>setShowInfo(true)}
-
-
-          className="text-xs text-slate-400 underline transition hover:text-orange-400"
-
-
-        >
-
-
-
-          ✨ Clique ici pour en savoir plus sur Biso-commerce
-
-
-
-        </button>
-
-
-
-      </div>
-
-
-
-
-
-
-
-      {/* QUICK SALE BUTTON */}
-
-
-
-
-
-      <div className="relative z-10 px-5 mt-5">
-
-
-
+        {/* QUICK SALE */}
         <Link
-
-
           href="/sales"
-
-
-          className="group flex items-center justify-between rounded-[2rem] bg-gradient-to-r from-orange-500 to-yellow-400 p-5 font-bold text-black shadow-xl shadow-orange-500/20 transition hover:scale-[1.02]"
-
-
+          className="flex items-center justify-between rounded-[1.6rem] bg-gradient-to-r from-orange-500 to-yellow-400 p-5 shadow-[0_20px_45px_-20px_rgba(249,115,22,0.9)] transition active:scale-[0.98]"
         >
-
-
-
-          <div className="flex items-center gap-4">
-
-
-
-            <div className="rounded-2xl bg-black/10 p-3">
-
-
-
-              <ShoppingCart size={26}/>
-
-
-
-            </div>
-
-
-
-
-
+          <div className="flex items-center gap-3">
+            <span className="rounded-2xl bg-black/15 p-3">
+              <ShoppingCart className="h-6 w-6 text-black" />
+            </span>
             <div>
-
-
-
-              <p className="text-lg">
-
-
-                Nouvelle vente
-
-
-              </p>
-
-
-
-
-              <p className="text-xs opacity-70">
-
-
+              <p className="text-base font-black text-black">Nouvelle vente</p>
+              <p className="text-[11px] font-semibold text-black/70">
                 Ouvrir la caisse rapidement
-
-
               </p>
-
-
-
-
             </div>
-
-
-
           </div>
-
-
-
-
-
-
-          <ArrowRight />
-
-
-
+          <ArrowRight className="h-5 w-5 text-black" />
         </Link>
 
-
-
-      </div>
-            {/* STATS */}
-
-
-      <div className="relative z-10 mt-6 grid grid-cols-2 gap-4 px-5">
-
-
-
-        <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
-
-
-
-          <div className="mb-2 flex items-center justify-between">
-
-
-            <p className="text-xs text-slate-400">
-
-              Ventes aujourd'hui
-
-            </p>
-
-
-            <TrendingUp
-
-              size={18}
-
-              className="text-orange-400"
-
-            />
-
-          </div>
-
-
-
-
-          <p className="text-xl font-black text-orange-400">
-
-            {todaySalesFc}
-
-          </p>
-
-
-
-
-          <p className="mt-1 text-xs text-slate-500">
-
-            Franc Congolais
-
-          </p>
-
-
-
-        </div>
-
-
-
-
-
-
-
-        <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
-
-
-
-          <div className="mb-2 flex items-center justify-between">
-
-
-            <p className="text-xs text-slate-400">
-
-              Ventes USD
-
-            </p>
-
-
-
-            <Wallet
-
-              size={18}
-
-              className="text-blue-400"
-
-            />
-
-
-
-          </div>
-
-
-
-
-          <p className="text-xl font-black text-blue-400">
-
-            {todaySalesDollar}
-
-          </p>
-
-
-
-          <p className="mt-1 text-xs text-slate-500">
-
-            Dollars
-
-          </p>
-
-
-
-        </div>
-
-
-
-
-
-
-
-
-
-        <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
-
-
-
-          <div className="mb-2 flex items-center justify-between">
-
-
-            <p className="text-xs text-slate-400">
-
-              Bénéfice CDF
-
-            </p>
-
-
-
-            <BarChart3
-
-              size={18}
-
-              className="text-green-400"
-
-            />
-
-
-
-          </div>
-
-
-
-
-          <p className="text-xl font-black text-green-400">
-
-            {todayProfitFc}
-
-          </p>
-
-
-
-
-          <p className="mt-1 text-xs text-slate-500">
-
-            Aujourd'hui
-
-          </p>
-
-
-
-        </div>
-
-
-
-
-
-
-
-
-
-        <div className="rounded-3xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-xl">
-
-
-
-          <div className="mb-2 flex items-center justify-between">
-
-
-            <p className="text-xs text-slate-400">
-
-              Bénéfice USD
-
-            </p>
-
-
-
-            <CreditCard
-
-              size={18}
-
-              className="text-yellow-400"
-
-            />
-
-
-
-          </div>
-
-
-
-
-          <p className="text-xl font-black text-yellow-400">
-
-            {todayProfitDollar}
-
-          </p>
-
-
-
-
-          <p className="mt-1 text-xs text-slate-500">
-
-            Aujourd'hui
-
-          </p>
-
-
-
-        </div>
-
-
-
-      </div>
-
-
-
-
-
-
-
-
-
-      {/* QUICK MENU */}
-
-
-
-      <div className="relative z-10 mt-7 px-5">
-
-
-
-        <h2 className="mb-4 text-sm font-bold text-white">
-
-
-          Accès rapide
-
-
-        </h2>
-
-
-
-
-
-
-
-        <div className="grid grid-cols-4 gap-3">
-
-
-
-          {[
-
-
-
-            {
-              label:"Produits",
-              icon:Package,
-              href:"/products"
-            },
-
-
-            {
-              label:"Ajouter",
-              icon:PlusCircle,
-              href:"/products/add"
-            },
-
-
-            {
-              label:"Ventes",
-              icon:BarChart3,
-              href:"/sales"
-            },
-
-
-            {
-              label:"Dettes",
-              icon:CreditCard,
-              href:"/debts"
-            },
-
-
-            {
-              label:"Dépenses",
-              icon:Banknote,
-              href:"/expenses"
-            },
-
-
-            {
-              label:"Rapports",
-              icon:FileText,
-              href:"/reports"
-            },
-
-
-            {
-              label:"Assistant IA",
-              icon:Sparkles,
-              href:"/assistant"
-            },
-
-
-            {
-              label:"Abonnement",
-              icon:Crown,
-              href:"/subscription"
-            },
-
-
-          ].map((item,index)=>{
-
-
-            const Icon = item.icon;
-
-
-
-            return (
-
-
-
-              <Link
-
-
-                key={index}
-
-
-                href={item.href}
-
-
-                className="group"
-
-
-
-              >
-
-
-
-                <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-center backdrop-blur-xl transition hover:-translate-y-1 hover:bg-white/10">
-
-
-
-                  <Icon
-
-
-                    size={21}
-
-
-                    className="mb-2 text-orange-400 transition group-hover:scale-110"
-
-
-                  />
-
-
-
-                  <span className="text-[10px] text-slate-300">
-
-
-                    {item.label}
-
-
-                  </span>
-
-
-
-                </div>
-
-
-
-              </Link>
-
-
-
-            );
-
-
-
-          })}
-
-
-
-        </div>
-
-
-
-      </div>
-            {/* STOCK ALERT */}
-
-
-      {
-        exhaustedProducts.length > 0 && (
-
-
-          <div className="relative z-10 mt-6 px-5">
-
-
-
-            <Link href="/products/low-stock">
-
-
-
-              <div className="flex items-center justify-between rounded-3xl border border-red-400/20 bg-red-500/10 p-5 backdrop-blur-xl transition hover:scale-[1.02]">
-
-
-
-                <div className="flex items-center gap-3">
-
-
-
-                  <div className="rounded-2xl bg-red-500/20 p-3">
-
-
-
-                    <AlertTriangle
-
-                      className="text-red-400"
-
-                      size={22}
-
-                    />
-
-
-
-                  </div>
-
-
-
-
-
-                  <div>
-
-
-
-                    <p className="font-bold text-red-300">
-
-
-                      Stock faible cliquez ici pour en savoir
-
-
-                    </p>
-
-
-
-                    <p className="text-xs text-slate-400">
-
-
-                      {exhaustedProducts.length} produit(s) épuisé(s)
-
-
-                    </p>
-
-
-
-                  </div>
-
-
-
-                </div>
-
-
-
-
-
-                <ArrowRight className="text-red-400" />
-
-
-
-              </div>
-
-
-
-            </Link>
-
-
-
-          </div>
-
-
-        )
-
-      }
-
-
-
-
-
-
-
-
-
-      {/* FOOTER */}
-
-
-
-      <div className="relative z-10 mt-8 px-5 text-center">
-
-
-
-        <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
-
-
-
-          <ShieldCheck
-
-            size={14}
-
-            className="text-orange-400"
-
+        {/* STATS */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <StatCard
+            label="Ventes aujourd'hui"
+            value={`${fmt(stats.salesToday.fc)} FC`}
+            hint={`${fmt(stats.salesToday.usd)} $ • ${stats.countToday} vente(s)`}
+            icon={ShoppingCart}
+            tone="orange"
           />
-
-
-
-          BISO-COMMERCE ( PDG DIEUMERCI IDI )
-
-
-
+          
+          <StatCard
+            label="Bénéfice aujourd'hui"
+            value={`${fmt(stats.profitToday.fc)} FC`}
+            hint={`${fmt(stats.profitToday.usd)} $`}
+            icon={Wallet}
+            tone="green"
+          />
+    
+        
+          <StatCard
+            label="Dépenses aujourd'hui"
+            value={`${fmt(stats.expToday.fc)} FC`}
+            hint={`${fmt(stats.expToday.usd)} $`}
+            icon={TrendingDown}
+            tone="red"
+          />
+    
+          <StatCard
+            label="Total produits"
+            value={fmt(products.length)}
+            hint={`${stats.qtyToday} article(s) vendu(s) aujourd'hui`}
+            icon={Package}
+            tone="blue"
+          />
+          
+          <StatCard
+            label="Ruptures"
+            value={fmt(stats.outOfStock.length)}
+            hint={`${stats.lowStock.length} presque épuisé(s)`}
+            icon={AlertTriangle}
+            tone="red"
+          />
+          <StatCard
+            label="Clients / Dettes"
+            value={`${fmt(clientsCount)} / ${fmt(stats.unpaidDebts.length)}`}
+            hint={`${fmt(stats.debtTotal.fc)} FC à récupérer`}
+            icon={Users}
+            tone="orange"
+          />
         </div>
 
+      
 
+        {/* ALERTES */}
+        {alerts.length > 0 && (
+          <GlassCard>
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-300">
+              Alertes
+            </p>
+            <div className="space-y-2">
+              {alerts.map((a) => {
+                const Icon = a.icon;
+                return (
+                  <Link
+                    key={a.key}
+                    href={a.href}
+                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition hover:bg-white/[0.07]"
+                  >
+                    <span className="flex items-center gap-2 text-[12px] font-semibold text-slate-200">
+                      <Icon className={`h-4 w-4 ${a.tone}`} />
+                      {a.text}
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-slate-500" />
+                  </Link>
+                );
+              })}
+            </div>
+          </GlassCard>
+        )}
 
+        {/* ACCÈS RAPIDE */}
+        <div>
+          <p className="mb-3 px-1 text-xs font-bold uppercase tracking-wide text-slate-300">
+            Accès rapide
+          </p>
+          <div className="grid grid-cols-4 gap-3">
+            {quickAccess.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="flex flex-col items-center gap-2 rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-4 text-center backdrop-blur-xl transition active:scale-95 hover:border-orange-400/40 hover:bg-white/[0.08]"
+                >
+                  <span className="rounded-xl bg-gradient-to-br from-orange-500/25 to-yellow-400/5 p-2.5">
+                    <Icon className="h-5 w-5 text-orange-300" />
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-200">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ACTIVITÉ RÉCENTE */}
+        <GlassCard>
+          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-300">
+            <Activity className="h-4 w-4 text-orange-300" />
+            Activité récente
+          </p>
+
+          <div className="space-y-4">
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+  <p className="text-[11px] font-bold text-slate-400">
+    Dernières ventes
+  </p>
+
+  <button
+    onClick={() => setShowAllSales(true)}
+    className="text-[11px] font-bold text-orange-400 hover:text-orange-300"
+  >
+    Voir tout
+  </button>
+</div>
+              
+              {recentSales.length === 0 ? (
+                <p className="text-[11px] text-slate-500">Aucune vente.</p>
+              ) : (
+                recentSales.map((s, i) => (
+                  <div
+                    key={s.id ?? `${s.created_at}-${i}`}
+                    className="flex items-center justify-between border-b border-white/5 py-2 last:border-0"
+                  >
+                    <div>
+                      <p className="text-[12px] font-black text-orange-300">
+  {s.product_name}
+</p>
+                      <p className="text-[10px] text-slate-500">
+                        {relative(s.created_at)} • x{s.quantity}
+                      </p>
+                    </div>
+                    <p className="text-[12px] font-black text-orange-300">
+                      {fmt(s.total_sale)} {isUsd(s.currency) ? "$" : "FC"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </section>
+
+            
+
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+  <p className="text-[11px] font-bold text-slate-400">
+    Dernières dépenses
+  </p>
+
+  <button
+    onClick={() => setShowAllExpenses(true)}
+    className="text-[11px] font-bold text-orange-400 hover:text-orange-300"
+  >
+    Voir tout
+  </button>
+</div>
+              {recentExpenses.length === 0 ? (
+                <p className="text-[11px] text-slate-500">Aucune dépense.</p>
+              ) : (
+                recentExpenses.map((e, i) => (
+                  <div
+                    key={e.id ?? `${e.created_at}-${i}`}
+                    className="flex items-center justify-between border-b border-white/5 py-2 last:border-0"
+                  >
+                    <div>
+                      <p className="text-[12px] font-black text-rose-300">
+{e.title || e.label || e.description || "Dépense"}
+</p>
+                      <p className="text-[10px] text-slate-500">
+                        {relative(e.created_at)}
+                      </p>
+                    </div>
+                    <p className="text-[12px] font-black text-rose-300">
+                      -{fmt(e.amount)} {isUsd(e.currency) ? "$" : "FC"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </section>
+
+            
+          </div>
+        </GlassCard>
+
+        {/* FOOTER */}
+        <p className="pt-2 text-center text-[10px] text-slate-500">
+          ⚡ BISO-COMMERCE ( PDG DIEUMERCI IDI )
+        </p>
       </div>
-
-
-
-
-
-
-
-
 
       {/* MODAL INFORMATION */}
-
-
-
-      {showInfo && (
-
-
-
+            {showInfo && (
         <div
-
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
-
           onClick={() => setShowInfo(false)}
-
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
         >
-
-
-
           <div
-
-
-            onClick={(e)=>e.stopPropagation()}
-
-
+            onClick={(e) => e.stopPropagation()}
             className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[2rem] border border-white/10 bg-[#081221] p-6 shadow-2xl"
-
-
           >
-
-
-
-
-
-            <div className="mb-6 flex items-center justify-between">
-
-
-
-              <h2 className="text-xl font-black">
-
-
+            <div className="flex items-center justify-between">
+              <p className="text-lg font-black">
                 BISO-
-
-                <span className="text-orange-400">
-
+                <span className="bg-gradient-to-r from-orange-400 to-yellow-300 bg-clip-text text-transparent">
                   COMMERCE
-
                 </span>
-
-
-              </h2>
-
-
-
-
-
-              <button
-
-
-                onClick={()=>setShowInfo(false)}
-
-
-                className="rounded-xl bg-white/10 px-3 py-2 text-slate-300"
-
-
-              >
-
-
-                ✕
-
-
-              </button>
-
-
-
-            </div>
-
-
-
-
-
-
-
-            <div className="space-y-5 text-sm leading-6 text-slate-300">
-
-
-
-
-
-              <div>
-
-
-                <h3 className="text-lg font-bold text-orange-400">
-
-
-                  📖 BIENVENUE SUR BISO-COMMERCE
-
-
-                </h3>
-
-
-
-                <p className="mt-3">
-
-
-                  Biso-Commerce est une caisse digitale intelligente
-
-                  qui vous permet de gérer facilement votre commerce
-
-                  depuis votre téléphone.
-
-
-                </p>
-
-
-              </div>
-
-
-
-
-
-
-
-              <div>
-
-
-                <h3 className="font-bold text-white">
-
-
-                  💼 Avec Biso-Commerce vous pouvez :
-
-
-                </h3>
-
-
-
-                <ul className="mt-3 space-y-2">
-
-
-                  <li>✅ Ajouter et gérer vos produits</li>
-
-
-                  <li>✅ Enregistrer vos ventes chaque jour</li>
-
-
-                  <li>✅ Suivre vos bénéfices automatiquement</li>
-
-
-                  <li>✅ Contrôler vos dépenses</li>
-
-
-                  <li>✅ Gérer les dettes des clients</li>
-
-
-                  <li>✅ Voir vos rapports de commerce</li>
-
-
-                </ul>
-
-
-
-              </div>
-
-
-
-
-
-
-
-              <div>
-
-
-                <h3 className="font-bold text-white">
-
-
-                  📱 Installation de l'application
-
-
-                </h3>
-
-
-
-
-                <p className="mt-3">
-
-
-                  Android :
-
-
-                  <br />
-
-                  Chrome → ⋮ → Installer l'application
-
-
-                </p>
-
-
-
-
-
-                <p className="mt-3">
-
-
-                  iPhone :
-
-
-                  <br />
-
-                  Safari → Partager → Sur l'écran d'accueil
-
-
-                </p>
-
-
-
-              </div>
-
-
-
-
-
-
-
-
-              <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 p-4">
-
-
-
-                <p className="font-semibold text-orange-300">
-
-
-                  🎯 Conseil PDG
-
-
-                </p>
-
-
-
-                <p className="mt-2 text-xs">
-
-
-                  Ajoutez vos produits avant de commencer
-
-                  les ventes pour obtenir des statistiques précises.
-
-
-                </p>
-
-
-
-              </div>
-
-
-
-
-
-
-
-
-              <p className="text-center text-sm font-semibold text-green-400">
-
-
-                Merci d'utiliser Biso-Commerce 💚
-
-                <br />
-
-                PDG DIEUMERCI IDI
-
-
               </p>
 
-
-
-
-
+              <button
+                onClick={() => setShowInfo(false)}
+                className="rounded-xl bg-white/10 px-3 py-2 text-slate-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
+            <div className="mt-4 space-y-4 text-sm text-slate-300">
+              <div>
+                <p className="font-bold text-white">
+                  📖 BIENVENUE SUR BISO-COMMERCE
+                </p>
 
+                <p className="mt-1 leading-relaxed">
+                  Biso-Commerce est une caisse digitale intelligente qui vous
+                  permet de gérer facilement votre commerce depuis votre
+                  téléphone.
+                </p>
+              </div>
 
+              <div>
+                <p className="font-bold text-white">
+                  💼 Avec Biso-Commerce vous pouvez :
+                </p>
 
+                <ul className="mt-1 space-y-1">
+                  <li>✅ Ajouter et gérer vos produits</li>
+                  <li>✅ Enregistrer vos ventes chaque jour</li>
+                  <li>✅ Suivre vos bénéfices automatiquement</li>
+                  <li>✅ Contrôler vos dépenses</li>
+                  <li>✅ Gérer les dettes des clients</li>
+                  <li>✅ Voir vos rapports de commerce</li>
+                </ul>
+              </div>
 
+              <div>
+                <p className="font-bold text-white">
+                  📱 Installation de l'application
+                </p>
 
+                <p className="mt-1">
+                  Android : Chrome → ⋮ → Installer l'application
+                </p>
 
+                <p>iPhone : Safari → Partager → Sur l'écran d'accueil</p>
+              </div>
+
+              <div>
+                <p className="font-bold text-white">
+                  🎯 Conseil PDG
+                </p>
+
+                <p className="mt-1">
+                  Ajoutez vos produits avant de commencer les ventes pour obtenir
+                  des statistiques précises.
+                </p>
+              </div>
+
+              <p className="text-center text-xs text-slate-400">
+                Merci d'utiliser Biso-Commerce 💚
+                <br />
+                PDG DIEUMERCI IDI
+              </p>
+            </div>
 
             <button
-
-
-              onClick={()=>setShowInfo(false)}
-
-
+              onClick={() => setShowInfo(false)}
               className="mt-6 w-full rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black"
-
-
             >
-
-
               J'ai compris 🚀
-
-
             </button>
-
-
-
-
-
           </div>
-
-
-
-
         </div>
-
-
-
       )}
 
+      {/* Fenêtre : Toutes les ventes */}
+      {showAllSales && (
+        <div
+          onClick={() => setShowAllSales(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#081221] p-5"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-black text-white">
+                Toutes les ventes
+              </h2>
 
+              <button onClick={() => setShowAllSales(false)}>
+                <X className="h-5 w-5 text-white" />
+              </button>
+            </div>
 
-    </main>
+            {sales.length === 0 ? (
+              <p className="text-slate-400">Aucune vente.</p>
+            ) : (
+              sales.map((s, i) => (
+                <div
+                  key={s.id ?? i}
+                  className="border-b border-white/10 py-3"
+                >
+                  <p className="font-bold text-orange-400">
+                    {s.product_name}
+                  </p>
 
+                  <p className="text-xs text-slate-400">
+                    {relative(s.created_at)}
+                  </p>
 
+                  <p className="font-bold text-white">
+                    {fmt(s.total_sale)} {isUsd(s.currency) ? "$" : "FC"}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
+      {/* Fenêtre : Toutes les dépenses */}
+      {showAllExpenses && (
+        <div
+          onClick={() => setShowAllExpenses(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#081221] p-5"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-black text-white">
+                Toutes les dépenses
+              </h2>
+
+              <button onClick={() => setShowAllExpenses(false)}>
+                <X className="h-5 w-5 text-white" />
+              </button>
+            </div>
+
+            {expenses.length === 0 ? (
+              <p className="text-slate-400">Aucune dépense.</p>
+            ) : (
+              expenses.map((e, i) => (
+                <div
+                  key={e.id ?? i}
+                  className="border-b border-white/10 py-3"
+                >
+                  <p className="font-bold text-red-400">
+                    {e.title || e.label || e.description || "Dépense"}
+                  </p>
+
+                  <p className="text-xs text-slate-400">
+                    {relative(e.created_at)}
+                  </p>
+
+                  <p className="font-bold text-white">
+                    -{fmt(e.amount)} {isUsd(e.currency) ? "$" : "FC"}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+    </div>
   );
-
 }

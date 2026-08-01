@@ -379,7 +379,7 @@ profit:profit,
 currency:selectedProduct.currency,
 
 
-created_at:new Date().toISOString()
+created_at:new Date().toISOString().slice(0,19)
 
 
 };
