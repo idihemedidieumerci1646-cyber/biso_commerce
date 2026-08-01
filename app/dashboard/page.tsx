@@ -738,14 +738,14 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
       key: "low",
       icon: AlertTriangle,
       text: `${stats.lowStock.length} produit(s) presque épuisé(s)`,
-      href: "/products",
+      href: "/products/low-stock",
       tone: "text-amber-300",
     },
     stats.outOfStock.length > 0 && {
       key: "out",
       icon: Boxes,
       text: `${stats.outOfStock.length} produit(s) en rupture`,
-      href: "/products",
+      href: "/products/low-stock",
       tone: "text-rose-300",
     },
     stats.expired.length > 0 && {
@@ -1235,6 +1235,65 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
         </div>
       )}
 
+           {/* Fenêtre : Toutes les ventes */}
+      {showAllSales && (
+        <div
+          onClick={() => setShowAllSales(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#081221] p-5"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-black text-white">
+                Toutes les ventes
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => setShowAllSales(false)}
+              >
+                <X className="h-5 w-5 text-white" />
+              </button>
+            </div>
+
+            {sales.length === 0 ? (
+              <p className="text-slate-400">Aucune vente.</p>
+            ) : (
+              sales.map((s, i) => (
+                <div
+                  key={s.id ?? i}
+                  className="border-b border-white/10 py-3"
+                >
+                  <p className="font-bold text-orange-400">
+                    {s.product_name}
+                  </p>
+
+                  <p className="text-xs text-slate-400">
+                    {relative(s.created_at)}
+                  </p>
+
+                  <p className="font-bold text-white">
+                    {fmt(s.total_sale)} {isUsd(s.currency) ? "$" : "FC"}
+                  </p>
+                </div>
+              ))
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowAllSales(false)}
+              className="mt-5 w-full rounded-2xl border border-white/10 bg-white/5 p-4 font-bold text-white hover:bg-white/10"
+            >
+              ← Retour au dashboard
+            </button>
+
+          </div>
+        </div>
+      )}
+
+
       {/* Fenêtre : Toutes les dépenses */}
       {showAllExpenses && (
         <div
@@ -1250,7 +1309,10 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
                 Toutes les dépenses
               </h2>
 
-              <button onClick={() => setShowAllExpenses(false)}>
+              <button
+                type="button"
+                onClick={() => setShowAllExpenses(false)}
+              >
                 <X className="h-5 w-5 text-white" />
               </button>
             </div>
@@ -1277,10 +1339,18 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
                 </div>
               ))
             )}
+
+            <button
+              type="button"
+              onClick={() => setShowAllExpenses(false)}
+              className="mt-5 w-full rounded-2xl border border-white/10 bg-white/5 p-4 font-bold text-white hover:bg-white/10"
+            >
+              ← Retour au dashboard
+            </button>
+
           </div>
         </div>
       )}
-
-    </div>
+          </div>
   );
 }
