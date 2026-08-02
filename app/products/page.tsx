@@ -608,23 +608,32 @@ Bénéfice possible
 
             <input
 
-              value={searchTerm}
+  value={searchTerm}
 
-              onChange={(e)=>setSearchTerm(e.target.value)}
+  onChange={(e)=>setSearchTerm(e.target.value)}
 
-              placeholder="Rechercher un produit..."
+  placeholder="Chercher nom ou téléphone"
 
-              className="
-              w-full
-              bg-transparent
-              py-3
-              text-sm
-              outline-none
-              "
-            />
+  className="
+  w-full
+  bg-transparent
+  py-3
+  text-sm
+  text-white
+  placeholder:text-slate-400
+  outline-none
+  "
+
+  style={{
+    color:"#ffffff",
+    WebkitTextFillColor:"#ffffff",
+    caretColor:"#ffffff"
+  }}
+
+/>
 
 
-          </div>
+</div>
 
 
 
