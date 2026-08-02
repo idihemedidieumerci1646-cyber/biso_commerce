@@ -1642,20 +1642,6 @@ Envoyer la capture WhatsApp
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 {/* IDEE AMELIORATION */}
 
 
