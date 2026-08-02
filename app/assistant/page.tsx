@@ -834,40 +834,35 @@ Cela permet à Biso-Commerce de calculer correctement :
 
 
 
-
 else if(
-userQuestion.includes("android")
+userQuestion.includes("installer l'application")
 ||
-userQuestion.includes("télécharger")
-||
-userQuestion.includes("telecharger")
+userQuestion.includes("installation")
 ||
 userQuestion.includes("installer")
+||
+userQuestion.includes("application")
 ){
 
 result = `
-📱 INSTALLER BISO-COMMERCE SUR ANDROID
+📱 INSTALLATION DE BISO-COMMERCE
 
+Pour installer Biso-Commerce sur votre téléphone, ouvrez d'abord ce lien :
 
-Vous pouvez utiliser Biso-Commerce comme une vraie application sur votre téléphone Android.
+🌐 https://biso-commerce-mqbj.vercel.app
 
+━━━━━━━━━━━━━━━━━━
+🤖 ANDROID
+(Samsung, Tecno, Infinix, Xiaomi, Oppo, Vivo, etc.)
+━━━━━━━━━━━━━━━━━━
 
-Suivez ces étapes :
+1️⃣ Ouvrez le lien avec Google Chrome.
 
+2️⃣ Attendez que la page soit complètement chargée.
 
-1️⃣ Ouvrez Biso-Commerce avec :
+3️⃣ Appuyez sur les trois points ⋮ en haut à droite.
 
-🌐 Google Chrome
-
-
-2️⃣ Cliquez sur les trois petits points :
-
-⋮
-
-en haut à droite de Chrome.
-
-
-3️⃣ Choisissez :
+4️⃣ Choisissez :
 
 📲 Installer l'application
 
@@ -875,94 +870,38 @@ ou
 
 📲 Ajouter à l'écran d'accueil
 
+(selon votre téléphone).
 
+5️⃣ Appuyez sur Installer.
 
-4️⃣ Confirmez l'installation.
+6️⃣ Une icône Biso-Commerce apparaîtra sur votre écran d'accueil.
 
+Vous pourrez ensuite ouvrir Biso-Commerce comme une application normale.
 
-Après cela :
+━━━━━━━━━━━━━━━━━━
+🍎 IPHONE (iOS)
+━━━━━━━━━━━━━━━━━━
 
+1️⃣ Ouvrez le lien avec Safari.
 
-✅ Une icône Biso-Commerce apparaîtra sur votre téléphone.
-
-✅ Vous pourrez ouvrir l'application directement.
-
-✅ Vous n'aurez plus besoin de chercher le site dans Chrome.
-
-
-
-💡 Conseil :
-
-Utilisez toujours la dernière version de Chrome pour une meilleure expérience.
-
-
-`;
-
-}
-
-
-
-
-
-else if(
-userQuestion.includes("iphone")
-||
-userQuestion.includes("ios")
-||
-userQuestion.includes("apple")
-){
-
-result = `
-🍎 INSTALLER BISO-COMMERCE SUR IPHONE
-
-
-Pour ajouter Biso-Commerce sur votre iPhone :
-
-
-1️⃣ Ouvrez le site avec :
-
-🌐 Safari
-
-
-2️⃣ Appuyez sur le bouton :
-
-⬆️ Partager
-
-(l'icône carré avec une flèche vers le haut)
-
+2️⃣ Appuyez sur le bouton Partager
+(carré avec une flèche vers le haut).
 
 3️⃣ Faites défiler les options.
 
+4️⃣ Appuyez sur
+"Sur l'écran d'accueil".
 
-4️⃣ Sélectionnez :
+5️⃣ Appuyez sur Ajouter.
 
-📱 Sur l'écran d'accueil
+6️⃣ L'icône Biso-Commerce apparaîtra sur votre écran d'accueil.
 
+Vous pourrez ensuite ouvrir Biso-Commerce directement comme une application.
 
-5️⃣ Cliquez sur :
-
-Ajouter
-
-
-
-Maintenant :
-
-
-✅ Biso-Commerce apparaîtra comme une application.
-
-✅ Vous pourrez l'ouvrir rapidement depuis votre écran.
-
-
-💡 Important :
-
-Sur iPhone, utilisez Safari pour l'installation.
-
-
+💡 Astuce :
+Après l'installation, il n'est plus nécessaire d'ouvrir Chrome ou Safari. Utilisez simplement l'icône Biso-Commerce sur votre téléphone.
 `;
-
 }
-
-
 
 
 
@@ -1361,8 +1300,8 @@ gap-3
 "Mes dépenses",
 "Résumé commerce",
 "Donne-moi des conseils",
-"Comment installer sur Android ?",
-"Comment installer sur iPhone ?",
+"Comment installer  ?",
+
 
 ]
 

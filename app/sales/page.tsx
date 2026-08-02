@@ -1,9 +1,7 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-
 
 import {
   Search,
@@ -13,8 +11,9 @@ import {
   CheckCircle,
   Plus,
   Minus,
+   TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
-
 
 
 type Product = {
@@ -41,9 +40,7 @@ type Product = {
 
 
 
-
 export default function SalesPage(){
-
 
 
 const [products,setProducts]=useState<Product[]>([]);
@@ -56,7 +53,11 @@ const [quantity,setQuantity]=useState("");
 
 const [loading,setLoading]=useState(false);
 
+
 const [showGuide,setShowGuide]=useState(false);
+
+
+const [showSuccess,setShowSuccess]=useState(false);
 
 
 
@@ -77,7 +78,8 @@ loadProducts();
 
 
 
-// CHARGEMENT PRODUITS ONLINE + OFFLINE
+
+// CHARGER LES PRODUITS
 
 const loadProducts = async()=>{
 
@@ -114,15 +116,12 @@ const {data,error}=await supabase
 
 
 
-
 if(!error && data){
-
 
 setProducts(data);
 
-
-
 }
+
 
 }
 
@@ -130,15 +129,14 @@ setProducts(data);
 
 }catch(error){
 
-
 console.log(error);
-
 
 }
 
 
 
 };
+
 
 
 
@@ -162,6 +160,7 @@ products.find(
 
 
 
+
 const filteredProducts =
 
 products.filter((p)=>
@@ -177,8 +176,10 @@ searchTerm.toLowerCase()
 
 )
 
-
 );
+
+
+
 
 
 
@@ -208,10 +209,14 @@ Number(quantity || 0)+1
 
 
 
+
+
+
 const decreaseQty=()=>{
 
 
 const value =
+
 Number(quantity || 0);
 
 
@@ -230,6 +235,70 @@ String(value-1)
 
 
 };
+
+
+
+
+
+
+const totalPreview =
+
+selectedProduct
+
+?
+
+selectedProduct.selling_price *
+
+Number(quantity || 0)
+
+:
+
+0;
+
+
+
+
+
+
+const profitPreview =
+
+selectedProduct
+
+?
+
+(
+selectedProduct.selling_price -
+
+selectedProduct.purchase_price
+
+)
+
+*
+
+Number(quantity || 0)
+
+:
+
+0;
+
+
+
+
+
+
+const stockAfterSale =
+
+selectedProduct
+
+?
+
+selectedProduct.stock -
+
+Number(quantity || 0)
+
+:
+
+0;
 const saveSale = async()=>{
 
 
@@ -237,12 +306,11 @@ if(!selectedProduct || !quantity){
 
 
 alert(
-"Sélectionnez un produit et une quantité"
+"Sélectionnez un produit et une quantité avant de continuer."
 );
 
 
 return;
-
 
 }
 
@@ -250,22 +318,21 @@ return;
 
 
 
-const qty =
-Number(quantity);
+const qty = Number(quantity);
 
 
 
 
-if(qty<=0){
+
+if(qty <= 0){
 
 
 alert(
-"Quantité invalide"
+"La quantité doit être supérieure à zéro."
 );
 
 
 return;
-
 
 }
 
@@ -277,12 +344,11 @@ if(qty > selectedProduct.stock){
 
 
 alert(
-"Stock insuffisant !"
+`Stock insuffisant !\nDisponible : ${selectedProduct.stock}`
 );
 
 
 return;
-
 
 }
 
@@ -290,8 +356,11 @@ return;
 
 
 
+
 const userId =
+
 localStorage.getItem("user_id");
+
 
 
 
@@ -306,7 +375,6 @@ alert(
 
 return;
 
-
 }
 
 
@@ -320,11 +388,13 @@ setLoading(true);
 
 
 const prixVente =
+
 Number(selectedProduct.selling_price);
 
 
 
 const prixAchat =
+
 Number(selectedProduct.purchase_price);
 
 
@@ -332,13 +402,17 @@ Number(selectedProduct.purchase_price);
 
 
 const totalSale =
+
 prixVente * qty;
 
 
 
 
+
 const profit =
+
 (prixVente - prixAchat) * qty;
+
 
 
 
@@ -390,11 +464,32 @@ created_at:new Date().toISOString().slice(0,19)
 
 
 
-if(navigator.onLine){
 
 
 
-// EN LIGNE
+if(!navigator.onLine){
+
+
+setLoading(false);
+
+
+alert(
+"Pas de connexion Internet."
+);
+
+
+return;
+
+}
+
+
+
+
+
+
+
+
+// ENREGISTRER LA VENTE
 
 
 const {error}=await supabase
@@ -418,7 +513,6 @@ alert(error.message);
 
 return;
 
-
 }
 
 
@@ -427,51 +521,104 @@ return;
 
 
 
-await supabase
+
+// DIMINUER LE STOCK
+
+
+const nouveauStock =
+
+selectedProduct.stock - qty;
+
+
+
+
+
+const {error:updateError}=await supabase
 
 .from("products")
 
 .update({
 
-stock:
-selectedProduct.stock - qty
+stock:nouveauStock
 
 })
 
 .eq(
+
 "id",
+
 selectedProduct.id
+
 )
 
 .eq(
+
 "user_id",
+
 userId
+
 );
 
 
 
 
+
+
+if(updateError){
+
+
+setLoading(false);
+
+
+alert(updateError.message);
+
+
+return;
+
+}
+
+
+
+
+
+
+
+
+
+// STOCK PRESQUE VIDE
+
+
+if(nouveauStock <= 5){
 
 
 alert(
-"Vente enregistrée ✅"
+
+`⚠️ Attention !\n\n${selectedProduct.name} est presque épuisé.\nStock restant : ${nouveauStock}`
+
 );
 
 
-
-
-
-}else{
-
-  alert("Pas de connexion Internet.");
-
 }
+
+
+
+
+
+
+
+// OUVRIR MESSAGE SUCCÈS
+
+
+setShowSuccess(true);
+
 
 
 
 
 
 setLoading(false);
+
+
 
 
 
@@ -488,14 +635,10 @@ loadProducts();
 
 
 };
-
-
-
-
-
 return (
 
-<main className="
+<main
+className="
 relative
 min-h-screen
 overflow-hidden
@@ -504,15 +647,18 @@ text-white
 px-4
 py-6
 pb-28
-">
+"
+>
 
 
-<div className="
+<div
+className="
 relative
 z-10
 max-w-xl
 mx-auto
-">
+"
+>
 
 
 
@@ -521,48 +667,63 @@ mx-auto
 {/* HEADER */}
 
 
-<div className="
+<div
+className="
 flex
 items-center
 justify-between
 mb-6
-">
+"
+>
 
 
 <div>
 
 
-<h1 className="
+<h1
+className="
 text-3xl
 font-black
 tracking-tight
-">
+"
+>
 
 💰 Caisse
 
-<span className="
+<span
+className="
 text-orange-400
-">
- vente
-</span>
+"
+>
 
+ vente
+
+</span>
 
 </h1>
 
 
 
-<p className="
+<p
+className="
 text-sm
 text-slate-400
 mt-1
-">
+"
+>
 
-Enregistrez vos ventes rapidement
+Enregistrez vos ventes rapidement avec BISO-COMMERCE
 
 </p>
 
 
 </div>
+
+
+
+
+
+
 <button
 
 onClick={()=>setShowGuide(!showGuide)}
@@ -582,18 +743,24 @@ text-orange-300
 >
 
 
-<Sparkles 
+<Sparkles
 size={14}
 className="inline mr-1"
 />
 
 
 {
+
 showGuide
+
 ?
+
 "Fermer"
+
 :
+
 "Guide"
+
 }
 
 
@@ -611,11 +778,17 @@ showGuide
 
 
 
+{/* GUIDE */}
+
+
+
 {
+
 showGuide && (
 
 
-<div className="
+<div
+className="
 mb-5
 rounded-3xl
 border
@@ -624,16 +797,20 @@ bg-white/5
 p-5
 backdrop-blur-xl
 shadow-xl
-">
+"
+>
 
 
 
-<div className="
+
+<div
+className="
 flex
 items-center
 gap-2
-mb-4
-">
+mb-5
+"
+>
 
 
 <Sparkles
@@ -641,13 +818,14 @@ className="text-orange-400"
 />
 
 
-
-<h2 className="
+<h2
+className="
 font-bold
 text-orange-300
-">
+"
+>
 
-Comment faire une vente ?
+Guide de vente BISO-COMMERCE
 
 </h2>
 
@@ -658,52 +836,50 @@ Comment faire une vente ?
 
 
 
-<div className="
+
+
+
+<div
+className="
 space-y-3
 text-sm
 text-slate-300
-">
+"
+>
 
 
 
-<div className="
+
+<div
+className="
 rounded-2xl
 bg-black/30
-p-3
+p-4
 border
 border-white/10
-">
-
-1️⃣ Recherchez votre produit.
-
-</div>
+"
+>
 
 
+<h3
+className="
+font-bold
+text-white
+mb-2
+"
+>
 
-<div className="
-rounded-2xl
-bg-black/30
-p-3
-border
-border-white/10
-">
+1️⃣ Rechercher un produit
 
-2️⃣ Choisissez la quantité vendue.
-
-</div>
-
+</h3>
 
 
+<p>
 
-<div className="
-rounded-2xl
-bg-black/30
-p-3
-border
-border-white/10
-">
+Cherchez le produit dans votre stock puis sélectionnez-le.
 
-3️⃣ BISO-COMMERCE calcule automatiquement le total et le bénéfice.
+</p>
+
 
 </div>
 
@@ -711,18 +887,251 @@ border-white/10
 
 
 
-<div className="
+
+
+<div
+className="
+rounded-2xl
+bg-black/30
+p-4
+border
+border-white/10
+"
+>
+
+
+<h3
+className="
+font-bold
+text-white
+mb-2
+"
+>
+
+2️⃣ Choisir la quantité
+
+</h3>
+
+
+<p>
+
+Indiquez combien de produits vous vendez.
+
+Le système vérifie automatiquement le stock disponible.
+
+</p>
+
+
+</div>
+
+
+
+
+
+
+
+
+<div
+className="
+rounded-2xl
+bg-black/30
+p-4
+border
+border-white/10
+"
+>
+
+
+<h3
+className="
+font-bold
+text-white
+mb-2
+"
+>
+
+3️⃣ Vérifier le résumé
+
+</h3>
+
+
+<ul
+className="
+text-xs
+space-y-1
+"
+>
+
+
+<li>
+✅ Montant total de la vente
+</li>
+
+
+<li>
+✅ Bénéfice estimé
+</li>
+
+
+<li>
+✅ Stock restant
+</li>
+
+
+</ul>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<div
+className="
 rounded-2xl
 bg-orange-500/10
 border
 border-orange-400/30
-p-3
-text-orange-200
-">
+p-4
+"
+>
 
-✅ Cliquez sur "Valider la vente".
+
+<h3
+className="
+font-bold
+text-orange-200
+"
+>
+
+4️⃣ Valider la vente
+
+</h3>
+
+
+<p>
+
+Cliquez sur "Valider la vente".
+
+BISO-COMMERCE enregistre automatiquement :
+
+</p>
+
+
+
+<ul
+className="
+mt-2
+text-xs
+space-y-1
+"
+>
+
+
+<li>
+✅ La vente
+</li>
+
+
+<li>
+✅ Le bénéfice
+</li>
+
+
+<li>
+✅ La diminution du stock
+</li>
+
+
+<li>
+✅ La mise à jour du Dashboard
+</li>
+
+
+</ul>
+
 
 </div>
+
+
+
+
+
+
+
+
+
+<div
+className="
+rounded-2xl
+bg-green-500/10
+border
+border-green-400/30
+p-4
+"
+>
+
+
+<h3
+className="
+font-bold
+text-green-300
+"
+>
+
+5️⃣ Après la vente
+
+</h3>
+
+
+<p>
+
+Un message de succès apparaît.
+
+Cliquez sur OK pour aller automatiquement au Dashboard.
+
+</p>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{/* BOUTON FERMER EN BAS */}
+
+
+<button
+
+onClick={()=>setShowGuide(false)}
+
+className="
+mt-5
+w-full
+rounded-2xl
+bg-orange-500
+py-3
+font-black
+text-black
+"
+
+>
+
+Fermer le guide
+
+</button>
+
+
 
 
 
@@ -735,19 +1144,11 @@ text-orange-200
 )
 
 }
-
-
-
-
-
-
-
-
-
 {/* CARTE CAISSE */}
 
 
-<div className="
+<div
+className="
 rounded-3xl
 border
 border-white/10
@@ -756,7 +1157,10 @@ p-5
 backdrop-blur-xl
 shadow-2xl
 space-y-5
-">
+"
+>
+
+
 
 
 
@@ -771,12 +1175,14 @@ space-y-5
 <div>
 
 
-<label className="
+<label
+className="
 text-xs
 text-slate-400
 mb-2
 block
-">
+"
+>
 
 Produit
 
@@ -786,7 +1192,8 @@ Produit
 
 
 
-<div className="
+<div
+className="
 flex
 items-center
 gap-3
@@ -795,8 +1202,8 @@ border
 border-white/10
 bg-black/30
 px-4
-">
-
+"
+>
 
 
 <Search
@@ -821,7 +1228,6 @@ setSearchTerm(e.target.value);
 
 setProductId("");
 
-
 }}
 
 
@@ -839,18 +1245,26 @@ text-white
 placeholder:text-slate-500
 "
 
-
-
 />
 
 
 
 </div>
+
+
+
+
+
+
+
+
+
 {
 searchTerm && !productId && (
 
 
-<div className="
+<div
+className="
 mt-3
 max-h-60
 overflow-y-auto
@@ -858,11 +1272,13 @@ rounded-2xl
 border
 border-white/10
 bg-black/60
-">
-
+"
+>
 
 
 {
+
+
 filteredProducts.map((p)=>(
 
 
@@ -883,7 +1299,6 @@ setSearchTerm(p.name);
 }}
 
 
-
 className="
 flex
 w-full
@@ -896,21 +1311,24 @@ py-3
 hover:bg-white/10
 "
 
-
 >
 
 
-<div className="
+
+<div
+className="
 flex
 items-center
 gap-3
-">
+"
+>
 
 
 <Package
 size={18}
 className="text-orange-400"
 />
+
 
 
 <span>
@@ -926,14 +1344,14 @@ className="text-orange-400"
 
 
 
-<span className="
+<span
+className="
 text-xs
 text-slate-400
-">
+"
+>
 
-
-Stock {p.stock}
-
+Stock : {p.stock}
 
 </span>
 
@@ -959,9 +1377,9 @@ Stock {p.stock}
 
 
 
-
-
 </div>
+
+
 
 
 
@@ -975,14 +1393,16 @@ Stock {p.stock}
 <div>
 
 
-<label className="
+<label
+className="
 text-xs
 text-slate-400
 mb-2
 block
-">
+"
+>
 
-Quantité
+Quantité vendue
 
 </label>
 
@@ -990,11 +1410,13 @@ Quantité
 
 
 
-<div className="
+<div
+className="
 flex
 items-center
 gap-3
-">
+"
+>
 
 
 
@@ -1014,12 +1436,14 @@ items-center
 justify-center
 "
 
-
 >
+
 
 <Minus size={18}/>
 
 </button>
+
+
 
 
 
@@ -1039,7 +1463,7 @@ value={quantity}
 onChange={(e)=>setQuantity(e.target.value)}
 
 
-placeholder="Ex: 5"
+placeholder="Ex : 5"
 
 
 className="
@@ -1053,8 +1477,8 @@ text-center
 outline-none
 "
 
-
 />
+
 
 
 
@@ -1078,7 +1502,6 @@ items-center
 justify-center
 "
 
-
 >
 
 
@@ -1090,40 +1513,53 @@ justify-center
 
 
 
-</div>
-
 
 </div>
 
 
+</div>
 
 
 
 
+
+
+
+
+
+
+
+
+{/* RESUME VENTE */}
 
 
 
 {
+
 selectedProduct && Number(quantity)>0 && (
 
 
 
-<div className="
+<div
+className="
 rounded-2xl
 border
 border-orange-400/30
 bg-orange-500/10
 p-5
-">
+"
+>
 
 
 
-<div className="
+<div
+className="
 flex
 items-center
 gap-2
 mb-3
-">
+"
+>
 
 
 <ShoppingCart
@@ -1132,12 +1568,14 @@ className="text-orange-400"
 
 
 
-<p className="
+<p
+className="
 font-bold
 text-orange-200
-">
+"
+>
 
-Résumé
+Résumé de la vente
 
 </p>
 
@@ -1150,19 +1588,26 @@ Résumé
 
 
 
-<p className="
+
+
+<p
+className="
 text-sm
 text-slate-300
-">
+"
+>
 
 Produit :
 
-<span className="
+<span
+className="
 font-bold
 text-white
-">
+"
+>
 
 {" "}
+
 {selectedProduct.name}
 
 </span>
@@ -1176,23 +1621,29 @@ text-white
 
 
 
-<p className="
+<p
+className="
 mt-2
 text-sm
 text-slate-300
-">
+"
+>
 
 Prix unité :
 
-<span className="
+<span
+className="
 font-bold
 text-white
-">
+"
+>
 
 {" "}
+
 {selectedProduct.selling_price}
 
 {" "}
+
 {selectedProduct.currency}
 
 </span>
@@ -1205,52 +1656,82 @@ text-white
 
 
 
-<div className="
+
+
+
+<div
+className="
 mt-4
 rounded-xl
 bg-black/30
 p-3
-">
+"
+>
 
 
-
-<p className="
+<p
+className="
 text-xs
 text-slate-400
-">
+"
+>
 
-Total à payer
+Total client
 
 </p>
 
 
-
-
-<p className="
+<p
+className="
 text-3xl
 font-black
 text-orange-400
-">
+"
+>
 
-
-{
-
-selectedProduct.selling_price *
-
-Number(quantity)
-
-}
-
+{totalPreview}
 
 {" "}
 
 {selectedProduct.currency}
 
 
-
 </p>
 
 
+</div>
+
+
+
+
+
+
+
+
+<div
+className="
+mt-3
+flex
+items-center
+gap-2
+text-green-300
+text-sm
+"
+>
+
+
+<TrendingUp
+size={16}
+/>
+
+
+Bénéfice estimé :
+
+{profitPreview}
+
+{" "}
+
+{selectedProduct.currency}
 
 
 </div>
@@ -1260,9 +1741,30 @@ Number(quantity)
 
 
 
+
+{
+
+stockAfterSale <=5 && (
+
+<div
+className="
+mt-3
+flex
+items-center
+gap-2
+rounded-xl
+bg-red-500/10
+p-3
+text-xs
+text-red-300
+"
+>
+
+<AlertTriangle size={16}/>
+
+Attention : stock presque épuisé ({stockAfterSale})
+
 </div>
-
-
 
 )
 
@@ -1272,9 +1774,14 @@ Number(quantity)
 
 
 
+</div>
 
 
+)
 
+
+}
+{/* BOUTON VALIDATION */}
 
 
 <button
@@ -1288,7 +1795,6 @@ disabled={loading}
 
 
 className="
-group
 flex
 w-full
 items-center
@@ -1307,8 +1813,6 @@ hover:scale-[1.02]
 disabled:opacity-50
 "
 
-
-
 >
 
 
@@ -1322,7 +1826,6 @@ loading
 
 :
 
-
 <>
 
 <CheckCircle size={20}/>
@@ -1331,9 +1834,7 @@ Valider la vente
 
 </>
 
-
 }
-
 
 
 </button>
@@ -1342,8 +1843,6 @@ Valider la vente
 
 
 
-
-
 </div>
 
 
@@ -1352,8 +1851,150 @@ Valider la vente
 
 
 
+{/* POPUP SUCCES */}
+
+
+
+{
+
+showSuccess && (
+
+
+<div
+className="
+fixed
+inset-0
+z-50
+flex
+items-center
+justify-center
+bg-black/70
+px-5
+"
+>
+
+
+
+<div
+className="
+w-full
+max-w-sm
+rounded-3xl
+border
+border-green-400/30
+bg-[#081221]
+p-6
+text-center
+shadow-2xl
+"
+>
+
+
+<CheckCircle
+
+size={55}
+
+className="
+mx-auto
+mb-4
+text-green-400
+"
+
+/>
+
+
+
+
+<h2
+className="
+text-2xl
+font-black
+text-white
+"
+>
+
+Vente réussie ✅
+
+</h2>
+
+
+
+
+
+<p
+className="
+mt-3
+text-sm
+text-slate-300
+"
+>
+
+Votre vente a été enregistrée.
+
+
+</p>
+
+
+
+
+
+
+
+
+<button
+
+
+onClick={()=>{
+
+
+setShowSuccess(false);
+
+window.location.href="/dashboard";
+
+
+}}
+
+
+
+className="
+mt-6
+w-full
+rounded-2xl
+bg-green-500
+py-3
+font-black
+text-black
+"
+
+>
+
+
+OK
+
+
+</button>
+
+
+
+
 </div>
 
+
+
+</div>
+
+
+)
+
+
+}
+
+
+
+
+
+
+</div>
 
 
 </main>

@@ -1,45 +1,100 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+
 import {
-  Users,
-  Wallet,
   Search,
   Plus,
   CheckCircle,
   CreditCard,
   Sparkles,
   UserPlus,
+  Trash2,
+  Users,
+  Wallet,
+  TrendingUp
 } from "lucide-react";
 
 
 type Debt = {
-  id: string;
-  client_name: string;
-  total_amount: number;
-  paid_amount: number;
-  currency: string;
+
+  id:string;
+
+  client_name:string;
+
+  phone:string;
+
+  total_amount:number;
+
+  paid_amount:number;
+
+  currency:"FC" | "USD";
+
+  created_at:string;
+
 };
 
 
 
-export default function DebtsPage() {
+const inputStyle = `
+
+w-full
+
+rounded-2xl
+
+border
+
+border-white/10
+
+bg-black/30
+
+p-4
+
+outline-none
+
+text-white
+
+placeholder:text-slate-500
+
+focus:border-orange-400
+
+transition
+
+`;
+
+
+
+export default function DebtsPage(){
+
 
 
 const [debts,setDebts] = useState<Debt[]>([]);
 
+
+
 const [name,setName] = useState("");
+
+const [phone,setPhone] = useState("");
 
 const [amount,setAmount] = useState("");
 
-const [currency,setCurrency] = useState("FC");
+const [currency,setCurrency] =
+useState<"FC"|"USD">("FC");
 
-const [paymentAmount,setPaymentAmount] = useState("");
+
+
+const [search,setSearch] = useState("");
 
 const [selectedDebt,setSelectedDebt] = useState("");
 
-const [searchTerm,setSearchTerm] = useState("");
+const [paymentAmount,setPaymentAmount] = useState("");
+
+
+
+const [showAll,setShowAll] = useState(false);
+
+const [showGuide,setShowGuide] = useState(false);
 
 
 
@@ -52,45 +107,35 @@ loadDebts();
 
 
 
-const loadDebts = async()=>{
+
+const getUser = async()=>{
 
 
-const phone = localStorage.getItem("phone");
+const phone =
+localStorage.getItem("phone");
 
-if(!phone)return;
+
+if(!phone)
+return null;
 
 
 
 const {data:user}=await supabase
+
 .from("users")
+
 .select("id")
-.eq("phone",phone)
+
+.eq(
+"phone",
+phone
+)
+
 .single();
 
 
 
-if(!user)return;
-
-
-
-const {data,error}=await supabase
-.from("debts")
-.select("*")
-.eq("user_id",user.id)
-.order("created_at",{ascending:false});
-
-
-
-if(error){
-
-console.log(error);
-return;
-
-}
-
-
-
-setDebts(data || []);
+return user || null;
 
 
 };
@@ -99,12 +144,41 @@ setDebts(data || []);
 
 
 
-const addDebt = async()=>{
+
+const loadDebts = async()=>{
 
 
-if(!name || !amount){
+const user = await getUser();
 
-alert("Veuillez remplir tous les champs");
+
+if(!user)
+return;
+
+
+
+const {data,error}=await supabase
+
+.from("debts")
+
+.select("*")
+
+.eq(
+"user_id",
+user.id
+)
+
+.order(
+"created_at",
+{
+ascending:false
+}
+);
+
+
+
+if(error){
+
+console.log(error);
 
 return;
 
@@ -112,39 +186,67 @@ return;
 
 
 
-const phone =
-localStorage.getItem("phone");
-
-
-if(!phone)return;
-
-
-
-const {data:user}=await supabase
-.from("users")
-.select("id")
-.eq("phone",phone)
-.single();
+setDebts(
+(data || []) as Debt[]
+);
 
 
 
-if(!user)return;
+};
+
+
+
+
+
+
+
+const addDebt = async()=>{
+
+
+if(
+!name ||
+!phone ||
+!amount
+){
+
+alert(
+"Veuillez remplir toutes les informations"
+);
+
+return;
+
+}
+
+
+
+const user = await getUser();
+
+
+if(!user)
+return;
 
 
 
 const {error}=await supabase
+
 .from("debts")
+
 .insert({
 
+user_id:user.id,
+
 client_name:name,
+
+phone:phone,
 
 total_amount:Number(amount),
 
 paid_amount:0,
 
-currency,
+currency:currency,
 
-user_id:user.id
+created_at:
+new Date().toISOString()
 
 });
 
@@ -162,7 +264,12 @@ return;
 
 setName("");
 
+setPhone("");
+
 setAmount("");
+
+setCurrency("FC");
+
 
 loadDebts();
 
@@ -173,31 +280,47 @@ loadDebts();
 
 
 
+
+
 const payDebt = async()=>{
 
 
-if(!selectedDebt || !paymentAmount)
+if(
+!selectedDebt ||
+!paymentAmount
+)
 return;
 
 
 
 const debt =
-debts.find(d=>d.id===selectedDebt);
+debts.find(
+d=>d.id===selectedDebt
+);
 
 
 
-if(!debt)return;
+if(!debt)
+return;
+
+
+
+const value =
+Number(paymentAmount);
 
 
 
 const remaining =
-debt.total_amount - debt.paid_amount;
+debt.total_amount -
+debt.paid_amount;
 
 
 
-if(Number(paymentAmount)>remaining){
+if(value > remaining){
 
-alert("Montant trop élevé");
+alert(
+"Le montant dépasse le reste à payer"
+);
 
 return;
 
@@ -206,32 +329,44 @@ return;
 
 
 const newPaid =
-debt.paid_amount + Number(paymentAmount);
+debt.paid_amount + value;
 
 
 
-if(debt.total_amount-newPaid<=0){
+if(
+newPaid >= debt.total_amount
+){
 
 
 await supabase
-.from("debts")
-.delete()
-.eq("id",selectedDebt);
 
+.from("debts")
+
+.delete()
+
+.eq(
+"id",
+selectedDebt
+);
 
 
 }else{
 
 
 await supabase
+
 .from("debts")
+
 .update({
 
 paid_amount:newPaid
 
 })
-.eq("id",selectedDebt);
 
+.eq(
+"id",
+selectedDebt
+);
 
 
 }
@@ -242,7 +377,8 @@ setPaymentAmount("");
 
 setSelectedDebt("");
 
-setSearchTerm("");
+setSearch("");
+
 
 loadDebts();
 
@@ -253,53 +389,191 @@ loadDebts();
 
 
 
-const filteredDebts =
-debts.filter((d)=>
+const deleteDebt = async(id:string)=>{
+
+
+if(
+!confirm(
+"Voulez-vous supprimer cette dette ?"
+)
+)
+return;
+
+
+
+await supabase
+
+.from("debts")
+
+.delete()
+
+.eq(
+"id",
+id
+);
+
+
+
+loadDebts();
+
+
+};
+
+
+
+
+
+const filteredDebts = useMemo(()=>{
+
+return debts.filter((d)=>
 
 d.client_name
 .toLowerCase()
-.includes(searchTerm.toLowerCase())
+.includes(
+search.toLowerCase()
+)
+
+||
+
+(d.phone || "")
+.includes(search)
+
+);
+
+
+},[
+debts,
+search
+]);
+
+
+
+
+
+
+const totalFc = debts
+
+.filter(
+d=>d.currency==="FC"
+)
+
+.reduce(
+
+(sum,d)=>
+
+sum +
+(
+d.total_amount -
+d.paid_amount
+),
+
+0
 
 );
 
 
 
+const totalUsd = debts
+
+.filter(
+d=>d.currency==="USD"
+)
+
+.reduce(
+
+(sum,d)=>
+
+sum +
+(
+d.total_amount -
+d.paid_amount
+),
+
+0
+
+);
+
+
+
+const totalClients =
+debts.length;
+
+
+
+const totalPaid = debts.reduce(
+
+(sum,d)=>
+
+sum+d.paid_amount,
+
+0
+
+);
+
+
+
+const percentPaid = debts.length
+
+?
+
+Math.round(
+
+(
+totalPaid /
+(
+totalPaid + totalFc + totalUsd
+)
+
+)
+
+*100
+
+)
+
+:
+
+0;
+
+
+
+
+const visibleDebts =
+
+showAll
+
+?
+
+debts
+
+:
+
+debts.slice(0,5);
 
 return (
 
 <main className="
-relative
 min-h-screen
-overflow-hidden
 bg-[#081221]
 text-white
-px-4
-py-6
-pb-28
+p-4
+pb-24
 ">
-
-
 
 
 <div className="
-relative
-z-10
-max-w-xl
+max-w-6xl
 mx-auto
+space-y-6
 ">
-
 
 
 {/* HEADER */}
 
-
 <div className="
 flex
-items-center
 justify-between
-mb-7
+items-center
 ">
-
 
 <div>
 
@@ -308,24 +582,17 @@ text-3xl
 font-black
 ">
 
-🧾
-
-<span className="text-orange-400">
-
- Dettes
-
-</span>
+🧾 Dettes clients
 
 </h1>
 
 
 <p className="
-text-sm
 text-slate-400
 mt-1
 ">
 
-Clients & paiements
+Gestion des crédits et récupération d'argent
 
 </p>
 
@@ -334,16 +601,147 @@ Clients & paiements
 
 
 
-<div className="
-rounded-2xl
-bg-orange-500/10
+<button
+
+onClick={()=>setShowGuide(!showGuide)}
+
+className="
+flex
+items-center
+gap-2
+bg-orange-500/20
 border
 border-orange-400/30
-p-3
+px-4
+py-3
+rounded-xl
+font-bold
+"
+
+>
+
+<Sparkles size={18}/>
+
+Guide
+
+</button>
+
+
+</div>
+
+
+
+
+
+
+{/* GUIDE */}
+
+{
+
+showGuide &&
+
+<div className="
+rounded-3xl
+bg-black/30
+border
+border-white/10
+p-5
+text-sm
+space-y-3
+text-slate-300
 ">
 
-<Users
-className="text-orange-400"
+
+<p>
+👤 Ajoutez le nom et le téléphone du client.
+</p>
+
+
+<p>
+💰 Choisissez la vraie monnaie : FC ou USD.
+</p>
+
+
+<p>
+💳 Utilisez récupération quand le client paie.
+</p>
+
+
+<p>
+📊 La progression montre combien est déjà récupéré.
+</p>
+
+
+<p>
+👁️ Voir tout affiche toutes les dettes enregistrées.
+</p>
+
+
+</div>
+
+}
+
+
+
+
+
+
+
+{/* STATISTIQUES */}
+
+
+<div className="
+grid
+grid-cols-2
+md:grid-cols-4
+gap-4
+">
+
+
+<StatCard
+
+title="Dette FC"
+
+value={
+totalFc.toLocaleString()+" FC"
+}
+
+/>
+
+
+
+<StatCard
+
+title="Dette USD"
+
+value={
+totalUsd.toLocaleString()+" $"
+}
+
+/>
+
+
+
+<StatCard
+
+title="Clients"
+
+value={
+String(totalClients)
+}
+
+/>
+
+
+
+<StatCard
+
+title="Récupéré"
+
+value={
+totalPaid.toLocaleString()
+}
+
 />
 
 
@@ -351,49 +749,62 @@ className="text-orange-400"
 
 
 
-</div>
-{/* NOUVELLE DETTE */}
+
+
+
+
+
+
+{/* FORMULAIRES COTE A COTE */}
+
 
 <div className="
-rounded-3xl
-border
-border-white/10
-bg-white/5
-p-5
-backdrop-blur-xl
-shadow-2xl
-mb-5
+grid
+md:grid-cols-2
+gap-5
 ">
 
 
+
+
+
+
+
+{/* NOUVELLE DETTE */}
+
+
+
 <div className="
+rounded-3xl
+bg-white/5
+border
+border-white/10
+p-5
+">
+
+
+<h2 className="
+font-black
+text-xl
+mb-5
 flex
 items-center
 gap-2
-mb-5
 ">
 
 
 <UserPlus
+
 className="text-orange-400"
+
 />
 
 
-<h2 className="
-font-bold
-text-lg
-">
-
 Nouvelle dette
+
 
 </h2>
 
-
-</div>
-
-
-
-<div className="space-y-3">
 
 
 
@@ -403,21 +814,34 @@ placeholder="Nom du client"
 
 value={name}
 
-onChange={(e)=>setName(e.target.value)}
+onChange={
+e=>setName(e.target.value)
+}
 
-className="
-w-full
-rounded-2xl
-border
-border-white/10
-bg-black/30
-p-4
-outline-none
-text-white
-placeholder:text-slate-500
-"
+className={inputStyle}
 
 />
+
+
+
+
+
+<input
+
+placeholder="Numéro téléphone"
+
+value={phone}
+
+onChange={
+e=>setPhone(e.target.value)
+}
+
+className={inputStyle}
+
+/>
+
+
+
 
 
 
@@ -425,57 +849,129 @@ placeholder:text-slate-500
 
 type="number"
 
-placeholder="Montant"
+placeholder="Montant de la dette"
 
 value={amount}
 
-onChange={(e)=>setAmount(e.target.value)}
+onChange={
+e=>setAmount(e.target.value)
+}
 
-className="
-w-full
-rounded-2xl
-border
-border-white/10
-bg-black/30
-p-4
-outline-none
-text-white
-placeholder:text-slate-500
-"
+className={inputStyle}
 
 />
 
 
 
-<select
 
-value={currency}
 
-onChange={(e)=>setCurrency(e.target.value)}
 
-className="
-w-full
-rounded-2xl
+
+<p className="
+text-sm
+text-slate-400
+mt-3
+">
+
+Choisir la monnaie
+
+</p>
+
+
+
+
+
+<div className="
+grid
+grid-cols-2
+gap-3
+mt-2
+">
+
+
+<button
+
+onClick={()=>setCurrency("FC")}
+
+className={
+
+`
+p-3
+rounded-xl
+font-black
 border
-border-white/10
-bg-black/30
-p-4
-text-white
-outline-none
-"
+
+${
+
+currency==="FC"
+
+?
+
+"bg-orange-500 text-black"
+
+:
+
+"bg-black/30 border-white/10"
+
+}
+
+`
+
+}
 
 >
 
-<option value="FC">
-FC
-</option>
+🇨🇩 FC
 
-<option value="$">
-USD
-</option>
+</button>
 
 
-</select>
+
+
+
+
+
+<button
+
+onClick={()=>setCurrency("USD")}
+
+className={
+
+`
+p-3
+rounded-xl
+font-black
+border
+
+${
+
+currency==="USD"
+
+?
+
+"bg-green-500 text-black"
+
+:
+
+"bg-black/30 border-white/10"
+
+}
+
+`
+
+}
+
+>
+
+💵 USD
+
+</button>
+
+
+
+</div>
+
+
 
 
 
@@ -486,27 +982,25 @@ USD
 onClick={addDebt}
 
 className="
-flex
+mt-5
 w-full
-items-center
-justify-center
-gap-2
-rounded-2xl
+py-4
+rounded-xl
 bg-gradient-to-r
 from-orange-500
 to-yellow-400
-py-4
-font-black
 text-black
-shadow-lg
-transition
-hover:scale-[1.02]
+font-black
+flex
+justify-center
+items-center
+gap-2
 "
 
 >
 
 
-<Plus size={20}/>
+<Plus size={18}/>
 
 Ajouter la dette
 
@@ -519,48 +1013,49 @@ Ajouter la dette
 
 
 
-</div>
 
 
 
 
 
-{/* PAIEMENT */}
+
+{/* RECUPERATION */}
+
+
 
 <div className="
 rounded-3xl
+bg-white/5
 border
 border-white/10
-bg-white/5
 p-5
-backdrop-blur-xl
-shadow-2xl
-mb-6
 ">
 
 
-
-<div className="
+<h2 className="
+font-black
+text-xl
+mb-5
 flex
 items-center
 gap-2
-mb-5
 ">
 
 
 <CreditCard
-className="text-orange-400"
+
+className="text-green-400"
+
 />
 
 
-<h2 className="font-bold text-lg">
+Récupérer une dette
 
-Recevoir paiement
 
 </h2>
 
 
-</div>
+
 
 
 
@@ -569,41 +1064,35 @@ Recevoir paiement
 flex
 items-center
 gap-3
-rounded-2xl
-border
-border-white/10
 bg-black/30
-px-4
+rounded-xl
+px-3
 ">
 
 
-<Search
-size={18}
-className="text-orange-400"
-/>
+<Search size={18}/>
+
 
 
 <input
 
-placeholder="Rechercher un client"
+placeholder="Chercher nom ou téléphone"
 
-value={searchTerm}
+value={search}
 
-onChange={(e)=>{
+onChange={e=>{
 
-setSearchTerm(e.target.value);
+setSearch(e.target.value);
 
 setSelectedDebt("");
 
 }}
 
 className="
-w-full
 bg-transparent
-py-3
 outline-none
-text-white
-placeholder:text-slate-500
+w-full
+p-3
 "
 
 />
@@ -615,28 +1104,24 @@ placeholder:text-slate-500
 
 
 
-{searchTerm && !selectedDebt && (
+
+
+{
+
+search && !selectedDebt &&
 
 
 <div className="
 mt-3
-rounded-2xl
-overflow-hidden
-border
-border-white/10
+rounded-xl
 bg-black/60
+overflow-hidden
 ">
 
 
-{filteredDebts.map((d)=>{
+{
 
-
-const rest =
-d.total_amount-d.paid_amount;
-
-
-
-return (
+filteredDebts.map(d=>(
 
 
 <button
@@ -647,60 +1132,164 @@ onClick={()=>{
 
 setSelectedDebt(d.id);
 
-setSearchTerm(d.client_name);
+setSearch(d.client_name);
 
 }}
 
 className="
 w-full
 flex
-items-center
 justify-between
 p-4
 border-b
-border-white/5
-hover:bg-white/10
-transition
+border-white/10
 "
 
 >
 
 
-<span className="font-semibold">
+<span>
 
 {d.client_name}
 
 </span>
 
 
-
 <span className="
 text-orange-400
-text-sm
 ">
 
-{rest} {d.currency}
+{
+
+(
+d.total_amount -
+d.paid_amount
+)
+.toLocaleString()
+
+}
+
+{" "}
+
+{d.currency}
 
 </span>
-
 
 
 </button>
 
 
-)
+))
 
 
-})}
+}
+
 
 
 </div>
 
 
-)}
+}
 
 
 
+
+
+
+{
+selectedDebt &&
+
+<div className="
+mt-4
+rounded-2xl
+bg-orange-500/10
+border
+border-orange-400/30
+p-4
+">
+
+
+{
+
+(()=>{
+
+const d =
+debts.find(
+x=>x.id===selectedDebt
+);
+
+
+if(!d)
+return null;
+
+
+
+return (
+
+<div className="space-y-2">
+
+
+<p>
+
+Client :
+
+<b>
+{d.client_name}
+</b>
+
+</p>
+
+
+<p>
+
+Reste :
+
+<b className="text-orange-400">
+
+{
+(
+d.total_amount -
+d.paid_amount
+)
+.toLocaleString()
+
+}
+
+{" "}
+
+{d.currency}
+
+</b>
+
+
+</p>
+
+
+<p>
+
+Paiement en :
+
+<b className="text-green-400">
+
+{d.currency}
+
+</b>
+
+</p>
+
+
+</div>
+
+)
+
+})()
+
+}
+
+
+</div>
+
+}
 
 
 <input
@@ -711,20 +1300,14 @@ placeholder="Montant reçu"
 
 value={paymentAmount}
 
-onChange={(e)=>setPaymentAmount(e.target.value)}
+onChange={
+e=>setPaymentAmount(e.target.value)
+}
 
-className="
+className={`
+${inputStyle}
 mt-4
-w-full
-rounded-2xl
-border
-border-white/10
-bg-black/30
-p-4
-outline-none
-text-white
-placeholder:text-slate-500
-"
+`}
 
 />
 
@@ -737,27 +1320,112 @@ placeholder:text-slate-500
 onClick={payDebt}
 
 className="
-mt-3
-flex
+mt-4
 w-full
-items-center
-justify-center
-gap-2
-rounded-2xl
-bg-green-500
 py-4
-font-black
+rounded-xl
+bg-green-500
 text-black
-transition
-hover:bg-green-400
+font-black
+flex
+justify-center
+items-center
+gap-2
+"
+
+>
+
+<CheckCircle size={18}/>
+
+Valider le paiement
+
+</button>
+
+
+
+</div>
+
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{/* LISTE DES DETTES */}
+
+
+
+<div className="
+rounded-3xl
+bg-white/5
+border
+border-white/10
+p-5
+">
+
+
+<div className="
+flex
+justify-between
+items-center
+mb-5
+">
+
+
+<h2 className="
+text-xl
+font-black
+flex
+items-center
+gap-2
+">
+
+<Wallet className="text-orange-400"/>
+
+Toutes les dettes
+
+</h2>
+
+
+
+
+<button
+
+onClick={()=>setShowAll(!showAll)}
+
+className="
+bg-orange-500
+text-black
+px-4
+py-2
+rounded-xl
+font-bold
 "
 
 >
 
 
-<CheckCircle size={20}/>
+{
 
-Valider paiement
+showAll
+
+?
+
+"Réduire"
+
+:
+
+"Voir tout"
+
+}
 
 
 </button>
@@ -771,87 +1439,63 @@ Valider paiement
 
 
 
-{/* LISTE DETTES */}
 
 
-<div>
+{
+
+visibleDebts.length===0 ?
 
 
-<div className="
-flex
-items-center
-gap-2
-justify-center
-mb-4
-">
-
-
-<Wallet
-className="text-orange-400"
-/>
-
-
-<h2 className="
-font-black
-text-xl
-">
-
-Dettes actives
-
-</h2>
-
-
-</div>
-
-
-
-
-{debts.length===0 ? (
-
-
-<div className="
-rounded-3xl
-border
-border-white/10
-bg-white/5
-p-8
-text-center
+<p className="
 text-slate-400
+text-center
+py-8
 ">
 
 Aucune dette enregistrée
 
-
-</div>
-
-
-
-):(
+</p>
 
 
 
-<div className="space-y-4">
+:
 
 
-{debts.map((d)=>{
+<div className="
+space-y-4
+">
 
 
-const remaining =
-d.total_amount-d.paid_amount;
+{
+
+visibleDebts.map(d=>{
+
+
+const reste =
+
+d.total_amount -
+d.paid_amount;
 
 
 
 const percent =
-d.total_amount>0
-?
-(d.paid_amount/d.total_amount)*100
-:
-0;
+
+Math.round(
+
+(
+d.paid_amount /
+d.total_amount
+
+)
+
+*100
+
+);
+
 
 
 
 return (
-
 
 <div
 
@@ -859,77 +1503,177 @@ key={d.id}
 
 className="
 rounded-3xl
+bg-black/30
 border
 border-white/10
-bg-white/5
 p-5
-backdrop-blur-xl
 "
 
-
 >
+
 
 
 <div className="
 flex
 justify-between
-items-center
-mb-3
+items-start
 ">
+
+
 
 
 <div>
 
-<p className="
+
+<h3 className="
 font-black
 text-lg
 ">
 
 {d.client_name}
 
-</p>
+</h3>
+
+
 
 
 <p className="
-text-xs
+text-sm
 text-slate-400
 ">
 
-Total : {d.total_amount} {d.currency}
+📞 {d.phone}
 
 </p>
 
 
+
 </div>
 
 
 
+
+
+<button
+
+onClick={()=>deleteDebt(d.id)}
+
+className="
+bg-red-600
+p-2
+rounded-xl
+"
+
+>
+
+<Trash2 size={16}/>
+
+</button>
+
+
+
+
+</div>
+
+
+
+
+
+
+
 <div className="
-rounded-full
-bg-orange-500/10
-px-3
-py-1
+grid
+grid-cols-2
+gap-3
+mt-4
 text-sm
-font-bold
-text-orange-300
 ">
 
-{remaining} {d.currency}
+
+<div className="
+bg-white/5
+rounded-xl
+p-3
+">
+
+<p className="
+text-slate-400
+">
+
+Dette totale
+
+</p>
+
+
+<b>
+
+{
+d.total_amount.toLocaleString()
+}
+
+{" "}
+
+{d.currency}
+
+</b>
+
 
 </div>
 
 
-</div>
 
 
 
 
 
 <div className="
+bg-white/5
+rounded-xl
+p-3
+">
+
+<p className="
+text-slate-400
+">
+
+Reste
+
+</p>
+
+
+<b className="
+text-orange-400
+">
+
+{
+reste.toLocaleString()
+}
+
+{" "}
+
+{d.currency}
+
+</b>
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+
+
+
+
+<div className="
+mt-4
 h-3
-w-full
 rounded-full
-bg-black/40
+bg-black/50
 overflow-hidden
 ">
 
@@ -938,15 +1682,17 @@ overflow-hidden
 
 className="
 h-full
-rounded-full
 bg-gradient-to-r
-from-orange-500
-to-yellow-400
+from-green-400
+to-orange-400
 "
 
 style={{
+
 width:`${percent}%`
+
 }}
+
 
 />
 
@@ -955,13 +1701,15 @@ width:`${percent}%`
 
 
 
+
+
 <p className="
 mt-2
-text-xs
-text-slate-400
+text-sm
+text-green-400
 ">
 
-Payé : {d.paid_amount} {d.currency}
+Récupéré : {percent}%
 
 </p>
 
@@ -973,29 +1721,97 @@ Payé : {d.paid_amount} {d.currency}
 )
 
 
-})}
+})
+
+
+}
+
+
+</div>
+
+
+}
 
 
 
 </div>
 
 
-)}
-
-
-
-</div>
-
 
 
 
 
 </div>
-
 
 </main>
 
+);
+
+
+}
+
+
+
+
+
+
+
+function StatCard({
+
+title,
+
+value
+
+}:{
+
+title:string;
+
+value:string;
+
+}){
+
+
+return (
+
+<div
+
+className="
+rounded-2xl
+bg-white/5
+border
+border-white/10
+p-4
+"
+
+>
+
+
+<p className="
+text-sm
+text-slate-400
+">
+
+{title}
+
+</p>
+
+
+
+<p className="
+mt-2
+text-xl
+font-black
+">
+
+{value}
+
+</p>
+
+
+
+</div>
 
 );
+
 
 }

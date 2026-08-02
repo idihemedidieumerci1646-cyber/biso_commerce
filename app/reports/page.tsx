@@ -2,989 +2,528 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+
 import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
+import {
+  Download,
+  Search,
+  Sparkles,
+} from "lucide-react";
+
 
 type Sale = {
-  id: string;
-  product_name: string;
-  quantity: number;
-  total_sale: number;
-  profit: number;
-  currency: string;
-  created_at: string;
+  id:string;
+  product_name:string;
+  quantity:number;
+  total_sale:number;
+  profit:number;
+  currency:string;
+  created_at:string;
 };
 
-export default function ReportsPage() {
 
-  const [todayFc, setTodayFc] = useState(0);
-  const [todayUsd, setTodayUsd] = useState(0);
-  const [todayProfitFc, setTodayProfitFc] = useState(0);
-  const [todayProfitUsd, setTodayProfitUsd] = useState(0);
+type DayReport = {
+  fc:number;
+  usd:number;
+  profitFc:number;
+  profitUsd:number;
+  quantity:number;
+};
 
-  const [yesterdayFc, setYesterdayFc] = useState(0);
-  const [yesterdayUsd, setYesterdayUsd] = useState(0);
-  const [yesterdayProfitFc, setYesterdayProfitFc] = useState(0);
-  const [yesterdayProfitUsd, setYesterdayProfitUsd] = useState(0);
 
-  const [beforeYesterdayFc, setBeforeYesterdayFc] = useState(0);
-  const [beforeYesterdayUsd, setBeforeYesterdayUsd] = useState(0);
-  const [beforeYesterdayProfitFc, setBeforeYesterdayProfitFc] = useState(0);
-  const [beforeYesterdayProfitUsd, setBeforeYesterdayProfitUsd] = useState(0);
 
-  const [salesHistory, setSalesHistory] = useState<Sale[]>([]);
-  const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
+export default function ReportsPage(){
 
-  const [selectedDate, setSelectedDate] = useState("");
-  const [showAll, setShowAll] = useState(false);
 
+const [salesHistory,setSalesHistory] = useState<Sale[]>([]);
 
-  useEffect(() => {
-    load();
-  }, []);
+const [filteredSales,setFilteredSales] = useState<Sale[]>([]);
 
 
-  const load = async () => {
+const [selectedDate,setSelectedDate] = useState("");
 
-    const phone = localStorage.getItem("phone");
+const [showAll,setShowAll] = useState(false);
 
-    if (!phone) return;
+const [showGuide,setShowGuide] = useState(false);
 
 
-    const { data: user } = await supabase
-      .from("users")
-      .select("id")
-      .eq("phone", phone)
-      .single();
 
+const [today,setToday] = useState<DayReport>({
+  fc:0,
+  usd:0,
+  profitFc:0,
+  profitUsd:0,
+  quantity:0
+});
 
-    if (!user) return;
 
+const [yesterday,setYesterday] = useState<DayReport>({
+  fc:0,
+  usd:0,
+  profitFc:0,
+  profitUsd:0,
+  quantity:0
+});
 
-    const { data: sales, error } = await supabase
-      .from("sales")
-      .select("*")
-      .eq("user_id", user.id);
 
+const [beforeYesterday,setBeforeYesterday] = useState<DayReport>({
+  fc:0,
+  usd:0,
+  profitFc:0,
+  profitUsd:0,
+  quantity:0
+});
 
-    if (error) {
-      console.log(error);
-      return;
-    }
 
+const [bestProduct,setBestProduct] = useState("Aucun");
 
-    const now = new Date();
 
-    const today =
-      new Date().toISOString().split("T")[0];
 
+useEffect(()=>{
 
-    const y = new Date();
-    y.setDate(now.getDate() - 1);
+loadReports();
 
-    const yesterday =
-      y.toISOString().split("T")[0];
+},[]);
 
 
-    const by = new Date();
-    by.setDate(now.getDate() - 2);
 
-    const beforeYesterday =
-      by.toISOString().split("T")[0];
+/**
+ * FORMAT PDF PROPRE
+ * évite les caractères bizarres
+ */
+const formatPDF = (value:number)=>{
 
+  return Math.round(value)
+  .toLocaleString("en-US");
 
+};
 
-    let tFc = 0;
-    let tUsd = 0;
-    let tPfFc = 0;
-    let tPfUsd = 0;
 
 
-    let yFc = 0;
-    let yUsd = 0;
-    let yPfFc = 0;
-    let yPfUsd = 0;
+/**
+ * Nettoyage texte PDF
+ * évite Ø=Ü et caractères cassés
+ */
+const cleanPDF = (text:string)=>{
 
+ return text
+ .normalize("NFD")
+ .replace(/[\u0300-\u036f]/g,"")
+ .replace(/[^\x20-\x7E]/g,"");
 
-    let byFc = 0;
-    let byUsd = 0;
-    let byPfFc = 0;
-    let byPfUsd = 0;
+};
 
 
 
-    sales?.forEach((s: Sale) => {
 
-      const date =
-        s.created_at.split("T")[0];
 
+const calculateDayReport = (
+sales:Sale[],
+targetDate:string
+):DayReport=>{
 
-      const vente =
-        Number(s.total_sale || 0);
 
+let fc=0;
+let usd=0;
 
-      const benefice =
-        Number(s.profit || 0);
+let profitFc=0;
+let profitUsd=0;
 
+let quantity=0;
 
 
-      if (date === today) {
+sales.forEach((sale)=>{
 
-        if (s.currency === "FC") {
-          tFc += vente;
-          tPfFc += benefice;
-        } else {
-          tUsd += vente;
-          tPfUsd += benefice;
-        }
 
-      }
+const date =
+sale.created_at.split("T")[0];
 
 
+if(date !== targetDate)
+return;
 
-      if (date === yesterday) {
 
-        if (s.currency === "FC") {
-          yFc += vente;
-          yPfFc += benefice;
-        } else {
-          yUsd += vente;
-          yPfUsd += benefice;
-        }
 
-      }
+const amount =
+Number(sale.total_sale || 0);
 
 
 
-      if (date === beforeYesterday) {
+const profit =
+Number(sale.profit || 0);
 
-        if (s.currency === "FC") {
-          byFc += vente;
-          byPfFc += benefice;
-        } else {
-          byUsd += vente;
-          byPfUsd += benefice;
-        }
 
-      }
 
-    });
+quantity += Number(sale.quantity || 0);
 
 
 
-    setTodayFc(tFc);
-    setTodayUsd(tUsd);
-    setTodayProfitFc(tPfFc);
-    setTodayProfitUsd(tPfUsd);
+if(sale.currency==="FC"){
 
 
-    setYesterdayFc(yFc);
-    setYesterdayUsd(yUsd);
-    setYesterdayProfitFc(yPfFc);
-    setYesterdayProfitUsd(yPfUsd);
+fc += amount;
 
+profitFc += profit;
 
-    setBeforeYesterdayFc(byFc);
-    setBeforeYesterdayUsd(byUsd);
-    setBeforeYesterdayProfitFc(byPfFc);
-    setBeforeYesterdayProfitUsd(byPfUsd);
 
+}else{
 
 
-    const sorted =
-      sales?.sort(
-        (a,b)=>
-        new Date(b.created_at).getTime() -
-        new Date(a.created_at).getTime()
-      ) || [];
+usd += amount;
 
+profitUsd += profit;
 
 
-    setSalesHistory(sorted);
-    setFilteredSales(sorted);
+}
 
-  };
 
+});
 
-  const displayedSales =
-    showAll
-      ? filteredSales
-      : filteredSales.slice(0,7);
 
 
+return {
 
-  const searchByDate = () => {
+fc,
+usd,
+profitFc,
+profitUsd,
+quantity
 
-    if (!selectedDate) {
+};
 
-      setFilteredSales(salesHistory);
-      return;
 
-    }
+};
+const loadReports = async()=>{
 
+try{
 
-    setFilteredSales(
-      salesHistory.filter(
-        s =>
-        s.created_at.split("T")[0]
-        === selectedDate
-      )
-    );
 
-  };
-    const downloadPDF = () => {
+const userId =
+localStorage.getItem("user_id");
 
-    const dataToExport = selectedDate
-      ? salesHistory.filter(
-          (s) =>
-            s.created_at.split("T")[0] === selectedDate
-        )
-      : filteredSales;
 
+if(!userId)
+return;
 
-    const doc = new jsPDF();
 
 
-    doc.setFontSize(18);
-    doc.text(
-      "RAPPORT BISO GESTION",
-      20,
-      20
-    );
+const {data,error}=await supabase
 
+.from("sales")
 
-    doc.setFontSize(12);
+.select("*")
 
-    doc.text(
-      "Date : " +
-      (selectedDate || "Toutes les dates"),
-      20,
-      40
-    );
+.eq("user_id",userId)
 
+.order(
+"created_at",
+{
+ascending:false
+}
+);
 
-    let totalFc = 0;
-    let totalUsd = 0;
-    let profitFc = 0;
-    let profitUsd = 0;
 
 
+if(error){
 
-    dataToExport.forEach((s)=>{
+console.log(error);
 
-      if(s.currency==="FC"){
-
-        totalFc += Number(s.total_sale || 0);
-        profitFc += Number(s.profit || 0);
-
-      }else{
-
-        totalUsd += Number(s.total_sale || 0);
-        profitUsd += Number(s.profit || 0);
-
-      }
-
-    });
-
-
-
-    doc.text(
-      "Ventes FC : "+totalFc+" FC",
-      20,
-      60
-    );
-
-    doc.text(
-      "Ventes USD : "+totalUsd+" $",
-      20,
-      70
-    );
-
-    doc.text(
-      "Benefice FC : "+profitFc+" FC",
-      20,
-      85
-    );
-
-    doc.text(
-      "Benefice USD : "+profitUsd+" $",
-      20,
-      95
-    );
-
-
-    doc.line(
-      20,
-      105,
-      190,
-      105
-    );
-
-
-    let y = 120;
-
-
-    doc.text(
-      "PRODUITS VENDUS",
-      20,
-      y
-    );
-
-
-    dataToExport.forEach((s)=>{
-
-      y += 12;
-
-
-      if(y > 270){
-
-        doc.addPage();
-        y = 20;
-
-      }
-
-
-      doc.setFontSize(11);
-
-
-      doc.text(
-        "Produit : "+s.product_name,
-        20,
-        y
-      );
-
-
-      y += 6;
-
-
-      doc.text(
-        "Quantite : "+s.quantity,
-        25,
-        y
-      );
-
-
-      y += 6;
-
-
-      doc.text(
-        "Montant : "+
-        s.total_sale+
-        " "+
-        s.currency,
-        25,
-        y
-      );
-
-    });
-
-
-    doc.save(
-      "rapport-" +
-      (selectedDate || "complet")
-      +
-      ".pdf"
-    );
-
-  };
-
-
-
-  return (
-
-    <main
-      className="
-      min-h-screen
-      p-4
-      sm:p-6
-      text-white
-      bg-gradient-to-b
-      from-black
-      via-slate-950
-      to-black
-      relative
-      overflow-hidden
-      "
-    >
-
-
-      {/* LUMIERES BACKGROUND */}
-
-      
-
-
-
-      <div
-        className="
-        max-w-6xl
-        mx-auto
-        space-y-6
-        relative
-        z-10
-        "
-      >
-
-
-
-        {/* HEADER GLASS */}
-
-
-        <div
-          className="
-          rounded-3xl
-          p-6
-          bg-white/5
-          backdrop-blur-xl
-          border
-          border-white/10
-          shadow-xl
-          "
-        >
-
-          <h1
-            className="
-            text-3xl
-            font-black
-            "
-          >
-            📊 Rapports PRO
-          </h1>
-
-
-          <p
-            className="
-            text-slate-400
-            text-sm
-            mt-2
-            "
-          >
-            Analyse ventes, bénéfices et performance caisse
-          </p>
-
-
-        </div>
-
-
-
-        {/* INFO GUIDE */}
-
-
-        <div
-          className="
-          rounded-2xl
-          p-4
-          bg-slate-900/70
-          backdrop-blur
-          border
-          border-blue-500/20
-          "
-        >
-
-          <p
-            className="
-            text-sm
-            text-slate-300
-            "
-          >
-
-            💡 Sélectionne une date pour filtrer
-            tes ventes puis exporte ton rapport PDF.
-
-          </p>
-
-
-        </div>
-                {/* STATISTIQUES */}
-
-        <Section title="🔥 Aujourd’hui">
-
-          <Card
-            icon="💵"
-            label="Ventes FC"
-            value={`${todayFc} FC`}
-          />
-
-          <Card
-            icon="💲"
-            label="Ventes USD"
-            value={`${todayUsd} $`}
-          />
-
-          <Card
-            icon="📈"
-            label="Bénéfice FC"
-            value={`${todayProfitFc} FC`}
-          />
-
-          <Card
-            icon="🚀"
-            label="Bénéfice USD"
-            value={`${todayProfitUsd} $`}
-          />
-
-        </Section>
-
-
-
-        <Section title="📅 Hier">
-
-
-          <Card
-            icon="💵"
-            label="Ventes FC"
-            value={`${yesterdayFc} FC`}
-          />
-
-
-          <Card
-            icon="💲"
-            label="Ventes USD"
-            value={`${yesterdayUsd} $`}
-          />
-
-
-          <Card
-            icon="📈"
-            label="Bénéfice FC"
-            value={`${yesterdayProfitFc} FC`}
-          />
-
-
-          <Card
-            icon="🚀"
-            label="Bénéfice USD"
-            value={`${yesterdayProfitUsd} $`}
-          />
-
-
-        </Section>
-
-
-
-
-        <Section title="⏳ Avant-hier">
-
-
-          <Card
-            icon="💵"
-            label="Ventes FC"
-            value={`${beforeYesterdayFc} FC`}
-          />
-
-
-          <Card
-            icon="💲"
-            label="Ventes USD"
-            value={`${beforeYesterdayUsd} $`}
-          />
-
-
-          <Card
-            icon="📈"
-            label="Bénéfice FC"
-            value={`${beforeYesterdayProfitFc} FC`}
-          />
-
-
-          <Card
-            icon="🚀"
-            label="Bénéfice USD"
-            value={`${beforeYesterdayProfitUsd} $`}
-          />
-
-
-        </Section>
-
-
-
-
-        {/* HISTORIQUE */}
-
-        <div
-          className="
-          bg-white/5
-          backdrop-blur-xl
-          border
-          border-white/10
-          rounded-3xl
-          p-5
-          shadow-xl
-          "
-        >
-
-
-          <div
-            className="
-            flex
-            justify-between
-            items-center
-            mb-5
-            "
-          >
-
-            <h2
-              className="
-              font-black
-              text-lg
-              "
-            >
-              📅 
-              {showAll
-              ? " Historique complet"
-              : " 7 dernières ventes"}
-
-            </h2>
-
-
-
-            <button
-
-              onClick={() =>
-                setShowAll(!showAll)
-              }
-
-              className="
-              px-4
-              py-2
-              rounded-xl
-              text-xs
-              font-bold
-              bg-gradient-to-r
-              from-orange-500
-              to-red-500
-              shadow-lg
-              "
-
-            >
-
-              {
-                showAll
-                ? "Réduire"
-                : "Voir tout"
-              }
-
-            </button>
-
-
-          </div>
-
-
-
-
-
-          {
-            displayedSales.length === 0 ? (
-
-              <p
-                className="
-                text-slate-500
-                text-sm
-                "
-              >
-                Aucun rapport disponible
-              </p>
-
-
-            ) : (
-
-
-              <div
-                className="
-                space-y-3
-                "
-              >
-
-              {
-
-              displayedSales.map((s)=>(
-
-
-                <div
-
-                  key={s.id}
-
-                  className="
-                  flex
-                  justify-between
-                  items-center
-                  bg-black/40
-                  border
-                  border-white/5
-                  rounded-2xl
-                  p-4
-                  "
-
-                >
-
-
-                  <div>
-
-                    <p
-                      className="
-                      font-bold
-                      "
-                    >
-                      📦 {s.product_name}
-                    </p>
-
-
-                    <p
-                      className="
-                      text-xs
-                      text-slate-500
-                      mt-1
-                      "
-                    >
-
-                      {
-                        new Date(
-                          s.created_at
-                        ).toLocaleDateString()
-
-                      }
-
-                    </p>
-
-
-                  </div>
-
-
-
-
-                  <div
-                    className="
-                    text-right
-                    "
-                  >
-
-                    <p
-                      className="
-                      font-black
-                      text-green-400
-                      "
-                    >
-
-                      {
-                        s.total_sale
-                      }
-                      {" "}
-                      {
-                        s.currency
-                      }
-
-                    </p>
-
-
-                    <p
-                      className="
-                      text-xs
-                      text-slate-500
-                      "
-                    >
-
-                      Quantité x{s.quantity}
-
-                    </p>
-
-
-                  </div>
-
-
-                </div>
-
-
-              ))
-
-              }
-
-
-              </div>
-
-
-            )
-          }
-
-
-        </div>
-                {/* RECHERCHE PDF */}
-
-        <div
-          className="
-          bg-white/5
-          backdrop-blur-xl
-          border
-          border-white/10
-          rounded-3xl
-          p-5
-          shadow-xl
-          "
-        >
-
-          <h2
-            className="
-            font-black
-            text-lg
-            mb-4
-            "
-          >
-            📄 Exporter un rapport PDF
-          </h2>
-
-
-          <div
-            className="
-            flex
-            flex-col
-            md:flex-row
-            gap-3
-            "
-          >
-
-
-            <input
-
-              type="date"
-
-              value={selectedDate}
-
-              onChange={(e)=>
-                setSelectedDate(e.target.value)
-              }
-
-              className="
-              flex-1
-              bg-black/60
-              border
-              border-white/10
-              rounded-xl
-              p-3
-              text-white
-              outline-none
-              "
-
-            />
-
-
-
-            <button
-
-              onClick={searchByDate}
-
-              className="
-              px-6
-              py-3
-              rounded-xl
-              font-bold
-              bg-gradient-to-r
-              from-blue-500
-              to-cyan-500
-              shadow-lg
-              "
-
-            >
-
-              🔎 Rechercher
-
-            </button>
-
-
-
-
-            <button
-
-              onClick={downloadPDF}
-
-              className="
-              px-6
-              py-3
-              rounded-xl
-              font-bold
-              bg-gradient-to-r
-              from-orange-500
-              to-red-500
-              shadow-lg
-              "
-
-            >
-
-              📄 PDF
-
-            </button>
-
-
-
-          </div>
-
-
-        </div>
-
-
-      </div>
-
-
-    </main>
-
-  );
+return;
 
 }
 
 
 
-/* ========================= */
-/* COMPONENTS UI */
-/* ========================= */
+const list =
+(data || []) as Sale[];
 
 
-function Section({
-  title,
-  children
-}:any){
 
+setSalesHistory(list);
 
-  return (
-
-    <div
-      className="
-      space-y-3
-      "
-    >
-
-
-      <h2
-        className="
-        text-lg
-        font-black
-        text-slate-200
-        border-l-4
-        border-orange-500
-        pl-3
-        "
-      >
-
-        {title}
-
-      </h2>
+setFilteredSales(list);
 
 
 
 
-      <div
-        className="
-        grid
-        grid-cols-2
-        md:grid-cols-4
-        gap-4
-        "
-      >
-
-        {children}
-
-      </div>
+const now = new Date();
 
 
 
-    </div>
+const todayDate =
+now.toISOString()
+.split("T")[0];
 
-  );
+
+
+const yesterday =
+new Date(now);
+
+
+yesterday.setDate(
+now.getDate()-1
+);
+
+
+
+const yesterdayDate =
+yesterday.toISOString()
+.split("T")[0];
+
+
+
+const beforeYesterday =
+new Date(now);
+
+
+beforeYesterday.setDate(
+now.getDate()-2
+);
+
+
+
+const beforeYesterdayDate =
+beforeYesterday.toISOString()
+.split("T")[0];
+
+
+
+
+setToday(
+calculateDayReport(
+list,
+todayDate
+)
+);
+
+
+
+setYesterday(
+calculateDayReport(
+list,
+yesterdayDate
+)
+);
+
+
+
+setBeforeYesterday(
+calculateDayReport(
+list,
+beforeYesterdayDate
+)
+);
+
+
+
+
+
+
+// Produit le plus vendu
+
+
+const products:any={};
+
+
+
+list.forEach((sale)=>{
+
+
+if(!products[sale.product_name]){
+
+products[sale.product_name]=0;
+
+}
+
+
+
+products[sale.product_name]
++= Number(sale.quantity || 0);
+
+
+
+});
+
+
+
+
+let best="Aucun";
+
+let max=0;
+
+
+
+Object.keys(products).forEach((name)=>{
+
+
+if(products[name]>max){
+
+
+max =
+products[name];
+
+
+best =
+name;
+
+
+}
+
+
+});
+
+
+
+setBestProduct(best);
+
+
+
+}catch(error){
+
+console.log(error);
+
+}
+
+
+
+};
+
+
+
+
+
+
+// ================================
+// CREATION PDF
+// ================================
+
+
+const downloadPDF = ()=>{
+
+
+const data = selectedDate
+
+?
+
+salesHistory.filter(
+(sale)=>
+sale.created_at.split("T")[0]
+=== selectedDate
+)
+
+:
+
+filteredSales;
+
+
+
+
+if(data.length===0){
+
+alert(
+"Aucune vente trouvée pour créer le rapport."
+);
+
+return;
+
+}
+
+
+
+
+
+const doc = new jsPDF({
+
+orientation:"portrait",
+
+unit:"mm",
+
+format:"a4",
+
+putOnlyUsedFonts:true,
+
+compress:true
+
+});
+
+
+
+doc.setFont(
+"helvetica",
+"normal"
+);
+
+
+
+doc.setFontSize(12);
+
+
+
+
+
+
+const dateRapport =
+
+selectedDate ||
+
+new Date()
+.toISOString()
+.split("T")[0];
+
+
+
+
+
+
+let totalFc=0;
+
+let totalUsd=0;
+
+
+let profitFc=0;
+
+let profitUsd=0;
+
+
+
+const produits:any={};
+
+
+
+
+
+data.forEach((sale)=>{
+
+
+const montant =
+Number(sale.total_sale || 0);
+
+
+
+const benefice =
+Number(sale.profit || 0);
+
+
+
+
+if(sale.currency==="FC"){
+
+
+totalFc += montant;
+
+profitFc += benefice;
+
+
+
+}else{
+
+
+totalUsd += montant;
+
+profitUsd += benefice;
+
 
 
 }
@@ -993,75 +532,1431 @@ function Section({
 
 
 
-function Card({
-  icon,
-  label,
-  value
-}:any){
+if(!produits[sale.product_name]){
 
 
-  return (
+produits[sale.product_name]={
 
-    <div
+quantity:0,
 
-      className="
-      bg-white/5
-      backdrop-blur-xl
-      border
-      border-white/10
-      rounded-3xl
-      p-4
-      shadow-xl
-      hover:scale-[1.02]
-      transition
-      "
+montant:0,
 
-    >
+currency:sale.currency,
+
+profit:0
+
+};
 
 
-      <div
-        className="
-        text-2xl
-        mb-3
-        "
-      >
-
-        {icon}
-
-      </div>
+}
 
 
 
-      <p
-        className="
-        text-xs
-        text-slate-400
-        "
-      >
 
-        {label}
-
-      </p>
+produits[sale.product_name].quantity
++= Number(sale.quantity || 0);
 
 
 
-      <p
-        className="
-        text-xl
-        font-black
-        mt-1
-        text-white
-        "
-      >
-
-        {value}
-
-      </p>
+produits[sale.product_name].montant
++= montant;
 
 
 
-    </div>
+produits[sale.product_name].profit
++= benefice;
 
-  );
+
+
+});
+// =============================
+// PAGE DE GARDE PDF
+// =============================
+
+
+doc.setFontSize(26);
+
+
+doc.text(
+cleanPDF("BISO-COMMERCE"),
+20,
+35
+);
+
+
+
+doc.setFontSize(16);
+
+
+doc.text(
+cleanPDF("Rapport professionnel de gestion"),
+20,
+50
+);
+
+
+
+doc.setFontSize(12);
+
+
+doc.text(
+cleanPDF("Suivi des ventes - benefices - performance commerciale"),
+20,
+65
+);
+
+
+
+doc.line(
+20,
+75,
+190,
+75
+);
+
+
+
+
+
+doc.setFontSize(13);
+
+
+
+doc.text(
+cleanPDF(
+"Date du rapport : "
++ dateRapport
+),
+20,
+95
+);
+
+
+
+doc.text(
+cleanPDF(
+"Nombre de transactions : "
++ data.length
+),
+20,
+110
+);
+
+
+
+doc.text(
+cleanPDF(
+"Produit le plus vendu : "
++ bestProduct
+),
+20,
+125
+);
+
+
+
+
+// =============================
+// RESUME FINANCIER PDF
+// =============================
+
+
+doc.addPage();
+
+
+
+doc.setFontSize(20);
+
+
+
+doc.text(
+"Resume financier",
+20,
+30
+);
+
+
+
+autoTable(doc,{
+
+startY:45,
+
+
+head:[
+
+[
+"Categorie",
+"Montant"
+]
+
+],
+
+
+
+body:[
+
+
+[
+"Ventes FC",
+formatPDF(totalFc)+" FC"
+],
+
+
+[
+"Ventes USD",
+formatPDF(totalUsd)+" $"
+],
+
+
+
+[
+"Benefice FC",
+formatPDF(profitFc)+" FC"
+],
+
+
+
+[
+"Benefice USD",
+formatPDF(profitUsd)+" $"
+]
+
+
+],
+
+
+
+styles:{
+
+fontSize:11,
+
+cellPadding:5
+
+}
+
+
+
+});
+
+
+
+
+
+
+
+// =============================
+// DETAIL PRODUITS
+// =============================
+
+
+doc.addPage();
+
+
+
+doc.setFontSize(20);
+
+
+
+doc.text(
+"Detail des ventes",
+20,
+30
+);
+
+
+
+
+const rows =
+
+Object.keys(produits)
+
+.map((name)=>[
+
+
+
+cleanPDF(name),
+
+
+
+produits[name].quantity,
+
+
+
+formatPDF(
+produits[name].montant
+)
++
+" "
++
+produits[name].currency,
+
+
+
+formatPDF(
+produits[name].profit
+)
++
+" "
++
+produits[name].currency
+
+
+
+]);
+
+
+
+
+
+autoTable(doc,{
+
+
+startY:45,
+
+
+
+head:[
+
+
+[
+"Produit",
+"Quantite",
+"Ventes",
+"Benefice"
+]
+
+
+],
+
+
+
+body:rows,
+
+
+
+styles:{
+
+
+fontSize:10,
+
+
+cellPadding:4
+
+
+}
+
+
+
+});
+
+
+
+
+
+
+// =============================
+// ANALYSE FINALE
+// =============================
+
+
+doc.addPage();
+
+
+
+doc.setFontSize(20);
+
+
+
+doc.text(
+"Analyse commerciale",
+20,
+30
+);
+
+
+
+
+doc.setFontSize(12);
+
+
+
+doc.text(
+
+cleanPDF(
+"Produit le plus vendu : "
++
+bestProduct
+),
+
+20,
+
+55
+
+);
+
+
+
+
+doc.text(
+
+cleanPDF(
+"Total quantite vendue : "
++
+data.reduce(
+(a,b)=>
+a + Number(b.quantity || 0),
+0
+)
++
+" unites"
+),
+
+20,
+
+70
+
+);
+
+
+
+
+
+doc.text(
+"Ce document permet au responsable de suivre",
+20,
+175
+);
+
+
+doc.text(
+"les ventes et bénéfices du commerce.",
+20,
+190
+);
+
+doc.text(
+"Total ventes FC : "
++
+formatPDF(totalFc)
++
+" FC",
+20,
+90
+);
+
+
+doc.text(
+"Total ventes USD : "
++
+formatPDF(totalUsd)
++
+" $",
+20,
+105
+);
+
+
+doc.text(
+"Bénéfice total FC : "
++
+formatPDF(profitFc)
++
+" FC",
+20,
+120
+);
+
+
+doc.text(
+"Bénéfice total USD : "
++
+formatPDF(profitUsd)
++
+" $",
+20,
+135
+);
+// =============================
+// TELECHARGEMENT PDF PROPRE
+// =============================
+
+
+const pdfBlob = doc.output("blob");
+
+
+const url = URL.createObjectURL(pdfBlob);
+
+
+
+const link = document.createElement("a");
+
+
+link.href = url;
+
+
+link.download =
+
+"Rapport-BISO-COMMERCE-"
+
++
+
+dateRapport
+
++
+
+".pdf";
+
+
+
+document.body.appendChild(link);
+
+
+link.click();
+
+
+
+document.body.removeChild(link);
+
+
+
+URL.revokeObjectURL(url);
+
+
+
+};
+
+
+
+
+
+
+
+const filterByDate = ()=>{
+
+
+if(!selectedDate){
+
+
+setFilteredSales(
+salesHistory
+);
+
+
+return;
+
+
+}
+
+
+
+
+const result =
+
+salesHistory.filter(
+
+(sale)=>
+
+sale.created_at
+.split("T")[0]
+
+=== selectedDate
+
+
+);
+
+
+
+setFilteredSales(result);
+
+
+
+};
+
+
+
+
+
+
+
+const displayedSales =
+
+
+showAll
+
+
+?
+
+
+filteredSales
+
+
+:
+
+
+filteredSales.slice(0,7);
+
+
+
+
+
+
+
+return (
+
+
+<main
+
+className="
+min-h-screen
+bg-[#081221]
+text-white
+p-4
+"
+
+>
+
+
+<div
+
+className="
+max-w-6xl
+mx-auto
+space-y-6
+"
+
+>
+
+
+
+
+
+{/* HEADER */}
+
+
+
+<div
+
+className="
+rounded-3xl
+bg-white/5
+border
+border-white/10
+p-6
+backdrop-blur-xl
+"
+
+>
+
+
+
+<div
+
+className="
+flex
+justify-between
+items-center
+"
+
+>
+
+
+
+<div>
+
+
+
+<h1
+
+className="
+text-3xl
+font-black
+"
+
+>
+
+
+📊 Rapport PRO
+
+
+</h1>
+
+
+
+
+<p
+
+className="
+text-slate-400
+mt-2
+"
+
+>
+
+
+Analyse complète du commerce
+
+
+</p>
+
+
+
+</div>
+
+
+
+
+
+
+<button
+
+onClick={()=>setShowGuide(!showGuide)}
+
+className="
+bg-orange-500/20
+border
+border-orange-400/30
+px-4
+py-3
+rounded-xl
+font-bold
+"
+
+>
+
+
+<Sparkles
+
+size={16}
+
+className="inline mr-2"
+
+/>
+
+
+Guide
+
+
+
+</button>
+
+
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+
+
+
+{/* GUIDE */}
+
+
+
+{
+
+showGuide && (
+
+
+
+<div className="space-y-3 text-sm text-slate-300">
+
+<div className="bg-black/30 rounded-2xl p-4">
+🔥 <b>Aujourd'hui :</b><br/>
+Affiche toutes les ventes réalisées pendant la journée actuelle.
+Les ventes se mettent à jour automatiquement.
+</div>
+
+
+<div className="bg-black/30 rounded-2xl p-4">
+📅 <b>Hier :</b><br/>
+Affiche les ventes du jour précédent.
+Quand une nouvelle journée commence, hier devient automatiquement l'ancien aujourd'hui.
+</div>
+
+
+<div className="bg-black/30 rounded-2xl p-4">
+⏳ <b>Avant-hier :</b><br/>
+Affiche les ventes réalisées deux jours avant.
+Le système change automatiquement selon la date.
+</div>
+
+
+<div className="bg-black/30 rounded-2xl p-4">
+💰 <b>Bénéfice :</b><br/>
+Montre l'argent gagné après avoir retiré le prix d'achat des produits vendus.
+</div>
+
+
+<div className="bg-black/30 rounded-2xl p-4">
+📦 <b>Produit le plus vendu :</b><br/>
+Le système analyse automatiquement les quantités vendues pour trouver le produit qui marche le mieux.
+</div>
+
+
+<div className="bg-black/30 rounded-2xl p-4">
+🔎 <b>Recherche par date :</b><br/>
+Choisissez une date pour voir uniquement les ventes de cette journée.
+</div>
+
+
+<div className="bg-orange-500/20 rounded-2xl p-4">
+📄 <b>Créer PDF :</b><br/>
+Génère un rapport professionnel avec :
+<br/>• Total ventes FC
+<br/>• Total ventes USD
+<br/>• Bénéfices FC et USD
+<br/>• Détail des produits vendus
+<br/>• Analyse commerciale
+</div>
+
+
+<div className="bg-green-500/20 rounded-2xl p-4">
+✅ <b>Automatique :</b><br/>
+Vous n'avez rien à changer chaque jour.
+Les rapports utilisent la date réelle des ventes enregistrées.
+</div>
+
+
+<button
+onClick={()=>setShowGuide(false)}
+className="
+w-full
+bg-orange-500
+text-black
+py-3
+rounded-xl
+font-black
+mt-4
+"
+>
+Fermer le guide
+</button>
+
+
+</div>
+
+)
+
+}
+{/* STATISTIQUES JOURNALIÈRES */}
+
+
+<div
+
+className="
+grid
+grid-cols-1
+md:grid-cols-3
+gap-5
+"
+
+>
+
+
+<ReportCard
+
+icon="🔥"
+
+title="Aujourd'hui"
+
+value={
+
+`${today.fc.toLocaleString()} FC |
+${today.usd.toLocaleString()} $`
+
+}
+
+subtitle={
+
+`Bénéfice :
+${today.profitFc.toLocaleString()} FC |
+${today.profitUsd.toLocaleString()} $`
+
+}
+
+/>
+
+
+
+
+
+<ReportCard
+
+icon="📅"
+
+title="Hier"
+
+value={
+
+`${yesterday.fc.toLocaleString()} FC |
+${yesterday.usd.toLocaleString()} $`
+
+}
+
+subtitle={
+
+`Bénéfice :
+${yesterday.profitFc.toLocaleString()} FC |
+${yesterday.profitUsd.toLocaleString()} $`
+
+}
+
+/>
+
+
+
+
+
+
+<ReportCard
+
+icon="⏳"
+
+title="Avant-hier"
+
+value={
+
+`${beforeYesterday.fc.toLocaleString()} FC |
+${beforeYesterday.usd.toLocaleString()} $`
+
+}
+
+subtitle={
+
+`Bénéfice :
+${beforeYesterday.profitFc.toLocaleString()} FC |
+${beforeYesterday.profitUsd.toLocaleString()} $`
+
+}
+
+/>
+
+
+</div>
+
+
+
+
+
+
+{/* RECHERCHE + PDF */}
+
+
+<div
+
+className="
+rounded-3xl
+bg-white/5
+border
+border-white/10
+p-6
+"
+
+>
+
+
+<h2
+
+className="
+text-xl
+font-black
+mb-4
+"
+
+>
+
+📄 Générer le rapport officiel
+
+</h2>
+
+
+
+
+<div
+
+className="
+flex
+flex-col
+md:flex-row
+gap-3
+"
+
+>
+
+
+<input
+
+type="date"
+
+value={selectedDate}
+
+onChange={(e)=>
+setSelectedDate(e.target.value)
+}
+
+className="
+bg-black/40
+border
+border-white/10
+rounded-xl
+p-3
+flex-1
+"
+
+/>
+
+
+
+
+
+<button
+
+onClick={filterByDate}
+
+className="
+bg-blue-500
+px-5
+py-3
+rounded-xl
+font-black
+"
+
+>
+
+
+<Search
+
+size={16}
+
+className="inline mr-2"
+
+/>
+
+
+Chercher
+
+
+</button>
+
+
+
+
+
+
+
+<button
+
+onClick={downloadPDF}
+
+className="
+bg-gradient-to-r
+from-orange-500
+to-yellow-400
+text-black
+px-5
+py-3
+rounded-xl
+font-black
+"
+
+>
+
+
+<Download
+
+size={16}
+
+className="inline mr-2"
+
+/>
+
+
+Créer PDF
+
+
+</button>
+
+
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{/* HISTORIQUE DES VENTES */}
+
+
+
+<div
+
+className="
+rounded-3xl
+bg-white/5
+border
+border-white/10
+p-6
+"
+
+>
+
+
+
+<div
+
+className="
+flex
+justify-between
+items-center
+mb-5
+"
+
+>
+
+
+<h2
+
+className="
+text-xl
+font-black
+"
+
+>
+
+
+🧾 Historique des ventes
+
+
+</h2>
+
+
+
+
+<button
+
+onClick={()=>setShowAll(!showAll)}
+
+className="
+bg-orange-500
+text-black
+px-4
+py-2
+rounded-xl
+font-black
+"
+
+>
+
+
+{
+showAll
+?
+"Réduire"
+:
+"Voir tout"
+}
+
+
+
+</button>
+
+
+
+</div>
+
+
+
+
+
+
+
+{
+
+displayedSales.length===0
+
+
+?
+
+
+(
+
+<p className="text-slate-400">
+
+Aucune vente disponible
+
+</p>
+
+)
+
+
+:
+
+
+(
+
+
+<div className="space-y-3">
+
+
+{
+
+
+displayedSales.map((sale)=>(
+
+
+
+<div
+
+key={sale.id}
+
+className="
+rounded-2xl
+bg-black/30
+border
+border-white/10
+p-4
+flex
+justify-between
+"
+
+>
+
+
+
+<div>
+
+
+
+<p className="font-black">
+
+📦 {sale.product_name}
+
+</p>
+
+
+
+
+<p className="text-xs text-slate-400">
+
+
+📅
+
+{new Date(
+sale.created_at
+).toLocaleString()}
+
+
+</p>
+
+
+
+
+
+<p className="text-xs text-slate-500">
+
+
+Quantité : x{sale.quantity}
+
+
+</p>
+
+
+
+</div>
+
+
+
+
+
+
+
+<div className="text-right">
+
+
+<p className="font-black text-green-400">
+
+
+{formatPDF(sale.total_sale)}
+
+{" "}
+
+{sale.currency}
+
+
+</p>
+
+
+
+
+
+<p className="text-xs text-slate-400">
+
+
+Bénéfice :
+
+{" "}
+
+{formatPDF(sale.profit)}
+
+{" "}
+
+{sale.currency}
+
+
+
+</p>
+
+
+
+
+</div>
+
+
+
+
+</div>
+
+
+
+))
+
+
+}
+
+
+
+</div>
+
+
+)
+
+
+}
+
+
+
+</div>
+
+
+
+
+
+</div>
+
+
+</main>
+
+
+);
+
+
+}
+
+
+
+
+
+
+
+// ================================
+// COMPOSANT CARTE
+// ================================
+
+
+function ReportCard({
+
+icon,
+
+title,
+
+value,
+
+subtitle
+
+
+}:{
+
+icon:string;
+
+title:string;
+
+value:string;
+
+subtitle:string;
+
+}){
+
+
+return (
+
+
+<div
+
+className="
+rounded-3xl
+bg-white/5
+border
+border-white/10
+p-5
+shadow-xl
+"
+
+>
+
+
+<div className="text-3xl mb-3">
+
+{icon}
+
+</div>
+
+
+
+
+<p className="text-slate-400 text-sm">
+
+{title}
+
+</p>
+
+
+
+
+<p className="font-black text-lg mt-2">
+
+{value}
+
+</p>
+
+
+
+
+<p className="text-xs text-green-400 mt-3">
+
+{subtitle}
+
+</p>
+
+
+
+</div>
+
+
+);
+
 
 }

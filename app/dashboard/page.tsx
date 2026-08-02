@@ -1,10 +1,8 @@
 
-
-
 "use client";
 
 /**
- * BISO-COMMERCE — Dashboard Premium (fichier unique)
+ * BISO-COMMERCE — Dashboard (fichier unique)
  * Next.js App Router : app/dashboard/page.tsx
  * Aucune dépendance externe hormis lucide-react + supabase.
  */
@@ -195,7 +193,7 @@ function StatCard({
     violet: "from-violet-500/25 to-fuchsia-400/5 text-violet-300",
   };
   return (
-    <GlassCard className="relative overflow-hidden transition duration-300 hover:-translate-y-0.5 hover:border-white/20">
+<GlassCard className="relative overflow-hidden p-3 transition duration-300 hover:-translate-y-0.5 hover:border-white/20">
       <div
         className={`pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-gradient-to-br blur-2xl ${tones[tone]}`}
       />
@@ -209,8 +207,8 @@ function StatCard({
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <div className="mt-3">
-  <p className="text-xl font-black leading-none text-white">
+      <div className="mt-2">
+  <p className="text-lg font-black leading-none text-white">
     {value}
   </p>
 
@@ -345,6 +343,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
 const [showAllSales, setShowAllSales] = useState(false);
+const [showAllProducts, setShowAllProducts] = useState(false);
 const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [now, setNow] = useState<Date | null>(null);
@@ -473,8 +472,8 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
       userIdRef.current = user.id;
 
       // 1️⃣ Charger immédiatement le Dashboard
-      await loadDashboard(user.id);
       setInitialLoading(false);
+loadDashboard(user.id);
 
       // 2️⃣ Vérifier abonnement après ouverture
       const ok = await checkSubscription(user.id);
@@ -503,7 +502,16 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
   }, [refreshing, loadDashboard, checkSubscription]);
 
   /* ---------------- calculs mémoïsés ---------------- */
-  const stats = useMemo(() => {
+  const stats = useMemo(() => {const productSales: Record<string, number> = {};
+
+for (const s of sales) {
+  const name = s.product_name || "Inconnu";
+  productSales[name] =
+    (productSales[name] || 0) + (Number(s.quantity) || 0);
+}
+
+const bestProduct = Object.entries(productSales)
+  .sort((a, b) => b[1] - a[1])[0];
     const dayStart = startOfToday().getTime();
     const weekStart = startOfWeek().getTime();
     const monthStart = startOfMonth().getTime();
@@ -581,6 +589,7 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
       salesToday,
       salesWeek,
       salesMonth,
+      bestProduct,
       profitToday,
       profitWeek,
       profitMonth,
@@ -671,7 +680,7 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
 
   /* ---------------- écrans d'état ---------------- */
 
-  if (initialLoading) return <Skeleton />;
+
 
   if (status === "expired") {
     return (
@@ -694,7 +703,7 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
             Renouveler abonnement
           </Link>
           <a
-            href="https://wa.me/243000000000"
+            href="https://wa.me/243994864173"
             className="mt-3 block w-full rounded-2xl border border-white/10 p-4 text-sm font-semibold text-slate-300"
           >
             Contacter le support WhatsApp
@@ -723,14 +732,14 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
     : "--:--:--";
 
   const quickAccess = [
-    { label: "Nouvelle Vente", icon: ShoppingCart, href: "/sales" },
-    { label: "Ajouter Produit", icon: PlusCircle, href: "/products/add" },
     { label: "Produits", icon: Package, href: "/products" },
-    { label: "Rapports", icon: FileText, href: "/reports" },
-    { label: "Dépenses", icon: Banknote, href: "/expenses" },
-    { label: "Dettes", icon: CreditCard, href: "/debts" },
-    { label: "Assistant IA", icon: Sparkles, href: "/assistant" },
-    { label: "Abonnement", icon: Crown, href: "/subscription" },
+  { label: "Ajouter Produit", icon: PlusCircle, href: "/products/add" },
+  { label: "Nouvelle Vente", icon: ShoppingCart, href: "/sales" },
+  { label: "Rapports", icon: FileText, href: "/reports" },
+  { label: "Dépenses", icon: Banknote, href: "/expenses" },
+  { label: "Dettes", icon: CreditCard, href: "/debts" },
+  { label: "Assistant IA", icon: Sparkles, href: "/assistant" },
+  { label: "Abonnement", icon: Crown, href: "/subscription" },
   ];
 
   const alerts = [
@@ -939,11 +948,32 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
           <StatCard
             label="Clients / Dettes"
             value={`${fmt(clientsCount)} / ${fmt(stats.unpaidDebts.length)}`}
-            hint={`${fmt(stats.debtTotal.fc)} FC à récupérer`}
+             hint="N'oubliez pas les dettes de vos clients"
             icon={Users}
             tone="orange"
           />
         </div>
+       <GlassCard className="p-3">
+  <div className="flex items-center justify-between">
+    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      Produit le plus vendu
+    </p>
+
+    <span className="rounded-xl bg-gradient-to-br from-emerald-500/25 to-emerald-400/5 p-2 text-emerald-300">
+      <TrendingUp className="h-4 w-4" />
+    </span>
+  </div>
+
+  <p className="mt-2 truncate text-sm font-black text-white">
+    {stats.bestProduct ? stats.bestProduct[0] : "Aucun"}
+  </p>
+
+  <p className="mt-1 text-xs font-bold text-emerald-300">
+    {stats.bestProduct
+      ? `${stats.bestProduct[1]} article(s) vendu(s)`
+      : "Pas encore de vente"}
+  </p>
+</GlassCard>
 
       
 
@@ -1035,7 +1065,7 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
   {s.product_name}
 </p>
                       <p className="text-[10px] text-slate-500">
-                        {relative(s.created_at)} • x{s.quantity}
+                         {relative(s.created_at)} • Quantité : x{s.quantity}
                       </p>
                     </div>
                     <p className="text-[12px] font-black text-orange-300">
@@ -1150,16 +1180,61 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
               </div>
 
               <div>
-                <p className="font-bold text-white">
-                  📱 Installation de l'application
-                </p>
+  <p className="font-bold text-white">
+    📱 Installation de Biso-Commerce sur votre téléphone
+  </p>
 
-                <p className="mt-1">
-                  Android : Chrome → ⋮ → Installer l'application
-                </p>
+  <p className="mt-2 leading-relaxed">
+    Pour installer Biso-Commerce, ouvrez d'abord ce lien :
+  </p>
 
-                <p>iPhone : Safari → Partager → Sur l'écran d'accueil</p>
-              </div>
+  <a
+    href="https://biso-commerce-mqbj.vercel.app"
+    target="_blank"
+    className="mt-2 block break-all font-bold text-orange-300 underline"
+  >
+    https://biso-commerce-mqbj.vercel.app
+  </a>
+
+  <div className="mt-3 space-y-3">
+    <div>
+      <p className="font-bold text-orange-300">
+        🤖 Android (Samsung, Tecno, Infinix, Xiaomi, etc.)
+      </p>
+
+      <p className="mt-1 leading-relaxed">
+        1️⃣ Ouvrez le lien ci-dessus avec <strong>Google Chrome</strong>.<br />
+        2️⃣ Attendez que la page Biso-Commerce se charge complètement.<br />
+        3️⃣ Appuyez sur les trois points <strong>⋮</strong> en haut à droite de Chrome.<br />
+        4️⃣ Choisissez <strong>"Installer l'application"</strong> ou
+        <strong> "Ajouter à l'écran d'accueil"</strong>.<br />
+        5️⃣ Appuyez sur <strong>Installer</strong> pour confirmer.<br />
+        6️⃣ L'icône Biso-Commerce apparaîtra sur votre téléphone.
+      </p>
+    </div>
+
+    <div>
+      <p className="font-bold text-orange-300">
+        🍎 iPhone (iOS)
+      </p>
+
+      <p className="mt-1 leading-relaxed">
+        1️⃣ Ouvrez le lien avec l'application <strong>Safari</strong>.<br />
+        2️⃣ Appuyez sur le bouton <strong>Partager</strong> 
+        (carré avec une flèche vers le haut ⬆️).<br />
+        3️⃣ Faites défiler les options vers le bas.<br />
+        4️⃣ Appuyez sur <strong>"Sur l'écran d'accueil"</strong>.<br />
+        5️⃣ Appuyez sur <strong>"Ajouter"</strong>.<br />
+        6️⃣ Biso-Commerce apparaîtra comme une application sur votre écran.
+      </p>
+    </div>
+
+    <p className="text-xs text-slate-400">
+      💡 Après l'installation, ouvrez Biso-Commerce directement depuis l'icône
+      sur votre écran d'accueil comme une application normale.
+    </p>
+  </div>
+</div>
 
               <div>
                 <p className="font-bold text-white">
@@ -1222,7 +1297,7 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
                   </p>
 
                   <p className="text-xs text-slate-400">
-                    {relative(s.created_at)}
+                     {relative(s.created_at)} • Quantité : x{s.quantity}
                   </p>
 
                   <p className="font-bold text-white">
@@ -1271,7 +1346,7 @@ const [showAllExpenses, setShowAllExpenses] = useState(false);
                   </p>
 
                   <p className="text-xs text-slate-400">
-                    {relative(s.created_at)}
+                     {relative(s.created_at)} • Quantité : x{s.quantity}
                   </p>
 
                   <p className="font-bold text-white">

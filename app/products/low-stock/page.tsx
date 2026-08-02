@@ -11,6 +11,8 @@ import {
   ArrowRight,
   Sparkles,
   RefreshCcw,
+  XCircle,
+  Boxes,
 } from "lucide-react";
 
 
@@ -20,7 +22,6 @@ type Product = {
   stock: number;
   unit: string;
 };
-
 
 
 export default function LowStockPage() {
@@ -81,14 +82,13 @@ export default function LowStockPage() {
 
 
 
-    const lowStock =
-      (data || []).filter(
-        (p)=>Number(p.stock)<=5
-      );
+    setProducts((data || []).map((p)=>({
+      id:p.id,
+      name:p.name || p.product_name,
+      stock:Number(p.stock) || 0,
+      unit:p.unit || "unité"
+    })));
 
-
-
-    setProducts(lowStock);
 
     setLoading(false);
 
@@ -155,114 +155,117 @@ export default function LowStockPage() {
 
 
 
+  const outOfStock =
+    products.filter((p)=>p.stock <= 0);
 
 
-  return (
-        <main className="
-    relative
-    min-h-screen
-    overflow-hidden
-    bg-[#081221]
-    text-white
-    px-4
-    py-6
-    pb-24
-    ">
-
-
-      {/* EFFETS LUMINEUX */}
-
-      <div className="
-      absolute
-      inset-0
-      pointer-events-none
-      ">
-
-  
-
-
-        
-      </div>
+  const almostEmpty =
+    products.filter(
+      (p)=>p.stock > 0 && p.stock <= 5
+    );
 
 
 
-
-      <div className="
+      return (
+    <main
+      className="
       relative
-      z-10
-      mx-auto
-      max-w-xl
-      ">
+      min-h-screen
+      overflow-hidden
+      bg-[#050b16]
+      text-white
+      px-4
+      py-6
+      pb-24
+      "
+    >
+
+
+      {/* HALO DESIGN */}
+      <div
+        className="
+        pointer-events-none
+        absolute
+        inset-0
+        bg-[radial-gradient(circle_at_top,rgba(249,115,22,0.18),transparent_35%)]
+        "
+      />
+
+
+      <div
+        className="
+        relative
+        z-10
+        mx-auto
+        max-w-xl
+        ">
 
 
 
         {/* HEADER */}
-
-        <div className="
-        flex
-        items-center
-        justify-between
-        mb-8
-        ">
-
+        <div
+          className="
+          mb-8
+          flex
+          items-center
+          justify-between
+          "
+        >
 
           <div>
 
-            <h1 className="
-            flex
-            items-center
-            gap-2
-            text-3xl
-            font-black
-            ">
+            <h1
+              className="
+              flex
+              items-center
+              gap-2
+              text-3xl
+              font-black
+              "
+            >
 
               <AlertTriangle
-              className="text-red-400"
+                className="text-orange-400"
               />
 
-              Stock faible
+              Gestion du stock
 
             </h1>
 
 
-            <p className="
-            mt-2
-            text-sm
-            text-slate-400
-            ">
-
-              Surveille les produits qui nécessitent un réapprovisionnement.
-
+            <p
+              className="
+              mt-2
+              text-sm
+              text-slate-400
+              "
+            >
+              Retrouvez rapidement les produits à réapprovisionner.
             </p>
-
 
           </div>
 
 
 
-
           <Link
-
-          href="/products"
-
-          className="
-          flex
-          items-center
-          gap-2
-          rounded-2xl
-          bg-gradient-to-r
-          from-orange-500
-          to-yellow-400
-          px-4
-          py-3
-          text-sm
-          font-black
-          text-black
-          shadow-lg
-          transition
-          hover:scale-105
-          "
-
+            href="/products"
+            className="
+            flex
+            items-center
+            gap-2
+            rounded-2xl
+            bg-gradient-to-r
+            from-orange-500
+            to-yellow-400
+            px-4
+            py-3
+            text-sm
+            font-black
+            text-black
+            shadow-lg
+            transition
+            hover:scale-105
+            "
           >
 
             <Package size={18}/>
@@ -272,7 +275,6 @@ export default function LowStockPage() {
           </Link>
 
 
-
         </div>
 
 
@@ -280,79 +282,128 @@ export default function LowStockPage() {
 
 
 
+        {/* RESUME STOCK */}
 
-        {/* RESUME */}
-
-        <div className="
-        mb-6
-        rounded-3xl
-        border
-        border-red-400/30
-        bg-red-500/10
-        p-6
-        backdrop-blur-xl
-        ">
+        <div
+          className="
+          mb-6
+          grid
+          grid-cols-2
+          gap-3
+          "
+        >
 
 
-          <div className="
-          flex
-          items-center
-          justify-between
-          ">
-
-
-            <div>
-
-
-              <p className="
-              text-sm
-              text-slate-300
-              ">
-
-                Produits en alerte
-
-              </p>
-
-
-              <p className="
-              mt-2
-              text-4xl
-              font-black
-              text-red-400
-              ">
-
-                {products.length}
-
-              </p>
-
-
-              <p className="
-              mt-1
-              text-xs
-              text-slate-400
-              ">
-
-                Stock inférieur ou égal à 5
-
-              </p>
-
-
-            </div>
-
-
-
-            <div className="
+          <div
+            className="
             rounded-3xl
-            bg-red-500/20
+            border
+            border-red-400/30
+            bg-red-500/10
             p-5
-            ">
+            backdrop-blur-xl
+            "
+          >
 
-              <AlertTriangle
-              size={40}
-              className="text-red-400"
+            <div
+              className="
+              flex
+              items-center
+              justify-between
+              "
+            >
+
+              <p className="text-sm text-slate-300">
+                Rupture
+              </p>
+
+
+              <XCircle
+                className="text-red-400"
               />
 
             </div>
+
+
+            <p
+              className="
+              mt-3
+              text-4xl
+              font-black
+              text-red-400
+              "
+            >
+              {outOfStock.length}
+            </p>
+
+
+            <p
+              className="
+              text-xs
+              text-slate-400
+              "
+            >
+              Stock totalement vide
+            </p>
+
+
+          </div>
+
+
+
+
+
+          <div
+            className="
+            rounded-3xl
+            border
+            border-orange-400/30
+            bg-orange-500/10
+            p-5
+            backdrop-blur-xl
+            "
+          >
+
+            <div
+              className="
+              flex
+              items-center
+              justify-between
+              "
+            >
+
+              <p className="text-sm text-slate-300">
+                Presque fini
+              </p>
+
+
+              <Boxes
+                className="text-orange-300"
+              />
+
+            </div>
+
+
+            <p
+              className="
+              mt-3
+              text-4xl
+              font-black
+              text-orange-300
+              "
+            >
+              {almostEmpty.length}
+            </p>
+
+
+            <p
+              className="
+              text-xs
+              text-slate-400
+              "
+            >
+              Stock inférieur à 5
+            </p>
 
 
           </div>
@@ -364,243 +415,203 @@ export default function LowStockPage() {
 
 
 
-
-
-
-        {/* LISTE */}
-
         {loading ? (
 
-          <div className="
-          flex
-          justify-center
-          py-10
-          text-slate-400
-          ">
+          <div
+            className="
+            flex
+            justify-center
+            py-10
+            text-slate-400
+            "
+          >
 
-            <RefreshCcw className="animate-spin mr-2"/>
+            <RefreshCcw
+              className="mr-2 animate-spin"
+            />
 
             Chargement...
 
           </div>
 
 
-        ) : products.length === 0 ? (
-
-
-          <div className="
-          rounded-3xl
-          border
-          border-green-400/30
-          bg-green-500/10
-          p-7
-          text-center
-          ">
-
-
-            <Sparkles
-            className="mx-auto mb-3 text-green-400"
-            size={35}
-            />
-
-
-            <p className="
-            font-bold
-            text-green-300
-            ">
-
-              Aucun produit critique ✅
-
-            </p>
-
-
-            <p className="
-            mt-2
-            text-sm
-            text-slate-400
-            ">
-
-              Votre stock est bien géré.
-
-            </p>
-
-
-          </div>
-
-
-
         ) : (
 
 
-          <div className="
-          space-y-4
-          ">
+          <div className="space-y-8">
 
 
-          {products.map((p)=>(
+            {/* PRODUITS EN RUPTURE */}
 
+            {outOfStock.length > 0 && (
 
-            <div
+              <section>
 
-            key={p.id}
-
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-white/5
-            p-5
-            backdrop-blur-xl
-            shadow-xl
-            "
-
-            >
-
-
-
-              <div className="
-              flex
-              items-center
-              justify-between
-              ">
-
-
-                <div>
-
-
-                  <h2 className="
-                  text-lg
-                  font-black
-                  ">
-
-                    {p.name}
-
-                  </h2>
-
-
-                  <p className="
-                  mt-2
-                  text-sm
-                  text-slate-400
-                  ">
-
-                    Stock actuel :
-
-                    <span className="
-                    ml-2
-                    font-bold
-                    text-red-400
-                    ">
-
-                      {p.stock} {p.unit}
-
-                    </span>
-
-
-                  </p>
-
-
-                </div>
-
-
-
-                <div className="
-                rounded-full
-                bg-red-500/20
-                px-3
-                py-1
-                text-xs
-                font-bold
-                text-red-300
-                ">
-
-                  FAIBLE
-
-                </div>
-
-
-
-              </div>
-
-
-
-
-
-              <div className="
-              mt-5
-              flex
-              gap-3
-              ">
-
-
-                <button
-
-                onClick={()=>handleDelete(p.id)}
-
-                className="
-                flex-1
-                flex
-                items-center
-                justify-center
-                gap-2
-                rounded-2xl
-                bg-red-600
-                py-3
-                font-bold
-                transition
-                hover:bg-red-700
-                "
-
+                <div
+                  className="
+                  mb-3
+                  flex
+                  items-center
+                  gap-2
+                  "
                 >
 
-                  <Trash2 size={17}/>
+                  <XCircle
+                    className="text-red-400"
+                    size={20}
+                  />
 
-                  Supprimer
+                  <h2
+                    className="
+                    text-lg
+                    font-black
+                    text-red-300
+                    "
+                  >
+                    Produits en rupture
+                  </h2>
 
-                </button>
+                </div>
+
+
+
+                <div className="space-y-4">
+
+
+                  {outOfStock.map((p)=>(
+
+                    <ProductCard
+                      key={p.id}
+                      product={p}
+                      danger
+                      onDelete={handleDelete}
+                    />
+
+                  ))}
+
+
+                </div>
+
+
+              </section>
+
+            )}
 
 
 
 
-                <Link
 
-                href="/products"
 
+            {/* PRODUITS PRESQUE EPUISES */}
+
+            {almostEmpty.length > 0 && (
+
+              <section>
+
+                <div
+                  className="
+                  mb-3
+                  flex
+                  items-center
+                  gap-2
+                  "
+                >
+
+                  <AlertTriangle
+                    className="text-orange-400"
+                    size={20}
+                  />
+
+                  <h2
+                    className="
+                    text-lg
+                    font-black
+                    text-orange-300
+                    "
+                  >
+                    Produits presque épuisés
+                  </h2>
+
+                </div>
+
+
+
+                <div className="space-y-4">
+
+
+                  {almostEmpty.map((p)=>(
+
+                    <ProductCard
+                      key={p.id}
+                      product={p}
+                      onDelete={handleDelete}
+                    />
+
+                  ))}
+
+
+                </div>
+
+
+              </section>
+
+            )}
+
+
+
+
+
+
+            {outOfStock.length === 0 &&
+             almostEmpty.length === 0 && (
+
+
+              <div
                 className="
-                flex-1
-                flex
-                items-center
-                justify-center
-                gap-2
-                rounded-2xl
+                rounded-3xl
                 border
                 border-green-400/30
                 bg-green-500/10
-                py-3
-                font-bold
-                text-green-300
-                transition
-                hover:bg-green-500/20
+                p-7
+                text-center
                 "
+              >
 
+                <Sparkles
+                  className="
+                  mx-auto
+                  mb-3
+                  text-green-400
+                  "
+                  size={35}
+                />
+
+
+                <p
+                  className="
+                  font-bold
+                  text-green-300
+                  "
                 >
+                  Excellent stock ✅
+                </p>
 
-                  Réapprovisionner
 
-                  <ArrowRight size={17}/>
-
-                </Link>
-
+                <p
+                  className="
+                  mt-2
+                  text-sm
+                  text-slate-400
+                  "
+                >
+                  Aucun produit en rupture ou presque épuisé.
+                </p>
 
 
               </div>
 
 
-
-            </div>
-
-
-          ))}
+            )}
 
 
           </div>
@@ -613,6 +624,184 @@ export default function LowStockPage() {
 
 
     </main>
+  );
+
+}
+
+
+
+
+function ProductCard({
+  product,
+  danger = false,
+  onDelete,
+}:{
+  product: Product;
+  danger?: boolean;
+  onDelete:(id:string)=>void;
+}){
+
+
+  return (
+
+    <div
+      className="
+      rounded-3xl
+      border
+      border-white/10
+      bg-white/[0.04]
+      p-5
+      backdrop-blur-xl
+      shadow-xl
+      "
+    >
+
+
+      <div
+        className="
+        flex
+        items-center
+        justify-between
+        "
+      >
+
+        <div>
+
+          <h3
+            className="
+            text-lg
+            font-black
+            text-white
+            "
+          >
+            {product.name}
+          </h3>
+
+
+          <p
+            className="
+            mt-2
+            text-sm
+            text-slate-400
+            "
+          >
+
+            Stock actuel :
+
+            <span
+              className={`
+              ml-2
+              font-black
+              ${danger 
+                ? "text-red-400" 
+                : "text-orange-300"}
+              `}
+            >
+              {product.stock} {product.unit}
+            </span>
+
+          </p>
+
+
+        </div>
+
+
+
+
+        <span
+          className={`
+          rounded-full
+          px-3
+          py-1
+          text-xs
+          font-black
+          ${
+            danger
+            ? "bg-red-500/20 text-red-300"
+            : "bg-orange-500/20 text-orange-300"
+          }
+          `}
+        >
+
+          {danger ? "RUPTURE" : "FAIBLE"}
+
+        </span>
+
+
+      </div>
+
+
+
+
+
+      <div
+        className="
+        mt-5
+        flex
+        gap-3
+        "
+      >
+
+
+        <button
+          onClick={()=>onDelete(product.id)}
+          className="
+          flex-1
+          flex
+          items-center
+          justify-center
+          gap-2
+          rounded-2xl
+          bg-red-600
+          py-3
+          font-bold
+          transition
+          hover:bg-red-700
+          "
+        >
+
+          <Trash2 size={17}/>
+
+          Supprimer
+
+        </button>
+
+
+
+
+
+        <Link
+          href="/products"
+          className="
+          flex-1
+          flex
+          items-center
+          justify-center
+          gap-2
+          rounded-2xl
+          border
+          border-green-400/30
+          bg-green-500/10
+          py-3
+          font-bold
+          text-green-300
+          transition
+          hover:bg-green-500/20
+          "
+        >
+
+          Réapprovisionner
+
+          <ArrowRight size={17}/>
+
+        </Link>
+
+
+      </div>
+
+
+    </div>
+
   );
 
 }

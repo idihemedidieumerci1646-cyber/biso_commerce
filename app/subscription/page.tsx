@@ -2,986 +2,1830 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  CheckCircle2,
+  Clock3,
+  Crown,
+  MessageCircle,
+  Smartphone,
+  ShieldCheck,
+  Sparkles
+} from "lucide-react";
 
 
-export default function SubscriptionPage() {
+export default function SubscriptionPage(){
 
 
-  const [subscription, setSubscription] = useState<any>(null);
+const [subscription,setSubscription]=useState<any>(null);
 
-  const [daysUsed, setDaysUsed] = useState(0);
-  const [daysLeft, setDaysLeft] = useState(30);
 
-  const [status, setStatus] = useState<
-    "active" | "expired" | "pending"
-  >("active");
+const [daysUsed,setDaysUsed]=useState(0);
 
+const [daysLeft,setDaysLeft]=useState(30);
 
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
 
 
-  const [step, setStep] =
-    useState<"form" | "confirm">("form");
+const [status,setStatus]=useState<
+"active"|"expired"|"pending"
+>("active");
 
 
 
+const [fullName,setFullName]=useState("");
 
-  useEffect(() => {
+const [phone,setPhone]=useState("");
 
-    loadSubscription();
 
-  }, []);
 
+const [showConfirmation,setShowConfirmation]=useState(false);
 
+const [loading,setLoading]=useState(false);
 
 
 
-  const loadSubscription = async () => {
 
 
-    const phoneStorage =
-      localStorage.getItem("phone");
 
 
-    if (!phoneStorage) return;
+useEffect(()=>{
 
+loadSubscription();
 
+},[]);
 
-    const { data:user } =
-      await supabase
-      .from("users")
-      .select("id")
-      .eq("phone", phoneStorage)
-      .single();
 
 
 
-    if (!user) return;
 
 
 
 
-    const { data } =
-      await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order(
-        "created_at",
-        {
-          ascending:false
-        }
-      )
-      .limit(1)
-      .maybeSingle();
+const loadSubscription=async()=>{
 
 
+const phoneStorage=
+localStorage.getItem("phone");
 
 
+if(!phoneStorage)return;
 
-    if (!data) {
 
-      setStatus("expired");
 
-      return;
 
-    }
+const {data:user}=await supabase
 
+.from("users")
 
+.select("id")
 
+.eq(
+"phone",
+phoneStorage
+)
 
-    setSubscription(data);
+.single();
 
 
 
 
-    const now = new Date();
+if(!user)return;
 
 
-    const start = data.start_date
-      ? new Date(data.start_date)
-      : null;
 
 
 
-    let used = 0;
+const {data}=await supabase
 
+.from("subscriptions")
 
+.select("*")
 
-    if(start){
+.eq(
+"user_id",
+user.id
+)
 
+.order(
+"created_at",
+{
+ascending:false
+}
+)
 
-      const diff =
-        now.getTime()
-        -
-        start.getTime();
+.limit(1)
 
+.maybeSingle();
 
 
-      const days =
-        Math.floor(
-          diff /
-          (
-            1000 *
-            60 *
-            60 *
-            24
-          )
-        );
 
 
 
-      used =
-        days < 0
-        ? 0
-        : days;
 
+if(!data){
 
-    }
+setStatus("expired");
 
+return;
 
+}
 
 
-    const left =
-      Math.max(
-        0,
-        30 - used
-      );
 
 
 
-    setDaysUsed(used);
-    setDaysLeft(left);
+setSubscription(data);
 
 
 
 
 
-    const trialActive =
-      data.status === "trial"
-      &&
-      new Date(
-        data.trial_end || 0
-      ) > now;
 
+const now=new Date();
 
 
+const start=data.start_date
+?
+new Date(data.start_date)
+:
+null;
 
-    const active =
-      data.is_active === true
-      &&
-      left > 0;
 
 
 
-    const pending =
-      data.status === "pending";
+let used=0;
 
 
 
+if(start){
 
 
-    if(pending){
+const diff=
 
-      setStatus("pending");
+now.getTime()
+-
+start.getTime();
 
-    }
-    else if(trialActive || active){
 
-      setStatus("active");
 
-    }
-    else{
+used=Math.floor(
 
-      setStatus("expired");
+diff /
+(
+1000*
+60*
+60*
+24
+)
 
-    }
+);
 
 
 
-  };
+if(used<0)
+used=0;
 
 
+}
 
 
 
 
 
-  const handleRenew = async () => {
+const left=Math.max(
+0,
+30-used
+);
 
 
 
-    if(!fullName || !phone){
 
-      alert(
-        "Veuillez remplir votre nom et numéro de téléphone"
-      );
 
-      return;
+setDaysUsed(used);
 
-    }
+setDaysLeft(left);
 
 
 
 
-    const phoneStorage =
-      localStorage.getItem("phone");
 
 
+if(data.status==="pending"){
 
-    if(!phoneStorage) return;
 
+setStatus("pending");
 
 
+}
 
+else if(
+data.is_active===true
+||
+data.status==="trial"
+){
 
-    const { data:user } =
-      await supabase
-      .from("users")
-      .select("id")
-      .eq(
-        "phone",
-        phoneStorage
-      )
-      .single();
 
+setStatus("active");
 
 
+}
 
+else{
 
-    if(
-      !user
-      ||
-      !subscription?.id
-    )
-      return;
 
+setStatus("expired");
 
 
+}
 
 
 
-    await supabase
-    .from("subscriptions")
-    .update({
+};
 
-      full_name:
-      fullName,
 
 
-      phone:
-      phone,
 
 
-      status:
-      "pending",
 
 
-      user_id:
-      user.id
 
-    })
-    .eq(
-      "id",
-      subscription.id
-    )
-    .eq(
-      "user_id",
-      user.id
-    );
 
 
 
 
 
-    setStatus("pending");
+const openWhatsApp=(message:string)=>{
 
 
-    setStep("confirm");
+const url=
 
+"https://wa.me/243994864173?text="
++
+encodeURIComponent(message);
 
 
-  };
 
-    return (
+window.open(
+url,
+"_blank"
+);
 
-    <main
-      className="
-      min-h-screen
-      px-4
-      py-8
-      text-white
-      bg-gradient-to-b
-      from-black
-      via-slate-950
-      to-black
-      relative
-      overflow-hidden
-      "
-    >
 
+};
 
-      {/* HALOS LUMINEUX */}
 
-      {/* Background simple */}
-<div className="absolute inset-0 bg-[#060d1b]" />
 
 
 
 
-      <div
-        className="
-        max-w-2xl
-        mx-auto
-        space-y-6
-        relative
-        z-10
-        "
-      >
 
 
 
+const handleRenew=async()=>{
 
-        {/* HEADER */}
 
+if(!fullName || !phone){
 
-        <div
-          className="
-          bg-white/5
-          backdrop-blur-xl
-          border
-          border-white/10
-          rounded-3xl
-          p-6
-          text-center
-          shadow-xl
-          "
-        >
 
+alert(
+"Veuillez remplir votre nom et votre numéro"
+);
 
-          <div
-            className="
-            text-5xl
-            mb-3
-            "
-          >
-            💳
-          </div>
 
+return;
 
 
-          <h1
-            className="
-            text-3xl
-            font-black
-            "
-          >
-            Mon abonnement
-          </h1>
+}
 
 
 
-          <p
-            className="
-            text-slate-400
-            text-sm
-            mt-2
-            "
-          >
-            Gestion de votre accès Biso-Commerce
-          </p>
+setLoading(true);
 
 
-        </div>
 
 
 
+const phoneStorage=
 
+localStorage.getItem("phone");
 
-        {/* STATUS CARD */}
 
 
-        <div
-          className="
-          bg-white/5
-          backdrop-blur-xl
-          border
-          border-white/10
-          rounded-3xl
-          p-6
-          text-center
-          shadow-xl
-          "
-        >
 
+const {data:user}=await supabase
 
+.from("users")
 
-          <p
-            className="
-            text-slate-400
-            text-sm
-            "
-          >
-            Statut actuel
-          </p>
+.select("id")
 
+.eq(
+"phone",
+phoneStorage
+)
 
+.single();
 
 
-          <h2
 
-            className={`
-            text-3xl
-            font-black
-            mt-3
 
-            ${
-              status === "active"
-              ? "text-green-400"
-              :
-              status === "pending"
-              ? "text-yellow-400"
-              :
-              "text-red-400"
-            }
 
-            `}
 
-          >
+if(
+!user
+||
+!subscription?.id
+){
 
+setLoading(false);
 
-            {
-              status === "active"
-              ?
-              "🟢 Actif"
+return;
 
-              :
+}
 
-              status === "pending"
-              ?
 
-              "⏳ Validation"
 
-              :
 
-              "🔴 Expiré"
-            }
 
 
-          </h2>
 
+await supabase
 
+.from("subscriptions")
 
+.update({
 
-          <p
-            className="
-            text-xs
-            text-slate-500
-            mt-3
-            "
-          >
+full_name:fullName,
 
-            Votre accès Biso-Commerce
+phone:phone,
 
-          </p>
+status:"pending",
 
+user_id:user.id
 
 
-        </div>
+})
 
+.eq(
+"id",
+subscription.id
+)
 
+.eq(
+"user_id",
+user.id
+);
 
 
 
-        {/* UTILISATION */}
 
 
 
-        <div
-          className="
-          bg-white/5
-          backdrop-blur-xl
-          border
-          border-white/10
-          rounded-3xl
-          p-6
-          shadow-xl
-          "
-        >
 
+setStatus("pending");
 
 
-          <div
-            className="
-            flex
-            justify-between
-            items-center
-            "
-          >
 
 
-            <h3
-              className="
-              font-bold
-              "
-            >
+setShowConfirmation(true);
 
-              📅 Utilisation
 
-            </h3>
 
+setLoading(false);
 
 
-            <span
-              className="
-              text-green-400
-              font-bold
-              "
-            >
 
-              {daysLeft} jours
+};
 
-            </span>
 
 
-          </div>
 
 
 
 
 
-          <div
-            className="
-            mt-5
-            h-3
-            bg-slate-800
-            rounded-full
-            overflow-hidden
-            "
-          >
+return (
 
+<main
 
-            <div
+className="
+min-h-screen
+bg-[#020617]
+text-white
+px-4
+py-8
+"
 
-              className="
-              h-full
-              bg-gradient-to-r
-              from-orange-500
-              to-green-500
-              rounded-full
-              "
+>
 
-              style={{
-                width:
-                `${Math.min(
-                  100,
-                  (daysUsed / 30) * 100
-                )}%`
-              }}
 
-            />
+<div
 
-          </div>
+className="
+max-w-2xl
+mx-auto
+space-y-6
+"
 
+>
 
 
 
-          <p
-            className="
-            text-slate-400
-            text-sm
-            mt-3
-            "
-          >
 
-            {daysUsed} / 30 jours utilisés
 
-          </p>
 
 
-        </div>
-                {/* INFO ABONNEMENT */}
-        <div className="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-5 shadow-xl">
+{/* HEADER */}
 
-          <div className="absolute -top-20 -right-20 w-40 h-40 bg-orange-500/20 blur-3xl rounded-full" />
 
-          <div className="relative">
+<div
 
-            <h3 className="text-xl font-bold flex items-center gap-2">
-              💎 Biso-Commerce Premium
-            </h3>
+className="
+rounded-[32px]
+p-6
+bg-gradient-to-br
+from-slate-900
+to-blue-950
+border
+border-white/10
+shadow-xl
+"
 
-            <p className="text-slate-400 text-sm mt-2">
-              Un abonnement simple pour gérer votre commerce professionnellement.
-            </p>
+>
 
 
-            <div className="mt-5 grid gap-3">
+<div
 
-              <div className="flex items-center gap-3 bg-black/40 border border-slate-700 rounded-2xl p-3">
-                <span className="text-2xl">📦</span>
-                <div>
-                  <p className="font-bold">Gestion produits</p>
-                  <p className="text-xs text-slate-400">
-                    Stock, prix et approvisionnement
-                  </p>
-                </div>
-              </div>
+className="
+flex
+items-center
+gap-3
+"
 
+>
 
-              <div className="flex items-center gap-3 bg-black/40 border border-slate-700 rounded-2xl p-3">
-                <span className="text-2xl">💰</span>
-                <div>
-                  <p className="font-bold">Suivi des ventes</p>
-                  <p className="text-xs text-slate-400">
-                    Enregistrez chaque vente facilement
-                  </p>
-                </div>
-              </div>
 
+<Crown
 
-              <div className="flex items-center gap-3 bg-black/40 border border-slate-700 rounded-2xl p-3">
-                <span className="text-2xl">🧾</span>
-                <div>
-                  <p className="font-bold">Gestion des dettes</p>
-                  <p className="text-xs text-slate-400">
-                    Suivez vos clients débiteurs
-                  </p>
-                </div>
-              </div>
+className="
+text-yellow-400
+"
 
+size={35}
 
-              <div className="flex items-center gap-3 bg-black/40 border border-slate-700 rounded-2xl p-3">
-                <span className="text-2xl">📊</span>
-                <div>
-                  <p className="font-bold">Rapports financiers</p>
-                  <p className="text-xs text-slate-400">
-                    Analysez vos performances
-                  </p>
-                </div>
-              </div>
+/>
 
 
-              <div className="flex items-center gap-3 bg-black/40 border border-slate-700 rounded-2xl p-3">
-                <span className="text-2xl">🚀</span>
-                <div>
-                  <p className="font-bold">Dashboard complet</p>
-                  <p className="text-xs text-slate-400">
-                    Vue globale de votre activité
-                  </p>
-                </div>
-              </div>
 
+<h1
 
-            </div>
+className="
+text-2xl
+font-black
+"
 
+>
 
-            <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-orange-500/20 to-blue-500/20 border border-orange-400/20">
+Biso-Commerce
 
-              <p className="text-sm text-slate-300">
-                Prix abonnement
-              </p>
+</h1>
 
-              <p className="text-3xl font-bold mt-1">
-                5$
-                <span className="text-sm text-slate-400">
-                  {" "} / mois
-                </span>
-              </p>
 
-            </div>
+</div>
 
-          </div>
 
-        </div>
 
 
 
-        {/* MOYENS DE PAIEMENT */}
+<p
 
-        <div className="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-5">
+className="
+text-slate-400
+mt-3
+"
 
-          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-blue-500/20 blur-3xl rounded-full" />
+>
 
+Gérez votre commerce facilement et professionnellement.
 
-          <div className="relative">
+</p>
 
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-              📱 Paiement Mobile Money
-            </h3>
 
 
-            <div className="space-y-3">
 
 
-              <div className="bg-black/40 border border-slate-700 rounded-2xl p-4 flex justify-between items-center">
 
-                <div>
-                  <p className="font-bold">
-                    🔴 Airtel Money
-                  </p>
 
-                  <p className="text-sm text-slate-400">
-                    +243 994 864 173
-                  </p>
-                </div>
+{/* TARIF */}
 
-              </div>
 
+<div
 
+className="
+mt-5
+rounded-2xl
+bg-black/30
+border
+border-orange-400/20
+p-4
+flex
+items-center
+justify-between
+"
 
-              <div className="bg-black/40 border border-slate-700 rounded-2xl p-4 flex justify-between items-center">
+>
 
-                <div>
-                  <p className="font-bold">
-                    🟠 Orange Money
-                  </p>
 
-                  <p className="text-sm text-slate-400">
-                     +24 891 618 812
-                  </p>
-                </div>
+<div>
 
-              </div>
+<p
 
+className="
+text-sm
+text-slate-400
+"
 
+>
 
-              <div className="bg-black/40 border border-slate-700 rounded-2xl p-4 flex justify-between items-center">
+Abonnement mensuel
 
-                <div>
-                  <p className="font-bold">
-                    🔵 MPESA
-                  </p>
+</p>
 
-                  <p className="text-sm text-slate-400">
-                    +243XXXXXXXX
-                  </p>
-                </div>
 
-              </div>
+<p
 
+className="
+text-lg
+font-bold
+"
 
-            </div>
+>
 
+Fini les calculs compliqués dans les cahiers 📒❌
 
-          </div>
+</p>
 
 
-        </div>
-                {/* FORMULAIRE RENOUVELLEMENT */}
+</div>
 
-        <div className="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-5">
 
-          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/20 blur-3xl rounded-full" />
 
-          <div className="relative space-y-4">
 
-            <h3 className="text-xl font-bold">
-              🔄 Demande de renouvellement
-            </h3>
 
-            <p className="text-sm text-slate-400">
-              Entrez vos informations après avoir effectué le paiement.
-            </p>
+<div
 
+className="
+text-right
+"
 
-            <input
-              type="text"
-              placeholder="👤 Nom complet"
-              value={fullName}
-              onChange={(e)=>setFullName(e.target.value)}
-              className="
-                w-full p-4 rounded-2xl
-                bg-black/60
-                border border-slate-700
-                text-white
-                placeholder:text-slate-500
-                outline-none
-                focus:border-orange-400
-              "
-              style={{
-                color:"#fff",
-                WebkitTextFillColor:"#fff",
-                caretColor:"#fff"
-              }}
-            />
+>
 
+<p
 
-            <input
-              type="tel"
-              placeholder="📱 Numéro téléphone"
-              value={phone}
-              onChange={(e)=>setPhone(e.target.value)}
-              className="
-                w-full p-4 rounded-2xl
-                bg-black/60
-                border border-slate-700
-                text-white
-                placeholder:text-slate-500
-                outline-none
-                focus:border-blue-400
-              "
-              style={{
-                color:"#fff",
-                WebkitTextFillColor:"#fff",
-                caretColor:"#fff"
-              }}
-            />
+className="
+text-3xl
+font-black
+text-orange-400
+"
 
+>
 
+5$
 
-            <button
-              onClick={handleRenew}
-              className="
-                w-full
-                p-4
-                rounded-2xl
-                font-bold
-                bg-gradient-to-r
-                from-orange-500
-                to-blue-600
-                hover:opacity-90
-                transition
-                shadow-lg
-              "
-            >
-              🚀 Envoyer ma demande
-            </button>
+</p>
 
 
-          </div>
+<p
 
-        </div>
+className="
+text-xs
+text-slate-400
+"
 
+>
 
+/ mois
 
+</p>
 
-        {/* CONFIRMATION WHATSAPP */}
 
-        {step === "confirm" && (
+</div>
 
-          <div className="
-            bg-yellow-500/10
-            border
-            border-yellow-500/30
-            rounded-3xl
-            p-5
-            space-y-4
-          ">
 
 
-            <h3 className="text-xl font-bold text-yellow-300">
-              📸 Dernière étape
-            </h3>
+</div>
 
 
-            <p className="text-sm text-yellow-200">
-              Votre demande a été envoyée.
-              Envoyez maintenant la preuve du paiement.
-            </p>
 
 
+</div>
 
-            <div className="
-              bg-black/40
-              rounded-2xl
-              p-4
-              text-sm
-              space-y-2
-            ">
 
-              <p>
-                ✅ Capture écran du paiement
-              </p>
 
-              <p>
-                ✅ Preuve Mobile Money
-              </p>
 
-  
 
-            </div>
 
+{/* STATUT */}
 
 
-            <button
+<div
 
-              onClick={()=>{
+className="
+bg-white/5
+border
+border-white/10
+rounded-[30px]
+p-6
+shadow-xl
+"
 
-                const message = `Bonjour PDG,
+>
 
-Je viens de payer mon renouvellement Biso-Commerce.
+
+<div
+
+className="
+flex
+items-center
+justify-between
+"
+
+>
+
+
+<div>
+
+
+<p
+
+className="
+text-sm
+text-slate-400
+"
+
+>
+
+Statut abonnement
+
+</p>
+
+
+
+
+<h2
+
+className={`
+
+mt-2
+text-3xl
+font-black
+
+${
+status==="active"
+?
+"text-green-400"
+:
+status==="pending"
+?
+"text-yellow-400"
+:
+"text-red-400"
+}
+
+`}
+
+>
+
+{
+
+status==="active"
+
+?
+
+"🟢 Actif"
+
+:
+
+status==="pending"
+
+?
+
+"⏳ Vérification"
+
+:
+
+"🔴 Expiré"
+
+}
+
+
+</h2>
+
+
+
+</div>
+
+
+
+
+
+{
+
+status==="active"
+
+?
+
+<CheckCircle2
+size={42}
+className="text-green-400"
+/>
+
+
+:
+
+status==="pending"
+
+?
+
+<Clock3
+size={42}
+className="text-yellow-400"
+/>
+
+
+:
+
+<ShieldCheck
+size={42}
+className="text-red-400"
+/>
+
+
+}
+
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{/* COMPTEUR 30 JOURS */}
+
+
+
+<div
+
+className="
+bg-gradient-to-br
+from-slate-900
+to-slate-800
+border
+border-white/10
+rounded-[30px]
+p-6
+"
+
+>
+
+
+<div
+
+className="
+flex
+justify-between
+"
+
+>
+
+
+<h3
+
+className="
+font-black
+"
+
+>
+
+📅 Utilisation
+
+</h3>
+
+
+
+<span
+
+className="
+text-orange-400
+font-bold
+"
+
+>
+
+{daysLeft} jours restants
+
+</span>
+
+
+
+</div>
+
+
+
+
+
+
+<div
+
+className="
+mt-5
+h-3
+bg-black/50
+rounded-full
+overflow-hidden
+"
+
+>
+
+
+<div
+
+className="
+h-full
+bg-gradient-to-r
+from-orange-500
+to-green-500
+"
+
+style={{
+
+width:
+
+`${Math.min(
+100,
+(daysUsed/30)*100
+)}%`
+
+}}
+
+/>
+
+
+</div>
+
+
+
+
+
+<p
+
+className="
+text-sm
+text-slate-400
+mt-3
+"
+
+>
+
+{daysUsed} / 30 jours utilisés
+
+</p>
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{/* GUIDE PAIEMENT */}
+
+
+
+<div
+
+className="
+bg-gradient-to-br
+from-orange-500/10
+to-blue-500/10
+border
+border-white/10
+rounded-[30px]
+p-6
+"
+
+>
+
+
+<h3
+
+className="
+font-black
+text-xl
+"
+
+>
+
+💳 Comment payer ?
+
+</h3>
+
+
+
+
+<div
+
+className="
+mt-4
+space-y-3
+text-sm
+text-slate-300
+"
+
+>
+
+
+<p>
+
+1️⃣ Envoyez <b>5$</b> par Mobile Money
+
+</p>
+
+
+
+<p>
+
+2️⃣ Gardez la preuve du paiement
+
+</p>
+
+
+
+<p>
+
+3️⃣ Écrivez votre nom et votre numéro
+
+</p>
+
+
+
+<p>
+
+4️⃣ Envoyez la capture sur WhatsApp
+
+</p>
+
+
+
+<p>
+
+5️⃣ Attendez la validation de l'administration
+
+</p>
+
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{/* PAIEMENT */}
+
+
+
+<div
+
+className="
+bg-white/5
+border
+border-white/10
+rounded-[30px]
+p-6
+"
+
+>
+
+
+<h3
+
+className="
+text-xl
+font-black
+flex
+gap-2
+items-center
+"
+
+>
+
+
+<Smartphone size={22}/>
+
+Nos moyens de paiement
+
+</h3>
+
+
+
+
+
+
+<div
+
+className="
+mt-5
+space-y-3
+"
+
+>
+
+
+
+
+
+<div
+
+className="
+bg-black/40
+rounded-2xl
+p-4
+border
+border-white/5
+"
+
+>
+
+
+<p
+
+className="
+font-bold
+"
+
+>
+
+🔴 Airtel Money
+
+</p>
+
+
+
+<p
+
+className="
+text-orange-400
+font-bold
+"
+
+>
+
++243 994 864 173
+
+</p>
+
+
+
+<p
+
+className="
+text-xs
+text-slate-400
+"
+
+>
+
+Nom : DIEUMERCI IDI
+
+</p>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<div
+
+className="
+bg-black/40
+rounded-2xl
+p-4
+border
+border-white/5
+"
+
+>
+
+
+<p
+
+className="
+font-bold
+"
+
+>
+
+🟠 Orange Money
+
+</p>
+
+
+
+<p
+
+className="
+text-orange-400
+font-bold
+"
+
+>
+
++243 891 618 812
+
+</p>
+
+
+
+<p
+
+className="
+text-xs
+text-slate-400
+"
+
+>
+
+Nom : DIEUMERCI IDI
+
+</p>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<div
+
+className="
+bg-black/40
+rounded-2xl
+p-4
+border
+border-white/5
+"
+
+>
+
+
+<p
+
+className="
+font-bold
+"
+
+>
+
+🔵 M-Pesa
+
+</p>
+
+
+
+<p
+
+className="
+text-orange-400
+font-bold
+"
+
+>
+
++243 810 168 651
+
+</p>
+
+
+
+<p
+
+className="
+text-xs
+text-slate-400
+"
+
+>
+
+Nom : DIEUMERCI IDI
+
+</p>
+
+
+</div>
+
+
+
+
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+{/* FORMULAIRE */}
+
+
+
+<div
+
+className="
+bg-white/5
+border
+border-white/10
+rounded-[30px]
+p-6
+"
+
+>
+
+
+<h3
+
+className="
+text-xl
+font-black
+"
+
+>
+
+🔄 Demande d'activation
+
+</h3>
+
+
+
+
+<p
+
+className="
+text-sm
+text-slate-400
+mt-2
+"
+
+>
+
+Après votre paiement, remplissez vos informations.
+
+</p>
+
+
+
+
+
+
+
+<div
+
+className="
+space-y-4
+mt-5
+"
+
+>
+
+
+
+<input
+
+
+type="text"
+
+placeholder="👤 Nom complet"
+
+value={fullName}
+
+onChange={(e)=>setFullName(e.target.value)}
+
+className="
+w-full
+p-4
+rounded-2xl
+bg-black/50
+border
+border-white/10
+outline-none
+"
+
+style={{
+color:"#fff",
+WebkitTextFillColor:"#fff"
+}}
+
+/>
+
+
+
+
+
+
+<input
+
+
+type="tel"
+
+placeholder="📱 Numéro téléphone"
+
+value={phone}
+
+onChange={(e)=>setPhone(e.target.value)}
+
+className="
+w-full
+p-4
+rounded-2xl
+bg-black/50
+border
+border-white/10
+outline-none
+"
+
+style={{
+color:"#fff",
+WebkitTextFillColor:"#fff"
+}}
+
+/>
+
+
+
+
+
+
+
+<button
+
+
+onClick={handleRenew}
+
+
+disabled={loading}
+
+
+className="
+w-full
+p-4
+rounded-2xl
+bg-gradient-to-r
+from-orange-500
+to-blue-600
+font-black
+text-lg
+"
+
+>
+
+
+{
+
+loading
+
+?
+
+"⏳ Enregistrement..."
+
+:
+
+"✅ Envoyer pour vérification"
+
+}
+
+
+
+</button>
+
+
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{/* MESSAGE VERIFICATION */}
+
+
+
+{
+
+status==="pending"
+
+&&
+
+
+<div
+
+className="
+bg-yellow-500/10
+border
+border-yellow-400/30
+rounded-3xl
+p-5
+text-yellow-300
+"
+
+>
+
+
+<h3
+
+className="
+font-black
+text-lg
+"
+
+>
+
+⏳ Paiement en vérification
+
+</h3>
+
+
+
+<p
+
+className="
+text-sm
+mt-2
+"
+
+>
+
+Votre demande est envoyée.
+
+Vous pouvez continuer à utiliser votre espace.
+
+L'administration va vérifier votre paiement.
+
+</p>
+
+
+
+</div>
+
+
+
+}
+
+
+
+
+
+
+
+
+
+{/* WHATSAPP CAPTURE */}
+
+
+
+{
+
+showConfirmation
+
+&&
+
+
+<div
+
+className="
+bg-green-500/10
+border
+border-green-400/30
+rounded-3xl
+p-6
+"
+
+>
+
+
+<h3
+
+className="
+text-xl
+font-black
+"
+
+>
+
+📸 Envoyer la preuve
+
+</h3>
+
+
+
+
+<p
+
+className="
+text-sm
+text-slate-300
+mt-2
+"
+
+>
+
+Cliquez pour envoyer votre capture de paiement directement.
+
+</p>
+
+
+
+
+
+<button
+
+
+onClick={()=>openWhatsApp(
+
+`Bonjour DIEUMERCI IDI (PDG),
+
+Je viens de payer mon abonnement Biso-Commerce.
 
 Nom : ${fullName}
 
-Téléphone : ${phone}
+Numéro : ${phone}
 
-Je vous envoie la preuve de paiement.`;
+Je vous envoie la preuve du paiement.`
 
-                const url =
-                "https://wa.me/243994864173?text="
-                + encodeURIComponent(message);
+)}
 
 
-                window.open(url,"_blank");
+className="
+mt-5
+w-full
+p-4
+rounded-2xl
+bg-green-600
+font-black
+flex
+justify-center
+items-center
+gap-2
+"
 
-              }}
-
-              className="
-                w-full
-                p-4
-                rounded-2xl
-                font-bold
-                bg-green-600
-                hover:bg-green-500
-                transition
-              "
-
-            >
-
-              📲 Envoyer la preuve WhatsApp
-
-            </button>
+>
 
 
-          </div>
+<MessageCircle size={22}/>
 
-        )}
+
+Envoyer la capture WhatsApp
+
+
+</button>
 
 
 
+</div>
 
 
 
-        {/* STATUS PENDING */}
-
-        {status === "pending" && (
-
-          <div
-            className="
-            bg-yellow-500/10
-            border
-            border-yellow-500/30
-            rounded-2xl
-            p-4
-            text-yellow-300
-            text-center
-            "
-          >
-
-            ⏳ Votre paiement est en cours de vérification.
-
-          </div>
-
-        )}
+}
 
 
 
-      </div>
 
-    </main>
 
-  );
+
+
+
+
+
+
+
+
+
+
+
+
+
+{/* IDEE AMELIORATION */}
+
+
+
+<div
+
+className="
+bg-white/5
+border
+border-white/10
+rounded-[30px]
+p-6
+"
+
+>
+
+
+<h3
+
+className="
+text-xl
+font-black
+"
+
+>
+
+💡 Proposer une idée
+
+</h3>
+
+
+
+<p
+
+className="
+text-sm
+text-slate-400
+mt-2
+"
+
+>
+
+Une suggestion pour améliorer l'application ?
+
+</p>
+
+
+
+
+
+
+<button
+
+
+onClick={()=>openWhatsApp(
+
+`Bonjour DIEUMERCI IDI (PDG),
+
+Je voudrais proposer une amélioration pour Biso-Commerce.`
+
+)}
+
+
+
+className="
+mt-5
+w-full
+p-4
+rounded-2xl
+bg-orange-500
+text-black
+font-black
+"
+
+>
+
+
+🚀 Envoyer une proposition
+
+
+</button>
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+{/* SIGNATURE */}
+
+
+
+<footer
+
+className="
+text-center
+py-8
+"
+
+>
+
+
+<p
+
+className="
+font-black
+text-xl
+"
+
+>
+
+Biso-Commerce
+
+</p>
+
+
+
+<p
+
+className="
+text-orange-400
+font-black
+mt-2
+"
+
+>
+
+DIEUMERCI IDI (PDG)
+
+</p>
+
+
+
+
+<p
+
+className="
+text-xs
+text-slate-500
+"
+
+>
+
+KINSHASA, RDC
+
+</p>
+
+
+
+</footer>
+
+
+
+
+
+
+
+
+</div>
+
+</main>
+
+
+);
+
 
 }
