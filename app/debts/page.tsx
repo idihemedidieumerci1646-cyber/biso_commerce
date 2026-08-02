@@ -11,90 +11,60 @@ import {
   Sparkles,
   UserPlus,
   Trash2,
-  Users,
-  Wallet,
-  TrendingUp
+  Wallet
 } from "lucide-react";
 
 
 type Debt = {
-
   id:string;
-
   client_name:string;
-
   phone:string;
-
   total_amount:number;
-
   paid_amount:number;
-
   currency:"FC" | "USD";
-
   created_at:string;
-
 };
 
 
-
 const inputStyle = `
-
 w-full
-
 rounded-2xl
-
 border
-
 border-white/10
-
 bg-black/30
-
 p-4
-
 outline-none
-
 text-white
-
 placeholder:text-slate-500
-
 focus:border-orange-400
-
 transition
-
 `;
-
 
 
 export default function DebtsPage(){
 
-
-
 const [debts,setDebts] = useState<Debt[]>([]);
 
-
-
 const [name,setName] = useState("");
-
 const [phone,setPhone] = useState("");
-
 const [amount,setAmount] = useState("");
 
 const [currency,setCurrency] =
 useState<"FC"|"USD">("FC");
 
-
-
 const [search,setSearch] = useState("");
 
-const [selectedDebt,setSelectedDebt] = useState("");
+const [selectedDebt,setSelectedDebt] =
+useState("");
 
-const [paymentAmount,setPaymentAmount] = useState("");
+const [paymentAmount,setPaymentAmount] =
+useState("");
 
+const [showAll,setShowAll] =
+useState(false);
 
-
-const [showAll,setShowAll] = useState(false);
-
-const [showGuide,setShowGuide] = useState(false);
+const [showGuide,setShowGuide] =
+useState(false);
 
 
 
@@ -106,10 +76,7 @@ loadDebts();
 
 
 
-
-
 const getUser = async()=>{
-
 
 const phone =
 localStorage.getItem("phone");
@@ -126,10 +93,7 @@ const {data:user}=await supabase
 
 .select("id")
 
-.eq(
-"phone",
-phone
-)
+.eq("phone",phone)
 
 .single();
 
@@ -137,16 +101,11 @@ phone
 
 return user || null;
 
-
 };
 
 
 
-
-
-
 const loadDebts = async()=>{
-
 
 const user = await getUser();
 
@@ -162,10 +121,7 @@ const {data,error}=await supabase
 
 .select("*")
 
-.eq(
-"user_id",
-user.id
-)
+.eq("user_id",user.id)
 
 .order(
 "created_at",
@@ -185,18 +141,12 @@ return;
 }
 
 
-
 setDebts(
 (data || []) as Debt[]
 );
 
 
-
 };
-
-
-
-
 
 
 
@@ -243,10 +193,9 @@ total_amount:Number(amount),
 
 paid_amount:0,
 
-currency:currency,
+currency,
 
-created_at:
-new Date().toISOString()
+created_at:new Date().toISOString()
 
 });
 
@@ -278,10 +227,6 @@ loadDebts();
 
 
 
-
-
-
-
 const payDebt = async()=>{
 
 
@@ -297,7 +242,6 @@ const debt =
 debts.find(
 d=>d.id===selectedDebt
 );
-
 
 
 if(!debt)
@@ -333,9 +277,7 @@ debt.paid_amount + value;
 
 
 
-if(
-newPaid >= debt.total_amount
-){
+if(newPaid >= debt.total_amount){
 
 
 await supabase
@@ -344,10 +286,8 @@ await supabase
 
 .delete()
 
-.eq(
-"id",
-selectedDebt
-);
+.eq("id",selectedDebt);
+
 
 
 }else{
@@ -363,10 +303,7 @@ paid_amount:newPaid
 
 })
 
-.eq(
-"id",
-selectedDebt
-);
+.eq("id",selectedDebt);
 
 
 }
@@ -384,11 +321,6 @@ loadDebts();
 
 
 };
-
-
-
-
-
 const deleteDebt = async(id:string)=>{
 
 
@@ -407,10 +339,7 @@ await supabase
 
 .delete()
 
-.eq(
-"id",
-id
-);
+.eq("id",id);
 
 
 
@@ -421,14 +350,15 @@ loadDebts();
 
 
 
-
-
 const filteredDebts = useMemo(()=>{
+
 
 return debts.filter((d)=>
 
 d.client_name
+
 .toLowerCase()
+
 .includes(
 search.toLowerCase()
 )
@@ -436,6 +366,7 @@ search.toLowerCase()
 ||
 
 (d.phone || "")
+
 .includes(search)
 
 );
@@ -445,8 +376,6 @@ search.toLowerCase()
 debts,
 search
 ]);
-
-
 
 
 
@@ -462,6 +391,7 @@ d=>d.currency==="FC"
 (sum,d)=>
 
 sum +
+
 (
 d.total_amount -
 d.paid_amount
@@ -484,6 +414,7 @@ d=>d.currency==="USD"
 (sum,d)=>
 
 sum +
+
 (
 d.total_amount -
 d.paid_amount
@@ -512,31 +443,6 @@ sum+d.paid_amount,
 
 
 
-const percentPaid = debts.length
-
-?
-
-Math.round(
-
-(
-totalPaid /
-(
-totalPaid + totalFc + totalUsd
-)
-
-)
-
-*100
-
-)
-
-:
-
-0;
-
-
-
-
 const visibleDebts =
 
 showAll
@@ -549,48 +455,76 @@ debts
 
 debts.slice(0,5);
 
+
+
+
+
 return (
 
-<main className="
+<main
+
+className="
 min-h-screen
 bg-[#081221]
 text-white
 p-4
 pb-24
-">
+"
+
+>
 
 
-<div className="
+<div
+
+className="
 max-w-6xl
 mx-auto
 space-y-6
-">
+"
+
+>
 
 
 {/* HEADER */}
 
-<div className="
+
+<div
+
+className="
 flex
 justify-between
 items-center
-">
+"
+
+>
+
 
 <div>
 
-<h1 className="
+
+<h1
+
+className="
 text-3xl
 font-black
-">
+"
+
+>
 
 🧾 Dettes clients
 
 </h1>
 
 
-<p className="
+
+<p
+
+className="
 text-slate-400
 mt-1
-">
+"
+
+>
 
 Gestion des crédits et récupération d'argent
 
@@ -598,6 +532,7 @@ Gestion des crédits et récupération d'argent
 
 
 </div>
+
 
 
 
@@ -620,15 +555,16 @@ font-bold
 
 >
 
+
 <Sparkles size={18}/>
 
 Guide
+
 
 </button>
 
 
 </div>
-
 
 
 
@@ -640,7 +576,9 @@ Guide
 
 showGuide &&
 
-<div className="
+<div
+
+className="
 rounded-3xl
 bg-black/30
 border
@@ -649,7 +587,9 @@ p-5
 text-sm
 space-y-3
 text-slate-300
-">
+"
+
+>
 
 
 <p>
@@ -672,11 +612,6 @@ text-slate-300
 </p>
 
 
-<p>
-👁️ Voir tout affiche toutes les dettes enregistrées.
-</p>
-
-
 </div>
 
 }
@@ -686,16 +621,19 @@ text-slate-300
 
 
 
-
 {/* STATISTIQUES */}
 
 
-<div className="
+<div
+
+className="
 grid
 grid-cols-2
 md:grid-cols-4
 gap-4
-">
+"
+
+>
 
 
 <StatCard
@@ -751,60 +689,49 @@ totalPaid.toLocaleString()
 
 
 
+{/* FORMULAIRES */}
 
 
+<div
 
-
-{/* FORMULAIRES COTE A COTE */}
-
-
-<div className="
+className="
 grid
 md:grid-cols-2
 gap-5
-">
+"
 
+>
+  {/* NOUVELLE DETTE */}
 
-
-
-
-
-
-{/* NOUVELLE DETTE */}
-
-
-
-<div className="
+<div
+className="
 rounded-3xl
 bg-white/5
 border
 border-white/10
 p-5
-">
+space-y-4
+"
+>
 
 
-<h2 className="
+<h2
+className="
 font-black
 text-xl
-mb-5
 flex
 items-center
 gap-2
-">
-
+"
+>
 
 <UserPlus
-
 className="text-orange-400"
-
 />
-
 
 Nouvelle dette
 
-
 </h2>
-
 
 
 
@@ -824,8 +751,6 @@ className={inputStyle}
 
 
 
-
-
 <input
 
 placeholder="Numéro téléphone"
@@ -839,9 +764,6 @@ e=>setPhone(e.target.value)
 className={inputStyle}
 
 />
-
-
-
 
 
 
@@ -864,13 +786,9 @@ className={inputStyle}
 
 
 
-
-
-
 <p className="
 text-sm
 text-slate-400
-mt-3
 ">
 
 Choisir la monnaie
@@ -879,45 +797,34 @@ Choisir la monnaie
 
 
 
-
-
-<div className="
+<div
+className="
 grid
 grid-cols-2
 gap-3
-mt-2
-">
+"
+>
 
 
 <button
 
 onClick={()=>setCurrency("FC")}
 
-className={
-
-`
+className={`
 p-3
 rounded-xl
 font-black
 border
 
 ${
-
 currency==="FC"
-
 ?
-
 "bg-orange-500 text-black"
-
 :
-
 "bg-black/30 border-white/10"
-
 }
 
-`
-
-}
+`}
 
 >
 
@@ -928,38 +835,25 @@ currency==="FC"
 
 
 
-
-
-
 <button
 
 onClick={()=>setCurrency("USD")}
 
-className={
-
-`
+className={`
 p-3
 rounded-xl
 font-black
 border
 
 ${
-
 currency==="USD"
-
 ?
-
 "bg-green-500 text-black"
-
 :
-
 "bg-black/30 border-white/10"
-
 }
 
-`
-
-}
+`}
 
 >
 
@@ -968,10 +862,7 @@ currency==="USD"
 </button>
 
 
-
 </div>
-
-
 
 
 
@@ -982,7 +873,7 @@ currency==="USD"
 onClick={addDebt}
 
 className="
-mt-5
+mt-3
 w-full
 py-4
 rounded-xl
@@ -999,14 +890,11 @@ gap-2
 
 >
 
-
 <Plus size={18}/>
 
 Ajouter la dette
 
-
 </button>
-
 
 
 </div>
@@ -1018,28 +906,34 @@ Ajouter la dette
 
 
 
-
 {/* RECUPERATION */}
 
 
+<div
 
-<div className="
+className="
 rounded-3xl
 bg-white/5
 border
 border-white/10
 p-5
-">
+"
+
+>
 
 
-<h2 className="
+<h2
+
+className="
 font-black
 text-xl
 mb-5
 flex
 items-center
 gap-2
-">
+"
+
+>
 
 
 <CreditCard
@@ -1058,27 +952,40 @@ Récupérer une dette
 
 
 
+<div
+
+className="
+relative
+mb-4
+"
+
+>
 
 
-<div className="
-flex
-items-center
-gap-3
-bg-black/30
-rounded-xl
-px-3
-">
+<Search
 
+size={20}
 
-<Search size={18}/>
+className="
+absolute
+left-4
+top-1/2
+-translate-y-1/2
+text-slate-400
+"
+
+/>
 
 
 
 <input
 
-placeholder="Chercher nom ou téléphone"
+
+placeholder="Chercher un nom ou un numéro de téléphone..."
+
 
 value={search}
+
 
 onChange={e=>{
 
@@ -1088,15 +995,25 @@ setSelectedDebt("");
 
 }}
 
+
 className="
-bg-transparent
-outline-none
 w-full
-p-3
+pl-12
+pr-4
+py-4
+rounded-2xl
+bg-white
+text-black
+placeholder:text-slate-500
+border-2
+border-orange-500
+outline-none
+shadow-lg
+focus:ring-4
+focus:ring-orange-500/20
 "
 
 />
-
 
 
 </div>
@@ -1111,12 +1028,15 @@ p-3
 search && !selectedDebt &&
 
 
-<div className="
-mt-3
+<div
+
+className="
 rounded-xl
 bg-black/60
 overflow-hidden
-">
+"
+
+>
 
 
 {
@@ -1155,25 +1075,18 @@ border-white/10
 </span>
 
 
-<span className="
-text-orange-400
-">
 
-{
+<span className="text-orange-400">
 
-(
+
+{(
 d.total_amount -
 d.paid_amount
-)
-.toLocaleString()
+).toLocaleString()} {d.currency}
 
-}
-
-{" "}
-
-{d.currency}
 
 </span>
+
 
 
 </button>
@@ -1181,9 +1094,7 @@ d.paid_amount
 
 ))
 
-
 }
-
 
 
 </div>
@@ -1199,14 +1110,19 @@ d.paid_amount
 {
 selectedDebt &&
 
-<div className="
+
+<div
+
+className="
 mt-4
 rounded-2xl
 bg-orange-500/10
 border
 border-orange-400/30
 p-4
-">
+"
+
+>
 
 
 {
@@ -1246,21 +1162,12 @@ Reste :
 
 <b className="text-orange-400">
 
-{
-(
+{(
 d.total_amount -
 d.paid_amount
-)
-.toLocaleString()
-
-}
-
-{" "}
-
-{d.currency}
+).toLocaleString()} {d.currency}
 
 </b>
-
 
 </p>
 
@@ -1275,12 +1182,14 @@ Paiement en :
 
 </b>
 
+
 </p>
 
 
 </div>
 
 )
+
 
 })()
 
@@ -1290,6 +1199,10 @@ Paiement en :
 </div>
 
 }
+
+
+
+
 
 
 <input
@@ -1310,7 +1223,6 @@ mt-4
 `}
 
 />
-
 
 
 
@@ -1342,58 +1254,56 @@ Valider le paiement
 </button>
 
 
-
 </div>
 
 
-
-
-
 </div>
-
-
-
-
-
-
-
-
-
 {/* LISTE DES DETTES */}
 
+<div
 
-
-<div className="
+className="
 rounded-3xl
 bg-white/5
 border
 border-white/10
 p-5
-">
+"
+
+>
 
 
-<div className="
+<div
+
+className="
 flex
 justify-between
 items-center
 mb-5
-">
+"
+
+>
 
 
-<h2 className="
+<h2
+
+className="
 text-xl
 font-black
 flex
 items-center
 gap-2
-">
+"
+
+>
+
 
 <Wallet className="text-orange-400"/>
 
 Toutes les dettes
 
-</h2>
 
+</h2>
 
 
 
@@ -1412,7 +1322,6 @@ font-bold
 
 >
 
-
 {
 
 showAll
@@ -1427,14 +1336,10 @@ showAll
 
 }
 
-
 </button>
 
 
-
 </div>
-
-
 
 
 
@@ -1446,11 +1351,15 @@ showAll
 visibleDebts.length===0 ?
 
 
-<p className="
+<p
+
+className="
 text-slate-400
 text-center
 py-8
-">
+"
+
+>
 
 Aucune dette enregistrée
 
@@ -1461,9 +1370,7 @@ Aucune dette enregistrée
 :
 
 
-<div className="
-space-y-4
-">
+<div className="space-y-4">
 
 
 {
@@ -1472,7 +1379,6 @@ visibleDebts.map(d=>{
 
 
 const reste =
-
 d.total_amount -
 d.paid_amount;
 
@@ -1480,22 +1386,24 @@ d.paid_amount;
 
 const percent =
 
+d.total_amount > 0
+
+?
+
 Math.round(
-
-(
-d.paid_amount /
-d.total_amount
-
+(d.paid_amount /
+d.total_amount)
+*100
 )
 
-*100
+:
 
-);
-
+0;
 
 
 
 return (
+
 
 <div
 
@@ -1513,44 +1421,49 @@ p-5
 
 
 
-<div className="
+<div
+
+className="
 flex
 justify-between
 items-start
-">
+"
 
-
+>
 
 
 <div>
 
 
-<h3 className="
+<h3
+
+className="
 font-black
 text-lg
-">
+"
+
+>
 
 {d.client_name}
 
 </h3>
 
 
+<p
 
-
-<p className="
+className="
 text-sm
 text-slate-400
-">
+"
+
+>
 
 📞 {d.phone}
 
 </p>
 
 
-
 </div>
-
-
 
 
 
@@ -1572,7 +1485,6 @@ rounded-xl
 
 
 
-
 </div>
 
 
@@ -1580,25 +1492,30 @@ rounded-xl
 
 
 
+<div
 
-<div className="
+className="
 grid
 grid-cols-2
 gap-3
 mt-4
 text-sm
-">
+"
+
+>
 
 
-<div className="
+<div
+
+className="
 bg-white/5
 rounded-xl
 p-3
-">
+"
 
-<p className="
-text-slate-400
-">
+>
+
+<p className="text-slate-400">
 
 Dette totale
 
@@ -1607,13 +1524,7 @@ Dette totale
 
 <b>
 
-{
-d.total_amount.toLocaleString()
-}
-
-{" "}
-
-{d.currency}
+{d.total_amount.toLocaleString()} {d.currency}
 
 </b>
 
@@ -1623,35 +1534,26 @@ d.total_amount.toLocaleString()
 
 
 
+<div
 
-
-
-<div className="
+className="
 bg-white/5
 rounded-xl
 p-3
-">
+"
 
-<p className="
-text-slate-400
-">
+>
+
+<p className="text-slate-400">
 
 Reste
 
 </p>
 
 
-<b className="
-text-orange-400
-">
+<b className="text-orange-400">
 
-{
-reste.toLocaleString()
-}
-
-{" "}
-
-{d.currency}
+{reste.toLocaleString()} {d.currency}
 
 </b>
 
@@ -1667,15 +1569,17 @@ reste.toLocaleString()
 
 
 
+<div
 
-
-<div className="
+className="
 mt-4
 h-3
 rounded-full
 bg-black/50
 overflow-hidden
-">
+"
+
+>
 
 
 <div
@@ -1693,7 +1597,6 @@ width:`${percent}%`
 
 }}
 
-
 />
 
 
@@ -1703,11 +1606,15 @@ width:`${percent}%`
 
 
 
-<p className="
+<p
+
+className="
 mt-2
 text-sm
 text-green-400
-">
+"
+
+>
 
 Récupéré : {percent}%
 
@@ -1723,7 +1630,6 @@ Récupéré : {percent}%
 
 })
 
-
 }
 
 
@@ -1733,17 +1639,15 @@ Récupéré : {percent}%
 }
 
 
-
 </div>
 
 
 
-
-
-
 </div>
+
 
 </main>
+
 
 );
 
@@ -1786,30 +1690,37 @@ p-4
 >
 
 
-<p className="
+<p
+
+className="
 text-sm
 text-slate-400
-">
+"
+
+>
 
 {title}
 
 </p>
 
 
+<p
 
-<p className="
+className="
 mt-2
 text-xl
 font-black
-">
+"
+
+>
 
 {value}
 
 </p>
 
 
-
 </div>
+
 
 );
 

@@ -16,8 +16,60 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Biso-Commerce",
-  description: "Gestion moderne des commerces",
+  title: "BISO-COMMERCE | Gestion intelligente de commerce",
+
+  description:
+    "BISO-COMMERCE est une application moderne qui aide les commerçants à gérer leurs ventes, produits, stocks, dépenses, dettes et bénéfices facilement depuis leur téléphone.",
+
+  keywords: [
+    "BISO-COMMERCE",
+    "gestion commerce",
+    "caisse digitale",
+    "gestion stock",
+    "vente",
+    "boutique",
+    "commerce RDC",
+    "application commerce Afrique",
+  ],
+
+  authors: [
+    {
+      name: "DIEUMERCI IDI",
+    },
+  ],
+
+  creator: "BISO-COMMERCE",
+
+  verification: {
+    google:
+      "In1-w-1oDbl4hNV16D73e30t4Va-NgscHlBY9hvnYU0",
+  },
+
+  openGraph: {
+    title: "BISO-COMMERCE | Gestion intelligente de commerce",
+
+    description:
+      "Gérez votre commerce, vos ventes, vos stocks, vos dépenses et vos dettes avec BISO-COMMERCE.",
+
+    url: "https://biso-commerce-mqbj.vercel.app",
+
+    siteName: "BISO-COMMERCE",
+
+    locale: "fr_FR",
+
+    type: "website",
+  },
+
+  twitter: {
+    card: "summary_large_image",
+
+    title: "BISO-COMMERCE | Gestion intelligente de commerce",
+
+    description:
+      "La solution digitale pour gérer facilement votre commerce depuis votre téléphone.",
+  },
+
+  manifest: "/manifest.json",
 };
 
 export const viewport = {
@@ -41,7 +93,9 @@ export default function RootLayout({
 
       <body className="bg-slate-950 min-h-screen">
         <Navbar />
+
         {children}
+
         <Toaster position="top-center" />
       </body>
 
