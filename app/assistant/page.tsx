@@ -849,7 +849,7 @@ result = `
 
 Pour installer Biso-Commerce sur votre téléphone, ouvrez d'abord ce lien :
 
-🌐 https://biso-commerce-mqbj.vercel.app
+🌐 https://bisocommerce.vercel.app
 
 ━━━━━━━━━━━━━━━━━━
 🤖 ANDROID

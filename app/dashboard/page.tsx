@@ -1189,11 +1189,11 @@ const bestProduct = Object.entries(productSales)
   </p>
 
   <a
-    href="https://biso-commerce-mqbj.vercel.app"
+    href="https://bisocommerce.vercel.app"
     target="_blank"
     className="mt-2 block break-all font-bold text-orange-300 underline"
   >
-    https://biso-commerce-mqbj.vercel.app
+    https://bisocommerce.vercel.app
   </a>
 
   <div className="mt-3 space-y-3">
