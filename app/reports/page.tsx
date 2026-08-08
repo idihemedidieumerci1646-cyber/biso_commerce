@@ -1170,124 +1170,118 @@ ${formatMoney(
             📄 Rechercher les ventes
           </h2>
 
-          {/* UNE DATE */}
+          
+{/* ==================================================
+    UNE DATE
+================================================== */}
 
-          <div className="mb-6">
-            <label
-              className="
-                block
-                text-sm
-                font-bold
-                text-slate-300
-                mb-2
-              "
-            >
-              Voir les ventes d'une date
-            </label>
+<div className="mb-6 w-full min-w-0">
+  <label
+    className="
+      block
+      text-sm
+      font-bold
+      text-slate-300
+      mb-2
+    "
+  >
+    Voir les ventes d'une date
+  </label>
 
-            <div
-              className="
-                flex
-                flex-col
-                sm:flex-row
-                gap-3
-              "
-            >
-              <div
-                className="
-  relative
-  flex-1
-  min-w-0
-  w-full
-"
-              >
-                <CalendarDays
-                  size={18}
-                  className="
-                    absolute
-                    left-3
-                    top-1/2
-                    -translate-y-1/2
-                    text-orange-400
-                    pointer-events-none
-                  "
-                />
+  <div
+    className="
+      flex
+      flex-col
+      sm:flex-row
+      gap-3
+      w-full
+      min-w-0
+      overflow-hidden
+    "
+  >
+  
+{/* CHAMP DATE */}
 
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) =>
-                    setSelectedDate(
-                      e.target.value
-                    )
-                  }
-                  className="
-  w-full
-  max-w-full
-  min-w-0
-  box-border
-  bg-[#111827]
-                    border
-                    border-white/10
-                    rounded-xl
-                    p-3
-                    pl-10
-                    text-white
-                    outline-none
-                    focus:border-orange-400
-                    focus:ring-1
-                    focus:ring-orange-400
-                    [color-scheme:dark]
-                  "
-                />
-              </div>
+<div className="w-full min-w-0">
+  <input
+    type="date"
+    value={selectedDate}
+    onChange={(e) =>
+      setSelectedDate(e.target.value)
+    }
+    className="
+      w-full
+      min-w-0
+      bg-[#111827]
+      border
+      border-white/10
+      rounded-xl
+      p-3
+      text-white
+      outline-none
+      focus:border-orange-400
+      focus:ring-1
+      focus:ring-orange-400
+      [color-scheme:dark]
+    "
+  />
+</div>
 
-              <button
-                onClick={filterByDate}
-                className="
-                  bg-blue-500
-                  hover:bg-blue-400
-                  px-5
-                  py-3
-                  rounded-xl
-                  font-black
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                "
-              >
-                <Search size={17} />
-                Chercher
-              </button>
-            </div>
-          </div>
 
-          {/* PÉRIODE */}
+    {/* BOUTON */}
 
-          <div className="mb-6">
-            <label
-              className="
-                block
-                text-sm
-                font-bold
-                text-slate-300
-                mb-2
-              "
-            >
-              Voir une période
-            </label>
+    <button
+      onClick={filterByDate}
+      className="
+        w-full
+        sm:w-auto
+        shrink-0
+        bg-blue-500
+        hover:bg-blue-400
+        px-5
+        py-3
+        rounded-xl
+        font-black
+        text-white
+        flex
+        items-center
+        justify-center
+        gap-2
+      "
+    >
+      <Search size={17} />
+      Chercher
+    </button>
+  </div>
+</div>
 
-            <div
-              className="
-                grid
-                grid-cols-1
-                sm:grid-cols-2
-                lg:grid-cols-3
-                gap-3
-              "
-            >
+
+        {/* PÉRIODE */}
+
+<div className="mb-6 w-full min-w-0">
+  <label
+    className="
+      block
+      text-sm
+      font-bold
+      text-slate-300
+      mb-2
+    "
+  >
+    Voir une période
+  </label>
+
+  <div
+    className="
+      grid
+      grid-cols-1
+      sm:grid-cols-2
+      lg:grid-cols-3
+      gap-3
+      w-full
+      min-w-0
+    "
+  >
               {/* DATE DE DÉBUT */}
 
               <div>
@@ -1311,11 +1305,9 @@ ${formatMoney(
                     )
                   }
                   className="
-  w-full
-  max-w-full
-  min-w-0
-  box-border
-  bg-[#111827]
+                    w-full
+                    min-w-0
+                    bg-[#111827]
                     border
                     border-white/10
                     rounded-xl
@@ -1353,11 +1345,9 @@ ${formatMoney(
                     )
                   }
                   className="
-  w-full
-  max-w-full
-  min-w-0
-  box-border
-  bg-[#111827]
+                    w-full
+                    min-w-0
+                    bg-[#111827]
                     border
                     border-white/10
                     rounded-xl
@@ -1651,23 +1641,17 @@ ${formatMoney(
 
                     <div
                       className="
-  relative
-  flex-1
-  min-w-0
-  w-full
-"
+                        min-w-0
+                        flex-1
+                      "
                     >
                       <p
-  className="
-    text-xs
-    text-slate-400
-    mt-1
-    whitespace-nowrap
-    overflow-hidden
-    text-ellipsis
-    max-w-full
-  "
->
+                        className="
+                          font-black
+                          text-white
+                          break-words
+                        "
+                      >
                         📦{" "}
                         {sale.product_name}
                       </p>
