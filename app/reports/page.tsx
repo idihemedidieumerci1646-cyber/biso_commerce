@@ -1648,24 +1648,31 @@ ${formatMoney(
                       "
                     >
                       <p
-                        className="
-                          font-black
-                          text-white
-                          break-words
-                        "
-                      >
+  className="
+    text-xs
+    text-slate-400
+    mt-1
+    whitespace-nowrap
+    overflow-hidden
+    text-ellipsis
+    max-w-full
+  "
+>
                         📦{" "}
                         {sale.product_name}
                       </p>
 
                       <p
-                        className="
-                          text-xs
-                          text-slate-400
-                          mt-1
-                          break-words
-                        "
-                      >
+  className="
+    text-xs
+    text-slate-400
+    mt-1
+    whitespace-nowrap
+    overflow-hidden
+    text-ellipsis
+    max-w-full
+  "
+>
                         📅{" "}
                         {new Date(
                           sale.created_at
@@ -1679,13 +1686,13 @@ ${formatMoney(
 
                     <div
                       className="
-                        grid
-                        grid-cols-2
-                        sm:grid-cols-3
-                        gap-4
-                        text-sm
-                        shrink-0
-                      "
+  grid
+  grid-cols-2
+  gap-3
+  text-sm
+  w-full
+  min-w-0
+"
                     >
                       <div>
                         <p
@@ -1845,15 +1852,16 @@ function ReportCard({
       </h3>
 
       <p
-        className="
-          mt-3
-          text-lg
-          sm:text-xl
-          font-black
-          text-orange-400
-          break-words
-        "
-      >
+  className="
+    text-xs
+    text-slate-400
+    mt-1
+    whitespace-nowrap
+    overflow-hidden
+    text-ellipsis
+    max-w-full
+  "
+>
         {value}
       </p>
 
