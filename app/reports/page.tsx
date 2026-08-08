@@ -49,7 +49,7 @@ export default function ReportsPage() {
   const [showGuide, setShowGuide] = useState(false);
   const [showTopButton, setShowTopButton] = useState(false);
 
-  const [today, setToday] = useState<DayReport>({
+  const [today, setToday] = useState({
     fc: 0,
     usd: 0,
     profitFc: 0,
@@ -57,7 +57,7 @@ export default function ReportsPage() {
     quantity: 0,
   });
 
-  const [yesterday, setYesterday] = useState<DayReport>({
+  const [yesterday, setYesterday] = useState({
     fc: 0,
     usd: 0,
     profitFc: 0,
@@ -65,17 +65,15 @@ export default function ReportsPage() {
     quantity: 0,
   });
 
-  const [beforeYesterday, setBeforeYesterday] =
-    useState<DayReport>({
-      fc: 0,
-      usd: 0,
-      profitFc: 0,
-      profitUsd: 0,
-      quantity: 0,
-    });
+  const [beforeYesterday, setBeforeYesterday] = useState({
+    fc: 0,
+    usd: 0,
+    profitFc: 0,
+    profitUsd: 0,
+    quantity: 0,
+  });
 
-  const [bestProduct, setBestProduct] =
-    useState("Aucun");
+  const [bestProduct, setBestProduct] = useState("Aucun");
 
   // ======================================================
   // CHARGEMENT INITIAL
@@ -99,10 +97,7 @@ export default function ReportsPage() {
     });
 
     return () => {
-      window.removeEventListener(
-        "scroll",
-        handleScroll
-      );
+      window.removeEventListener("scroll", handleScroll);
     };
   }, []);
 
@@ -118,12 +113,12 @@ export default function ReportsPage() {
   // ======================================================
 
   const formatMoney = (value: number) => {
-  const number = Math.round(Number(value || 0));
+    const number = Math.round(Number(value || 0));
 
-  return number
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-};
+    return number
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  };
 
   // ======================================================
   // FORMAT DATE
@@ -132,13 +127,9 @@ export default function ReportsPage() {
   const getLocalDate = (date: Date) => {
     const year = date.getFullYear();
 
-    const month = String(
-      date.getMonth() + 1
-    ).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
 
-    const day = String(
-      date.getDate()
-    ).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
   };
@@ -148,13 +139,13 @@ export default function ReportsPage() {
   // ======================================================
 
   const cleanPDF = (text: string) => {
-  return String(text || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\x20-\x7E]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-};
+    return String(text || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\x20-\x7E]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
 
   // ======================================================
   // CALCUL D'UNE JOURNÉE
@@ -173,24 +164,17 @@ export default function ReportsPage() {
     let quantity = 0;
 
     sales.forEach((sale) => {
-      const saleDate =
-        sale.created_at.split("T")[0];
+      const saleDate = sale.created_at.split("T")[0];
 
       if (saleDate !== targetDate) {
         return;
       }
 
-      const amount = Number(
-        sale.total_sale || 0
-      );
+      const amount = Number(sale.total_sale || 0);
 
-      const profit = Number(
-        sale.profit || 0
-      );
+      const profit = Number(sale.profit || 0);
 
-      quantity += Number(
-        sale.quantity || 0
-      );
+      quantity += Number(sale.quantity || 0);
 
       if (sale.currency === "FC") {
         fc += amount;
@@ -219,35 +203,27 @@ export default function ReportsPage() {
 
   const loadReports = async () => {
     try {
-      const userId =
-        localStorage.getItem("user_id");
+      const userId = localStorage.getItem("user_id");
 
       if (!userId) {
-        console.log(
-          "Utilisateur non connecté."
-        );
+        console.log("Utilisateur non connecté.");
         return;
       }
 
-      const { data, error } =
-        await supabase
-          .from("sales")
-          .select("*")
-          .eq("user_id", userId)
-          .order("created_at", {
-            ascending: false,
-          });
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", {
+          ascending: false,
+        });
 
       if (error) {
-        console.error(
-          "Erreur chargement ventes :",
-          error
-        );
+        console.error("Erreur chargement ventes :", error);
         return;
       }
 
-      const list =
-        (data || []) as Sale[];
+      const list = (data || []) as Sale[];
 
       setSalesHistory(list);
       setFilteredSales(list);
@@ -258,32 +234,23 @@ export default function ReportsPage() {
 
       const now = new Date();
 
-      const todayDate =
-        getLocalDate(now);
+      const todayDate = getLocalDate(now);
 
-      const yesterdayDate =
-        new Date(now);
+      const yesterdayDate = new Date(now);
 
-      yesterdayDate.setDate(
-        yesterdayDate.getDate() - 1
-      );
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
 
-      const yesterdayString =
-        getLocalDate(
-          yesterdayDate
-        );
+      const yesterdayString = getLocalDate(yesterdayDate);
 
-      const beforeYesterdayDate =
-        new Date(now);
+      const beforeYesterdayDate = new Date(now);
 
       beforeYesterdayDate.setDate(
         beforeYesterdayDate.getDate() - 2
       );
 
-      const beforeYesterdayString =
-        getLocalDate(
-          beforeYesterdayDate
-        );
+      const beforeYesterdayString = getLocalDate(
+        beforeYesterdayDate
+      );
 
       // ==================================================
       // RAPPORTS JOURNALIERS
@@ -314,14 +281,10 @@ export default function ReportsPage() {
       // PRODUIT LE PLUS VENDU
       // ==================================================
 
-      const products: Record<
-        string,
-        number
-      > = {};
+      const products: Record<string, number> = {};
 
       list.forEach((sale) => {
-        const name =
-          sale.product_name?.trim();
+        const name = sale.product_name?.trim();
 
         if (!name) {
           return;
@@ -331,29 +294,22 @@ export default function ReportsPage() {
           products[name] = 0;
         }
 
-        products[name] += Number(
-          sale.quantity || 0
-        );
+        products[name] += Number(sale.quantity || 0);
       });
 
       let best = "Aucun";
       let max = 0;
 
-      Object.keys(products).forEach(
-        (name) => {
-          if (products[name] > max) {
-            max = products[name];
-            best = name;
-          }
+      Object.keys(products).forEach((name) => {
+        if (products[name] > max) {
+          max = products[name];
+          best = name;
         }
-      );
+      });
 
       setBestProduct(best);
     } catch (error) {
-      console.error(
-        "Erreur générale :",
-        error
-      );
+      console.error("Erreur générale :", error);
     }
   };
 
@@ -367,13 +323,9 @@ export default function ReportsPage() {
       return;
     }
 
-    const result =
-      salesHistory.filter((sale) => {
-        return (
-          sale.created_at.split("T")[0] ===
-          selectedDate
-        );
-      });
+    const result = salesHistory.filter((sale) => {
+      return sale.created_at.split("T")[0] === selectedDate;
+    });
 
     setFilteredSales(result);
     setShowAll(false);
@@ -398,16 +350,14 @@ export default function ReportsPage() {
       return;
     }
 
-    const result =
-      salesHistory.filter((sale) => {
-        const saleDate =
-          sale.created_at.split("T")[0];
+    const result = salesHistory.filter((sale) => {
+      const saleDate = sale.created_at.split("T")[0];
 
-        return (
-          saleDate >= startDate &&
-          saleDate <= endDate
-        );
-      });
+      return (
+        saleDate >= startDate &&
+        saleDate <= endDate
+      );
+    });
 
     setFilteredSales(result);
     setShowAll(false);
@@ -589,23 +539,16 @@ export default function ReportsPage() {
         };
       }
 
-      produits[productName].quantity +=
-        quantity;
+      produits[productName].quantity += quantity;
 
       if (isFC) {
-        produits[productName].montantFc +=
-          montant;
-
-        produits[productName].profitFc +=
-          benefice;
+        produits[productName].montantFc += montant;
+        produits[productName].profitFc += benefice;
       }
 
       if (isUSD) {
-        produits[productName].montantUsd +=
-          montant;
-
-        produits[productName].profitUsd +=
-          benefice;
+        produits[productName].montantUsd += montant;
+        produits[productName].profitUsd += benefice;
       }
     });
 
@@ -661,7 +604,11 @@ export default function ReportsPage() {
     // PAGE DE GARDE
     // ==================================================
 
-    doc.setFont("helvetica", "bold");
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
     doc.setFontSize(25);
 
     doc.text(
@@ -678,7 +625,11 @@ export default function ReportsPage() {
       49
     );
 
-    doc.setFont("helvetica", "normal");
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
     doc.setFontSize(11);
 
     doc.text(
@@ -1176,1003 +1127,1076 @@ export default function ReportsPage() {
   // ======================================================
 
   return (
-    <main className="min-h-screen space-y-6 pb-24">
-      {/* ==================================================
-          HEADER
-      ================================================== */}
+    <main
+      className="
+        mx-auto
+        w-full
+        min-w-0
+        max-w-7xl
+        overflow-x-hidden
+        px-3
+        py-4
+        sm:px-5
+        sm:py-6
+        lg:px-6
+      "
+    >
+      <div className="w-full min-w-0 space-y-6">
 
-      <section
-        className="
-          rounded-3xl
-          border border-white/10
-          bg-white/[0.04]
-          p-5
-          shadow-xl
-          backdrop-blur-xl
-          sm:p-6
-        "
-      >
-        <div
+        {/* ==================================================
+            HEADER
+        ================================================== */}
+
+        <section
           className="
-            flex
-            flex-col
-            gap-4
-            sm:flex-row
-            sm:items-center
-            sm:justify-between
+            w-full
+            min-w-0
+            overflow-hidden
+            rounded-3xl
+            border
+            border-white/10
+            bg-white/[0.04]
+            p-5
+            shadow-xl
+            backdrop-blur-xl
+            sm:p-6
           "
         >
-          <div className="min-w-0">
-            <div className="flex items-center gap-3">
+          <div
+            className="
+              flex
+              min-w-0
+              flex-col
+              gap-4
+              sm:flex-row
+              sm:items-center
+              sm:justify-between
+            "
+          >
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-3">
+                <div
+                  className="
+                    flex
+                    h-12
+                    w-12
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-2xl
+                    bg-orange-500/10
+                    text-orange-400
+                  "
+                >
+                  <BarChart3 size={24} />
+                </div>
+
+                <div className="min-w-0">
+                  <h1
+                    className="
+                      truncate
+                      text-2xl
+                      font-black
+                      tracking-tight
+                      text-white
+                      sm:text-3xl
+                    "
+                  >
+                    Rapport
+                  </h1>
+
+                  <p className="mt-1 break-words text-sm text-slate-400">
+                    Analyse complète de votre activité commerciale
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowGuide(!showGuide)
+              }
+              className="
+                inline-flex
+                min-h-[48px]
+                w-full
+                shrink-0
+                items-center
+                justify-center
+                gap-2
+                rounded-xl
+                border
+                border-orange-400/20
+                bg-orange-500/10
+                px-4
+                py-3
+                text-sm
+                font-black
+                text-orange-300
+                transition
+                hover:bg-orange-500/20
+                sm:w-auto
+              "
+            >
+              <Sparkles size={17} />
+              Guide
+            </button>
+          </div>
+
+          {showGuide && (
+            <div
+              className="
+                mt-5
+                w-full
+                overflow-hidden
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/20
+                p-4
+              "
+            >
+              <div className="space-y-3 text-sm leading-6 text-slate-300">
+                <p>
+                  <span className="mr-2">📅</span>
+                  Choisissez une date pour afficher
+                  uniquement les ventes de cette journée.
+                </p>
+
+                <p>
+                  <span className="mr-2">📆</span>
+                  Utilisez « Du » et « Au » pour rechercher
+                  les ventes d'une période.
+                </p>
+
+                <p>
+                  <span className="mr-2">📄</span>
+                  Le bouton « Créer PDF » génère un rapport
+                  professionnel selon votre sélection.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowGuide(false)
+                }
+                className="
+                  mt-4
+                  w-full
+                  rounded-xl
+                  bg-orange-500
+                  px-4
+                  py-3
+                  font-black
+                  text-black
+                  transition
+                  hover:bg-orange-400
+                "
+              >
+                Fermer le guide
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* ==================================================
+            STATISTIQUES
+        ================================================== */}
+
+        <section
+          className="
+            grid
+            w-full
+            min-w-0
+            grid-cols-1
+            gap-4
+            md:grid-cols-3
+          "
+        >
+          <ReportCard
+            icon="🔥"
+            title="Aujourd'hui"
+            value={`${formatMoney(
+              today.fc
+            )} FC | ${formatMoney(
+              today.usd
+            )} $`}
+            subtitle={`Bénéfice : ${formatMoney(
+              today.profitFc
+            )} FC | ${formatMoney(
+              today.profitUsd
+            )} $`}
+          />
+
+          <ReportCard
+            icon="📅"
+            title="Hier"
+            value={`${formatMoney(
+              yesterday.fc
+            )} FC | ${formatMoney(
+              yesterday.usd
+            )} $`}
+            subtitle={`Bénéfice : ${formatMoney(
+              yesterday.profitFc
+            )} FC | ${formatMoney(
+              yesterday.profitUsd
+            )} $`}
+          />
+
+          <ReportCard
+            icon="📈"
+            title="Avant-hier"
+            value={`${formatMoney(
+              beforeYesterday.fc
+            )} FC | ${formatMoney(
+              beforeYesterday.usd
+            )} $`}
+            subtitle={`Bénéfice : ${formatMoney(
+              beforeYesterday.profitFc
+            )} FC | ${formatMoney(
+              beforeYesterday.profitUsd
+            )} $`}
+          />
+        </section>
+
+        {/* ==================================================
+            RECHERCHE
+        ================================================== */}
+
+        <section
+          className="
+            w-full
+            min-w-0
+            overflow-hidden
+            rounded-3xl
+            border
+            border-white/10
+            bg-white/[0.04]
+            p-5
+            shadow-xl
+            sm:p-6
+          "
+        >
+          <div className="mb-6">
+            <div className="flex min-w-0 items-center gap-3">
               <div
                 className="
                   flex
-                  h-12
-                  w-12
+                  h-10
+                  w-10
                   shrink-0
                   items-center
                   justify-center
-                  rounded-2xl
-                  bg-orange-500/10
-                  text-orange-400
+                  rounded-xl
+                  bg-blue-500/10
+                  text-blue-400
                 "
               >
-                <BarChart3 size={24} />
+                <Search size={19} />
               </div>
 
-              <div>
-                <h1
-                  className="
-                    text-2xl
-                    font-black
-                    tracking-tight
-                    text-white
-                    sm:text-3xl
-                  "
-                >
-                  Rapport
-                </h1>
+              <div className="min-w-0">
+                <h2 className="text-xl font-black text-white">
+                  Rechercher les ventes
+                </h2>
 
-                <p className="mt-1 text-sm text-slate-400">
-                  Analyse complète de votre activité commerciale
+                <p className="mt-1 text-xs text-slate-500">
+                  Filtrez vos ventes par date ou par période.
                 </p>
               </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              setShowGuide(!showGuide)
-            }
+          {/* UNE DATE */}
+
+          <div className="mb-6 min-w-0">
+            <label
+              className="
+                mb-2
+                block
+                text-sm
+                font-bold
+                text-slate-300
+              "
+            >
+              Rechercher une date
+            </label>
+
+            <div
+              className="
+                flex
+                min-w-0
+                flex-col
+                gap-3
+                sm:flex-row
+                sm:items-center
+              "
+            >
+              <div
+                className="
+                  relative
+                  min-w-0
+                  flex-1
+                  overflow-hidden
+                "
+              >
+                <CalendarDays
+                  size={18}
+                  className="
+                    pointer-events-none
+                    absolute
+                    left-3
+                    top-1/2
+                    z-10
+                    -translate-y-1/2
+                    text-orange-400
+                  "
+                />
+
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) =>
+                    setSelectedDate(
+                      e.target.value
+                    )
+                  }
+                  className="
+                    block
+                    min-h-[48px]
+                    w-full
+                    min-w-0
+                    max-w-full
+                    appearance-none
+                    rounded-xl
+                    border
+                    border-white/10
+                    bg-[#111827]
+                    p-3
+                    pl-10
+                    text-[16px]
+                    text-white
+                    outline-none
+                    transition
+                    focus:border-orange-400
+                    focus:ring-1
+                    focus:ring-orange-400
+                    [color-scheme:dark]
+                  "
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={filterByDate}
+                className="
+                  inline-flex
+                  min-h-[48px]
+                  w-full
+                  shrink-0
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-xl
+                  bg-blue-500
+                  px-5
+                  py-3
+                  font-black
+                  text-white
+                  transition
+                  hover:bg-blue-400
+                  active:scale-[0.98]
+                  sm:w-auto
+                "
+              >
+                <Search size={17} />
+                Chercher
+              </button>
+            </div>
+          </div>
+
+          {/* SÉPARATEUR */}
+
+          <div className="mb-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/10" />
+
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              ou
+            </span>
+
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          {/* PÉRIODE */}
+
+          <div className="min-w-0">
+            <label
+              className="
+                mb-3
+                block
+                text-sm
+                font-bold
+                text-slate-300
+              "
+            >
+              Rechercher une période
+            </label>
+
+            <div
+              className="
+                grid
+                min-w-0
+                grid-cols-1
+                gap-3
+                md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]
+                md:items-end
+              "
+            >
+              <div className="min-w-0">
+                <label
+                  className="
+                    mb-2
+                    block
+                    text-xs
+                    font-bold
+                    text-slate-500
+                  "
+                >
+                  Du
+                </label>
+
+                <div className="relative min-w-0">
+                  <CalendarDays
+                    size={17}
+                    className="
+                      pointer-events-none
+                      absolute
+                      left-3
+                      top-1/2
+                      -translate-y-1/2
+                      text-purple-400
+                    "
+                  />
+
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) =>
+                      setStartDate(
+                        e.target.value
+                      )
+                    }
+                    className="
+                      block
+                      min-h-[48px]
+                      w-full
+                      min-w-0
+                      max-w-full
+                      rounded-xl
+                      border
+                      border-white/10
+                      bg-[#111827]
+                      p-3
+                      pl-10
+                      text-[16px]
+                      text-white
+                      outline-none
+                      transition
+                      focus:border-purple-400
+                      focus:ring-1
+                      focus:ring-purple-400
+                      [color-scheme:dark]
+                    "
+                  />
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <label
+                  className="
+                    mb-2
+                    block
+                    text-xs
+                    font-bold
+                    text-slate-500
+                  "
+                >
+                  Au
+                </label>
+
+                <div className="relative min-w-0">
+                  <CalendarDays
+                    size={17}
+                    className="
+                      pointer-events-none
+                      absolute
+                      left-3
+                      top-1/2
+                      -translate-y-1/2
+                      text-purple-400
+                    "
+                  />
+
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) =>
+                      setEndDate(
+                        e.target.value
+                      )
+                    }
+                    className="
+                      block
+                      min-h-[48px]
+                      w-full
+                      min-w-0
+                      max-w-full
+                      rounded-xl
+                      border
+                      border-white/10
+                      bg-[#111827]
+                      p-3
+                      pl-10
+                      text-[16px]
+                      text-white
+                      outline-none
+                      transition
+                      focus:border-purple-400
+                      focus:ring-1
+                      focus:ring-purple-400
+                      [color-scheme:dark]
+                    "
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={filterByPeriod}
+                className="
+                  inline-flex
+                  min-h-[48px]
+                  w-full
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-xl
+                  bg-purple-500
+                  px-5
+                  py-3
+                  font-black
+                  text-white
+                  transition
+                  hover:bg-purple-400
+                  active:scale-[0.98]
+                  md:w-auto
+                "
+              >
+                <CalendarDays size={17} />
+                Voir la période
+              </button>
+            </div>
+          </div>
+
+          {/* ACTIONS */}
+
+          <div
             className="
-              inline-flex
+              mt-6
+              grid
+              min-w-0
+              grid-cols-1
+              gap-3
+              sm:grid-cols-2
+              lg:grid-cols-3
+            "
+          >
+            <button
+              type="button"
+              onClick={showEverything}
+              className="
+                inline-flex
+                min-h-[48px]
+                w-full
+                items-center
+                justify-center
+                gap-2
+                rounded-xl
+                bg-orange-500
+                px-5
+                py-3
+                font-black
+                text-black
+                transition
+                hover:bg-orange-400
+              "
+            >
+              <ShoppingCart size={17} />
+              Toutes les ventes
+            </button>
+
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="
+                inline-flex
+                min-h-[48px]
+                w-full
+                items-center
+                justify-center
+                gap-2
+                rounded-xl
+                border
+                border-white/10
+                bg-black/30
+                px-5
+                py-3
+                font-bold
+                text-slate-300
+                transition
+                hover:bg-white/5
+              "
+            >
+              <X size={17} />
+              Réinitialiser
+            </button>
+
+            <button
+              type="button"
+              onClick={downloadPDF}
+              className="
+                inline-flex
+                min-h-[48px]
+                w-full
+                items-center
+                justify-center
+                gap-2
+                rounded-xl
+                bg-gradient-to-r
+                from-orange-500
+                to-yellow-400
+                px-5
+                py-3
+                font-black
+                text-black
+                shadow-lg
+                shadow-orange-500/10
+                transition
+                hover:brightness-110
+              "
+            >
+              <Download size={17} />
+              Créer le PDF
+            </button>
+          </div>
+        </section>
+
+        {/* ==================================================
+            RÉSULTAT DE LA RECHERCHE
+        ================================================== */}
+
+        {(selectedDate ||
+          startDate ||
+          endDate) && (
+          <section
+            className="
               w-full
-              items-center
-              justify-center
-              gap-2
-              rounded-xl
+              min-w-0
+              overflow-hidden
+              rounded-2xl
               border
               border-orange-400/20
               bg-orange-500/10
-              px-4
-              py-3
-              text-sm
-              font-black
-              text-orange-300
-              transition
-              hover:bg-orange-500/20
-              sm:w-auto
-            "
-          >
-            <Sparkles size={17} />
-            Guide
-          </button>
-        </div>
-
-        {showGuide && (
-          <div
-            className="
-              mt-5
-              rounded-2xl
-              border
-              border-white/10
-              bg-black/20
               p-4
             "
           >
-            <div className="space-y-3 text-sm leading-6 text-slate-300">
-              <p>
-                <span className="mr-2">📅</span>
-                Choisissez une date pour afficher
-                uniquement les ventes de cette journée.
-              </p>
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="mt-0.5 shrink-0 text-orange-400">
+                <Search size={18} />
+              </div>
 
-              <p>
-                <span className="mr-2">📆</span>
-                Utilisez « Du » et « Au » pour rechercher
-                les ventes d'une période.
-              </p>
+              <div className="min-w-0">
+                <p className="break-words text-sm font-black text-orange-300">
+                  {selectedDate
+                    ? `Résultat pour le ${selectedDate}`
+                    : startDate && endDate
+                    ? `Résultat du ${startDate} au ${endDate}`
+                    : "Sélection incomplète"}
+                </p>
 
-              <p>
-                <span className="mr-2">📄</span>
-                Le bouton « Créer PDF » génère un rapport
-                professionnel selon votre sélection.
-              </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {filteredSales.length} vente
+                  {filteredSales.length > 1
+                    ? "s"
+                    : ""}{" "}
+                  trouvée
+                  {filteredSales.length > 1
+                    ? "s"
+                    : ""}
+                </p>
+              </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                setShowGuide(false)
-              }
-              className="
-                mt-4
-                w-full
-                rounded-xl
-                bg-orange-500
-                px-4
-                py-3
-                font-black
-                text-black
-                transition
-                hover:bg-orange-400
-              "
-            >
-              Fermer le guide
-            </button>
-          </div>
+          </section>
         )}
-      </section>
 
-      {/* ==================================================
-          STATISTIQUES
-      ================================================== */}
+        {/* ==================================================
+            HISTORIQUE
+        ================================================== */}
 
-      <section
-        className="
-          grid
-          grid-cols-1
-          gap-4
-          md:grid-cols-3
-        "
-      >
-        <ReportCard
-          icon="🔥"
-          title="Aujourd'hui"
-          value={`${formatMoney(
-            today.fc
-          )} FC | ${formatMoney(
-            today.usd
-          )} $`}
-          subtitle={`Bénéfice : ${formatMoney(
-            today.profitFc
-          )} FC | ${formatMoney(
-            today.profitUsd
-          )} $`}
-        />
-
-        <ReportCard
-          icon="📅"
-          title="Hier"
-          value={`${formatMoney(
-            yesterday.fc
-          )} FC | ${formatMoney(
-            yesterday.usd
-          )} $`}
-          subtitle={`Bénéfice : ${formatMoney(
-            yesterday.profitFc
-          )} FC | ${formatMoney(
-            yesterday.profitUsd
-          )} $`}
-        />
-
-        <ReportCard
-          icon="📈"
-          title="Avant-hier"
-          value={`${formatMoney(
-            beforeYesterday.fc
-          )} FC | ${formatMoney(
-            beforeYesterday.usd
-          )} $`}
-          subtitle={`Bénéfice : ${formatMoney(
-            beforeYesterday.profitFc
-          )} FC | ${formatMoney(
-            beforeYesterday.profitUsd
-          )} $`}
-        />
-      </section>
-
-      {/* ==================================================
-          RECHERCHE
-      ================================================== */}
-
-      <section
-        className="
-          rounded-3xl
-          border
-          border-white/10
-          bg-white/[0.04]
-          p-5
-          shadow-xl
-          sm:p-6
-        "
-      >
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <div
-              className="
-                flex
-                h-10
-                w-10
-                items-center
-                justify-center
-                rounded-xl
-                bg-blue-500/10
-                text-blue-400
-              "
-            >
-              <Search size={19} />
-            </div>
-
-            <div>
-              <h2 className="text-xl font-black text-white">
-                Rechercher les ventes
-              </h2>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Filtrez vos ventes par date ou par période.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* UNE DATE */}
-
-        <div className="mb-6">
-          <label
-            className="
-              mb-2
-              block
-              text-sm
-              font-bold
-              text-slate-300
-            "
-          >
-            Rechercher une date
-          </label>
-
-          <div
-            className="
-              flex
-              flex-col
-              gap-3
-              sm:flex-row
-              sm:items-center
-            "
-          >
-            <div
-              className="
-                relative
-                min-w-0
-                flex-1
-                overflow-hidden
-              "
-            >
-              <CalendarDays
-                size={18}
-                className="
-                  pointer-events-none
-                  absolute
-                  left-3
-                  top-1/2
-                  z-10
-                  -translate-y-1/2
-                  text-orange-400
-                "
-              />
-
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) =>
-                  setSelectedDate(
-                    e.target.value
-                  )
-                }
-                className="
-                  block
-                  min-h-[48px]
-                  w-full
-                  min-w-0
-                  max-w-full
-                  appearance-none
-                  rounded-xl
-                  border
-                  border-white/10
-                  bg-[#111827]
-                  p-3
-                  pl-10
-                  text-[16px]
-                  text-white
-                  outline-none
-                  transition
-                  focus:border-orange-400
-                  focus:ring-1
-                  focus:ring-orange-400
-                  [color-scheme:dark]
-                "
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={filterByDate}
-              className="
-                inline-flex
-                min-h-[48px]
-                w-full
-                shrink-0
-                items-center
-                justify-center
-                gap-2
-                rounded-xl
-                bg-blue-500
-                px-5
-                py-3
-                font-black
-                text-white
-                transition
-                hover:bg-blue-400
-                active:scale-[0.98]
-                sm:w-auto
-              "
-            >
-              <Search size={17} />
-              Chercher
-            </button>
-          </div>
-        </div>
-
-        {/* SÉPARATEUR */}
-
-        <div className="mb-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-white/10" />
-
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-            ou
-          </span>
-
-          <div className="h-px flex-1 bg-white/10" />
-        </div>
-
-        {/* PÉRIODE */}
-
-        <div>
-          <label
-            className="
-              mb-3
-              block
-              text-sm
-              font-bold
-              text-slate-300
-            "
-          >
-            Rechercher une période
-          </label>
-
-          <div
-            className="
-              grid
-              grid-cols-1
-              gap-3
-              md:grid-cols-[1fr_1fr_auto]
-              md:items-end
-            "
-          >
-            <div className="min-w-0">
-              <label
-                className="
-                  mb-2
-                  block
-                  text-xs
-                  font-bold
-                  text-slate-500
-                "
-              >
-                Du
-              </label>
-
-              <div className="relative min-w-0">
-                <CalendarDays
-                  size={17}
-                  className="
-                    pointer-events-none
-                    absolute
-                    left-3
-                    top-1/2
-                    -translate-y-1/2
-                    text-purple-400
-                  "
-                />
-
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) =>
-                    setStartDate(
-                      e.target.value
-                    )
-                  }
-                  className="
-                    block
-                    min-h-[48px]
-                    w-full
-                    min-w-0
-                    rounded-xl
-                    border
-                    border-white/10
-                    bg-[#111827]
-                    p-3
-                    pl-10
-                    text-[16px]
-                    text-white
-                    outline-none
-                    transition
-                    focus:border-purple-400
-                    focus:ring-1
-                    focus:ring-purple-400
-                    [color-scheme:dark]
-                  "
-                />
-              </div>
-            </div>
-
-            <div className="min-w-0">
-              <label
-                className="
-                  mb-2
-                  block
-                  text-xs
-                  font-bold
-                  text-slate-500
-                "
-              >
-                Au
-              </label>
-
-              <div className="relative min-w-0">
-                <CalendarDays
-                  size={17}
-                  className="
-                    pointer-events-none
-                    absolute
-                    left-3
-                    top-1/2
-                    -translate-y-1/2
-                    text-purple-400
-                  "
-                />
-
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) =>
-                    setEndDate(
-                      e.target.value
-                    )
-                  }
-                  className="
-                    block
-                    min-h-[48px]
-                    w-full
-                    min-w-0
-                    rounded-xl
-                    border
-                    border-white/10
-                    bg-[#111827]
-                    p-3
-                    pl-10
-                    text-[16px]
-                    text-white
-                    outline-none
-                    transition
-                    focus:border-purple-400
-                    focus:ring-1
-                    focus:ring-purple-400
-                    [color-scheme:dark]
-                  "
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={filterByPeriod}
-              className="
-                inline-flex
-                min-h-[48px]
-                items-center
-                justify-center
-                gap-2
-                rounded-xl
-                bg-purple-500
-                px-5
-                py-3
-                font-black
-                text-white
-                transition
-                hover:bg-purple-400
-                active:scale-[0.98]
-              "
-            >
-              <CalendarDays size={17} />
-              Voir la période
-            </button>
-          </div>
-        </div>
-
-        {/* ACTIONS */}
-
-        <div
-          className="
-            mt-6
-            grid
-            grid-cols-1
-            gap-3
-            sm:grid-cols-2
-            lg:grid-cols-3
-          "
-        >
-          <button
-            type="button"
-            onClick={showEverything}
-            className="
-              inline-flex
-              min-h-[48px]
-              items-center
-              justify-center
-              gap-2
-              rounded-xl
-              bg-orange-500
-              px-5
-              py-3
-              font-black
-              text-black
-              transition
-              hover:bg-orange-400
-            "
-          >
-            <ShoppingCart size={17} />
-            Toutes les ventes
-          </button>
-
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="
-              inline-flex
-              min-h-[48px]
-              items-center
-              justify-center
-              gap-2
-              rounded-xl
-              border
-              border-white/10
-              bg-black/30
-              px-5
-              py-3
-              font-bold
-              text-slate-300
-              transition
-              hover:bg-white/5
-            "
-          >
-            <X size={17} />
-            Réinitialiser
-          </button>
-
-          <button
-            type="button"
-            onClick={downloadPDF}
-            className="
-              inline-flex
-              min-h-[48px]
-              items-center
-              justify-center
-              gap-2
-              rounded-xl
-              bg-gradient-to-r
-              from-orange-500
-              to-yellow-400
-              px-5
-              py-3
-              font-black
-              text-black
-              shadow-lg
-              shadow-orange-500/10
-              transition
-              hover:brightness-110
-            "
-          >
-            <Download size={17} />
-            Créer le PDF
-          </button>
-        </div>
-      </section>
-
-      {/* ==================================================
-          RÉSULTAT DE LA RECHERCHE
-      ================================================== */}
-
-      {(selectedDate ||
-        startDate ||
-        endDate) && (
         <section
           className="
-            rounded-2xl
+            w-full
+            min-w-0
+            overflow-hidden
+            rounded-3xl
             border
-            border-orange-400/20
-            bg-orange-500/10
-            p-4
+            border-white/10
+            bg-white/[0.04]
+            p-5
+            shadow-xl
+            sm:p-6
           "
         >
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 text-orange-400">
-              <Search size={18} />
-            </div>
-
-            <div className="min-w-0">
-              <p className="text-sm font-black text-orange-300">
-                {selectedDate
-                  ? `Résultat pour le ${selectedDate}`
-                  : startDate && endDate
-                  ? `Résultat du ${startDate} au ${endDate}`
-                  : "Sélection incomplète"}
-              </p>
-
-              <p className="mt-1 text-xs text-slate-400">
-                {filteredSales.length} vente
-                {filteredSales.length > 1
-                  ? "s"
-                  : ""}{" "}
-                trouvée
-                {filteredSales.length > 1
-                  ? "s"
-                  : ""}
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ==================================================
-          HISTORIQUE
-      ================================================== */}
-
-      <section
-        className="
-          rounded-3xl
-          border
-          border-white/10
-          bg-white/[0.04]
-          p-5
-          shadow-xl
-          sm:p-6
-        "
-      >
-        <div
-          className="
-            mb-5
-            flex
-            flex-col
-            gap-4
-            sm:flex-row
-            sm:items-center
-            sm:justify-between
-          "
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="
-                flex
-                h-10
-                w-10
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-green-500/10
-                text-green-400
-              "
-            >
-              <TrendingUp size={19} />
-            </div>
-
-            <div>
-              <h2 className="text-xl font-black text-white">
-                Historique des ventes
-              </h2>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Consultez les ventes enregistrées.
-              </p>
-            </div>
-          </div>
-
-          {filteredSales.length > 5 && (
-            <button
-              type="button"
-              onClick={() =>
-                setShowAll(!showAll)
-              }
-              className="
-                inline-flex
-                items-center
-                justify-center
-                rounded-xl
-                bg-orange-500
-                px-4
-                py-2.5
-                text-sm
-                font-black
-                text-black
-                transition
-                hover:bg-orange-400
-              "
-            >
-              {showAll
-                ? "Afficher seulement 5"
-                : "Voir toutes les ventes"}
-            </button>
-          )}
-        </div>
-
-        {displayedSales.length === 0 ? (
           <div
             className="
-              rounded-2xl
-              border
-              border-white/10
-              bg-black/20
-              p-10
-              text-center
+              mb-5
+              flex
+              min-w-0
+              flex-col
+              gap-4
+              sm:flex-row
+              sm:items-center
+              sm:justify-between
             "
           >
-            <div
-              className="
-                mx-auto
-                flex
-                h-14
-                w-14
-                items-center
-                justify-center
-                rounded-2xl
-                bg-white/5
-                text-slate-500
-              "
-            >
-              <Package size={25} />
+            <div className="flex min-w-0 items-center gap-3">
+              <div
+                className="
+                  flex
+                  h-10
+                  w-10
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-green-500/10
+                  text-green-400
+                "
+              >
+                <TrendingUp size={19} />
+              </div>
+
+              <div className="min-w-0">
+                <h2 className="truncate text-xl font-black text-white">
+                  Historique des ventes
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Consultez les ventes enregistrées.
+                </p>
+              </div>
             </div>
 
-            <p className="mt-4 font-black text-white">
-              {selectedDate
-                ? "Aucune vente à cette date."
-                : startDate && endDate
-                ? "Aucune vente dans cette période."
-                : "Aucune vente disponible."}
-            </p>
-
-            <p className="mt-2 text-xs text-slate-500">
-              Essayez une autre date ou une autre période.
-            </p>
+            {filteredSales.length > 5 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setShowAll(!showAll)
+                }
+                className="
+                  inline-flex
+                  min-h-[44px]
+                  w-full
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-orange-500
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-black
+                  text-black
+                  transition
+                  hover:bg-orange-400
+                  sm:w-auto
+                "
+              >
+                {showAll
+                  ? "Afficher seulement 5"
+                  : "Voir toutes les ventes"}
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="space-y-3">
-            {displayedSales.map(
-              (sale) => (
-                <div
-                  key={sale.id}
-                  className="
-                    rounded-2xl
-                    border
-                    border-white/10
-                    bg-black/20
-                    p-4
-                    transition
-                    hover:border-white/20
-                    hover:bg-black/30
-                  "
-                >
+
+          {displayedSales.length === 0 ? (
+            <div
+              className="
+                w-full
+                overflow-hidden
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/20
+                p-10
+                text-center
+              "
+            >
+              <div
+                className="
+                  mx-auto
+                  flex
+                  h-14
+                  w-14
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-white/5
+                  text-slate-500
+                "
+              >
+                <Package size={25} />
+              </div>
+
+              <p className="mt-4 font-black text-white">
+                {selectedDate
+                  ? "Aucune vente à cette date."
+                  : startDate && endDate
+                  ? "Aucune vente dans cette période."
+                  : "Aucune vente disponible."}
+              </p>
+
+              <p className="mt-2 text-xs text-slate-500">
+                Essayez une autre date ou une autre période.
+              </p>
+            </div>
+          ) : (
+            <div className="w-full min-w-0 space-y-3">
+              {displayedSales.map(
+                (sale) => (
                   <div
+                    key={sale.id}
                     className="
-                      flex
-                      flex-col
-                      gap-4
-                      lg:flex-row
-                      lg:items-center
-                      lg:justify-between
+                      w-full
+                      min-w-0
+                      overflow-hidden
+                      rounded-2xl
+                      border
+                      border-white/10
+                      bg-black/20
+                      p-4
+                      transition
+                      hover:border-white/20
+                      hover:bg-black/30
                     "
                   >
                     <div
                       className="
+                        flex
                         min-w-0
-                        flex-1
+                        flex-col
+                        gap-4
+                        lg:flex-row
+                        lg:items-center
+                        lg:justify-between
                       "
                     >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className="
-                            flex
-                            h-10
-                            w-10
-                            shrink-0
-                            items-center
-                            justify-center
-                            rounded-xl
-                            bg-orange-500/10
-                            text-orange-400
-                          "
-                        >
-                          <Package size={18} />
-                        </div>
-
-                        <div className="min-w-0">
-                          <p
+                      <div
+                        className="
+                          min-w-0
+                          flex-1
+                        "
+                      >
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div
                             className="
-                              break-words
-                              font-black
-                              text-white
+                              flex
+                              h-10
+                              w-10
+                              shrink-0
+                              items-center
+                              justify-center
+                              rounded-xl
+                              bg-orange-500/10
+                              text-orange-400
                             "
                           >
-                            {sale.product_name}
+                            <Package size={18} />
+                          </div>
+
+                          <div className="min-w-0">
+                            <p
+                              className="
+                                break-words
+                                font-black
+                                text-white
+                              "
+                            >
+                              {sale.product_name}
+                            </p>
+
+                            <p
+                              className="
+                                mt-1
+                                break-words
+                                text-xs
+                                text-slate-500
+                              "
+                            >
+                              {new Date(
+                                sale.created_at
+                              ).toLocaleString(
+                                "fr-FR"
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className="
+                          grid
+                          w-full
+                          min-w-0
+                          grid-cols-3
+                          gap-2
+                          sm:gap-3
+                          lg:w-auto
+                          lg:min-w-[420px]
+                          lg:gap-5
+                        "
+                      >
+                        <div
+                          className="
+                            min-w-0
+                            overflow-hidden
+                            rounded-xl
+                            border
+                            border-white/5
+                            bg-white/[0.03]
+                            p-2.5
+                            sm:p-3
+                          "
+                        >
+                          <p className="text-[11px] text-slate-500">
+                            Quantité
+                          </p>
+
+                          <p className="mt-1 truncate font-black text-white">
+                            x{sale.quantity}
+                          </p>
+                        </div>
+
+                        <div
+                          className="
+                            min-w-0
+                            overflow-hidden
+                            rounded-xl
+                            border
+                            border-white/5
+                            bg-white/[0.03]
+                            p-2.5
+                            sm:p-3
+                          "
+                        >
+                          <p className="text-[11px] text-slate-500">
+                            Vente
                           </p>
 
                           <p
                             className="
                               mt-1
-                              break-words
-                              text-xs
-                              text-slate-500
+                              truncate
+                              text-sm
+                              font-black
+                              text-orange-400
                             "
                           >
-                            {new Date(
-                              sale.created_at
-                            ).toLocaleString(
-                              "fr-FR"
-                            )}
+                            {formatMoney(
+                              sale.total_sale
+                            )}{" "}
+                            {sale.currency}
+                          </p>
+                        </div>
+
+                        <div
+                          className="
+                            min-w-0
+                            overflow-hidden
+                            rounded-xl
+                            border
+                            border-white/5
+                            bg-white/[0.03]
+                            p-2.5
+                            sm:p-3
+                          "
+                        >
+                          <p className="text-[11px] text-slate-500">
+                            Bénéfice
+                          </p>
+
+                          <p
+                            className="
+                              mt-1
+                              truncate
+                              text-sm
+                              font-black
+                              text-green-400
+                            "
+                          >
+                            {formatMoney(
+                              sale.profit
+                            )}{" "}
+                            {sale.currency}
                           </p>
                         </div>
                       </div>
                     </div>
-
-                    <div
-                      className="
-                        grid
-                        grid-cols-3
-                        gap-3
-                        sm:gap-5
-                        lg:min-w-[420px]
-                      "
-                    >
-                      <div
-                        className="
-                          rounded-xl
-                          border
-                          border-white/5
-                          bg-white/[0.03]
-                          p-3
-                        "
-                      >
-                        <p className="text-[11px] text-slate-500">
-                          Quantité
-                        </p>
-
-                        <p className="mt-1 font-black text-white">
-                          x{sale.quantity}
-                        </p>
-                      </div>
-
-                      <div
-                        className="
-                          rounded-xl
-                          border
-                          border-white/5
-                          bg-white/[0.03]
-                          p-3
-                        "
-                      >
-                        <p className="text-[11px] text-slate-500">
-                          Vente
-                        </p>
-
-                        <p
-                          className="
-                            mt-1
-                            whitespace-nowrap
-                            text-sm
-                            font-black
-                            text-orange-400
-                          "
-                        >
-                          {formatMoney(
-                            sale.total_sale
-                          )}{" "}
-                          {sale.currency}
-                        </p>
-                      </div>
-
-                      <div
-                        className="
-                          rounded-xl
-                          border
-                          border-white/5
-                          bg-white/[0.03]
-                          p-3
-                        "
-                      >
-                        <p className="text-[11px] text-slate-500">
-                          Bénéfice
-                        </p>
-
-                        <p
-                          className="
-                            mt-1
-                            whitespace-nowrap
-                            text-sm
-                            font-black
-                            text-green-400
-                          "
-                        >
-                          {formatMoney(
-                            sale.profit
-                          )}{" "}
-                          {sale.currency}
-                        </p>
-                      </div>
-                    </div>
                   </div>
-                </div>
-              )
-            )}
-          </div>
+                )
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* ==================================================
+            RETOUR EN HAUT
+        ================================================== */}
+
+        {showTopButton && (
+          <button
+            type="button"
+            onClick={scrollToTop}
+            className="
+              fixed
+              bottom-5
+              right-5
+              z-[9999]
+              flex
+              h-12
+              w-12
+              items-center
+              justify-center
+              rounded-full
+              bg-orange-500
+              text-black
+              shadow-2xl
+              transition
+              hover:bg-orange-400
+              active:scale-95
+              sm:bottom-6
+              sm:right-6
+            "
+            title="Retour en haut"
+            aria-label="Retour en haut"
+          >
+            <ArrowUp size={21} />
+          </button>
         )}
-      </section>
 
-      {/* ==================================================
-          RETOUR EN HAUT
-      ================================================== */}
-
-      {showTopButton && (
-        <button
-          type="button"
-          onClick={scrollToTop}
-          className="
-            fixed
-            bottom-5
-            right-5
-            z-[9999]
-            flex
-            h-12
-            w-12
-            items-center
-            justify-center
-            rounded-full
-            bg-orange-500
-            text-black
-            shadow-2xl
-            transition
-            hover:bg-orange-400
-            active:scale-95
-            sm:bottom-6
-            sm:right-6
-          "
-          title="Retour en haut"
-          aria-label="Retour en haut"
-        >
-          <ArrowUp size={21} />
-        </button>
-      )}
+      </div>
     </main>
   );
 }
@@ -2195,19 +2219,25 @@ function ReportCard({
   return (
     <div
       className="
+        w-full
+        min-w-0
+        overflow-hidden
         rounded-3xl
         border
         border-white/10
         bg-white/[0.04]
         p-5
         shadow-xl
+        backdrop-blur-xl
+        sm:p-6
       "
     >
       <div
         className="
           flex
-          h-12
-          w-12
+          h-11
+          w-11
+          shrink-0
           items-center
           justify-center
           rounded-2xl
@@ -2221,6 +2251,7 @@ function ReportCard({
       <h3
         className="
           mt-4
+          truncate
           font-black
           text-white
         "
@@ -2232,8 +2263,9 @@ function ReportCard({
         className="
           mt-3
           break-words
-          text-lg
+          text-base
           font-black
+          leading-6
           text-orange-400
           sm:text-xl
         "
@@ -2244,6 +2276,7 @@ function ReportCard({
       <p
         className="
           mt-2
+          break-words
           text-xs
           leading-5
           text-slate-400
