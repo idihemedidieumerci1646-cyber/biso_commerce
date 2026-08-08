@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -14,110 +15,119 @@ type Subscription = {
   created_at: string;
 };
 
-
 export default function AdminPage() {
 
   const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [renewRequests, setRenewRequests] = useState<Subscription[]>([]);
-  const [activeClients, setActiveClients] = useState<Subscription[]>([]);
-  const [expiredClients, setExpiredClients] = useState<Subscription[]>([]);
+  const [subscriptions, setSubscriptions] =
+    useState<Subscription[]>([]);
 
-  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [renewRequests, setRenewRequests] =
+    useState<Subscription[]>([]);
 
+  const [activeClients, setActiveClients] =
+    useState<Subscription[]>([]);
 
+  const [expiredClients, setExpiredClients] =
+    useState<Subscription[]>([]);
+
+  const [totalRevenue, setTotalRevenue] =
+    useState(0);
+
+  // ======================================================
+  // AFFICHAGE LIMITÉ À 5
+  // ======================================================
+
+  const [showAllRequests, setShowAllRequests] =
+    useState(false);
+
+  const [showAllActive, setShowAllActive] =
+    useState(false);
+
+  const [showAllExpired, setShowAllExpired] =
+    useState(false);
+
+  // ======================================================
+  // CHARGEMENT
+  // ======================================================
 
   useEffect(() => {
     loadData();
   }, []);
 
-
-
-
   const loadData = async () => {
 
     setLoading(true);
 
+    const { data: subs, error } =
+      await supabase
+        .from("subscriptions")
+        .select("*")
+        .order("created_at", {
+          ascending: false
+        });
 
-    const { data: subs, error } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .order("created_at", {
-        ascending:false
-      });
-
-
-    if(error){
+    if (error) {
 
       console.error(error);
-      setLoading(false);
-      return;
 
+      setLoading(false);
+
+      return;
     }
 
-
-
-    const { data: payments } = await supabase
-      .from("subscription_payments")
-      .select("*");
-
-
+    const { data: payments } =
+      await supabase
+        .from("subscription_payments")
+        .select("*");
 
     let revenue = 57584;
 
+    payments?.forEach((p: any) => {
 
-    payments?.forEach((p:any)=>{
-
-      revenue += Number(p.amount || 0);
+      revenue += Number(
+        p.amount || 0
+      );
 
     });
 
-
-
     const now = new Date();
-
 
     const data =
       (subs as Subscription[]) || [];
 
+    const active =
+      data.filter((s) => {
 
+        if (!s.end_date)
+          return false;
 
-    const active = data.filter((s)=>{
+        return (
+          s.is_active === true &&
+          new Date(s.end_date) > now
+        );
 
-      if(!s.end_date)
-        return false;
+      });
 
+    const expired =
+      data.filter((s) => {
 
-      return (
-        s.is_active === true &&
-        new Date(s.end_date) > now
-      );
+        if (!s.end_date)
+          return true;
 
-    });
+        return (
+          new Date(s.end_date) < now
+        );
 
-
-
-    const expired = data.filter((s)=>{
-
-      if(!s.end_date)
-        return true;
-
-
-      return new Date(s.end_date) < now;
-
-    });
-
-
+      });
 
     const requests =
       data.filter(
-        (s)=>s.status==="pending"
+        (s) =>
+          s.status === "pending"
       );
-
-
 
     setSubscriptions(data);
 
@@ -129,17 +139,16 @@ export default function AdminPage() {
 
     setTotalRevenue(revenue);
 
-
     setLoading(false);
-
   };
 
+  // ======================================================
+  // ACTIVER ABONNEMENT
+  // ======================================================
 
-
-  const activateSubscription = async(
-    client:Subscription
-  )=>{
-
+  const activateSubscription = async (
+    client: Subscription
+  ) => {
 
     const confirmAction =
       confirm(
@@ -148,57 +157,53 @@ export default function AdminPage() {
         + " ?"
       );
 
-
-    if(!confirmAction)
+    if (!confirmAction)
       return;
 
-
-
     const start = new Date();
-
 
     const end = new Date();
 
     end.setDate(
-      end.getDate()+30
+      end.getDate() + 30
     );
 
-
-
-    const {error} =
+    const { error } =
       await supabase
-      .from("subscriptions")
-      .update({
+        .from("subscriptions")
+        .update({
 
-        is_active:true,
+          is_active: true,
 
-        status:"active",
+          status: "active",
 
-        start_date:
-          start.toISOString(),
+          start_date:
+            start.toISOString(),
 
-        end_date:
-          end.toISOString()
+          end_date:
+            end.toISOString()
 
-      })
-      .eq("id",client.id);
+        })
+        .eq(
+          "id",
+          client.id
+        );
 
-
-
-    if(error){
+    if (error) {
 
       alert(error.message);
 
       return;
-
     }
 
-
-
     await loadData();
-
   };
-    const deleteRequest = async (
+
+  // ======================================================
+  // REFUSER DEMANDE
+  // ======================================================
+
+  const deleteRequest = async (
     client: Subscription
   ) => {
 
@@ -209,60 +214,79 @@ export default function AdminPage() {
         + " ?"
       );
 
-
-    if(!confirmDelete)
+    if (!confirmDelete)
       return;
 
-
-
-    const {error} =
+    const { error } =
       await supabase
-      .from("subscriptions")
-      .update({
+        .from("subscriptions")
+        .update({
 
-        status:"rejected",
+          status: "rejected",
 
-        is_active:false
+          is_active: false
 
-      })
-      .eq("id",client.id);
+        })
+        .eq(
+          "id",
+          client.id
+        );
 
-
-
-    if(error){
+    if (error) {
 
       alert(error.message);
 
       return;
-
     }
 
-
     await loadData();
-
   };
 
-
-
+  // ======================================================
+  // RECHERCHE
+  // ======================================================
 
   const filteredRequests =
-    renewRequests.filter((client)=>
+    renewRequests.filter(
+      (client) =>
 
-      client.full_name
-      .toLowerCase()
-      .includes(
-        searchTerm.toLowerCase()
-      )
+        client.full_name
+          .toLowerCase()
+          .includes(
+            searchTerm.toLowerCase()
+          )
 
-      ||
+        ||
 
-      client.phone.includes(searchTerm)
-
+        client.phone.includes(
+          searchTerm
+        )
     );
 
+  // ======================================================
+  // LISTES AFFICHÉES
+  // ======================================================
 
+  const displayedRequests =
+    showAllRequests
+      ? filteredRequests
+      : filteredRequests.slice(0, 5);
 
-  if(loading){
+  const displayedActiveClients =
+    showAllActive
+      ? activeClients
+      : activeClients.slice(0, 5);
+
+  const displayedExpiredClients =
+    showAllExpired
+      ? expiredClients
+      : expiredClients.slice(0, 5);
+
+  // ======================================================
+  // CHARGEMENT
+  // ======================================================
+
+  if (loading) {
 
     return (
 
@@ -292,11 +316,7 @@ export default function AdminPage() {
       </main>
 
     );
-
   }
-
-
-
 
   return (
 
@@ -309,7 +329,6 @@ export default function AdminPage() {
       relative
       overflow-hidden
     ">
-
 
       {/* LIGHT EFFECT */}
 
@@ -324,7 +343,6 @@ export default function AdminPage() {
         rounded-full
       "/>
 
-
       <div className="
         absolute
         bottom-0
@@ -336,8 +354,6 @@ export default function AdminPage() {
         rounded-full
       "/>
 
-
-
       <div className="
         max-w-6xl
         mx-auto
@@ -345,10 +361,7 @@ export default function AdminPage() {
         relative
       ">
 
-
-
         {/* HEADER */}
-
 
         <div className="
           bg-slate-900/70
@@ -359,7 +372,6 @@ export default function AdminPage() {
           p-6
           shadow-xl
         ">
-
 
           <h1 className="
             text-3xl
@@ -373,8 +385,6 @@ export default function AdminPage() {
 
           </h1>
 
-
-
           <p className="
             text-slate-400
             text-sm
@@ -386,22 +396,15 @@ export default function AdminPage() {
 
           </p>
 
-
         </div>
 
-
-
-
         {/* STATISTIQUES */}
-
 
         <div className="
           grid
           md:grid-cols-3
           gap-4
         ">
-
-
 
           <div className="
             bg-gradient-to-br
@@ -421,7 +424,6 @@ export default function AdminPage() {
               💰 Revenus
             </p>
 
-
             <h2 className="
               text-3xl
               font-bold
@@ -433,7 +435,8 @@ export default function AdminPage() {
             </h2>
 
           </div>
-                    <div className="
+
+          <div className="
             bg-gradient-to-br
             from-blue-600/30
             to-slate-900
@@ -451,7 +454,6 @@ export default function AdminPage() {
               👥 Clients actifs
             </p>
 
-
             <h2 className="
               text-3xl
               font-bold
@@ -464,10 +466,6 @@ export default function AdminPage() {
 
           </div>
 
-
-
-
-
           <div className="
             bg-gradient-to-br
             from-red-600/30
@@ -479,15 +477,12 @@ export default function AdminPage() {
             p-5
           ">
 
-
             <p className="
               text-slate-300
               text-sm
             ">
               ❌ Expirés
             </p>
-
-
 
             <h2 className="
               text-3xl
@@ -499,20 +494,11 @@ export default function AdminPage() {
 
             </h2>
 
-
           </div>
-
 
         </div>
 
-
-
-
-
-
         {/* RECHERCHE */}
-
-
 
         <div className="
           bg-slate-900/70
@@ -523,7 +509,6 @@ export default function AdminPage() {
           p-5
         ">
 
-
           <h2 className="
             font-bold
             mb-3
@@ -532,8 +517,6 @@ export default function AdminPage() {
             🔎 Rechercher une demande
 
           </h2>
-
-
 
           <input
 
@@ -545,12 +528,11 @@ export default function AdminPage() {
 
             value={searchTerm}
 
-            onChange={(e)=>
+            onChange={(e) =>
               setSearchTerm(
                 e.target.value
               )
             }
-
 
             className="
               w-full
@@ -566,26 +548,16 @@ export default function AdminPage() {
             "
 
             style={{
-              color:"#fff",
-              WebkitTextFillColor:"#fff",
-              caretColor:"#fff"
+              color: "#fff",
+              WebkitTextFillColor: "#fff",
+              caretColor: "#fff"
             }}
 
           />
 
-
         </div>
 
-
-
-
-
-
-
-
         {/* DEMANDES RENOUVELLEMENT */}
-
-
 
         <div className="
           bg-slate-900/70
@@ -596,14 +568,12 @@ export default function AdminPage() {
           p-5
         ">
 
-
           <div className="
             flex
             justify-between
             items-center
             mb-5
           ">
-
 
             <h2 className="
               text-xl
@@ -614,28 +584,57 @@ export default function AdminPage() {
 
             </h2>
 
-
-
-            <span className="
-              bg-yellow-500/20
-              text-yellow-300
-              px-3
-              py-1
-              rounded-full
-              text-sm
-              font-bold
+            <div className="
+              flex
+              items-center
+              gap-3
             ">
 
-              {filteredRequests.length}
+              <span className="
+                bg-yellow-500/20
+                text-yellow-300
+                px-3
+                py-1
+                rounded-full
+                text-sm
+                font-bold
+              ">
 
-            </span>
+                {filteredRequests.length}
 
+              </span>
+
+              {filteredRequests.length > 5 && (
+
+                <button
+                  onClick={() =>
+                    setShowAllRequests(
+                      !showAllRequests
+                    )
+                  }
+                  className="
+                    bg-orange-500
+                    hover:bg-orange-400
+                    text-black
+                    px-4
+                    py-2
+                    rounded-xl
+                    font-bold
+                    text-sm
+                  "
+                >
+
+                  {showAllRequests
+                    ? "Afficher seulement 5"
+                    : "Voir toutes"}
+
+                </button>
+
+              )}
+
+            </div>
 
           </div>
-
-
-
-
 
           {filteredRequests.length === 0 ? (
 
@@ -649,17 +648,13 @@ export default function AdminPage() {
 
             </p>
 
-
           ) : (
-
 
             <div className="
               space-y-4
             ">
 
-
-              {filteredRequests.map((c)=>(
-
+              {displayedRequests.map((c) => (
 
                 <div
                   key={c.id}
@@ -678,10 +673,7 @@ export default function AdminPage() {
                   "
                 >
 
-
-
                   <div>
-
 
                     <p className="
                       font-bold
@@ -692,8 +684,6 @@ export default function AdminPage() {
 
                     </p>
 
-
-
                     <p className="
                       text-sm
                       text-slate-400
@@ -702,8 +692,6 @@ export default function AdminPage() {
                       📱 {c.phone}
 
                     </p>
-
-
 
                     <p className="
                       text-xs
@@ -715,20 +703,17 @@ export default function AdminPage() {
 
                     </p>
 
-
-
                   </div>
-                                    <div className="
+
+                  <div className="
                     flex
                     gap-3
                   ">
-
 
                     <button
                       onClick={() =>
                         activateSubscription(c)
                       }
-
                       className="
                         flex-1
                         md:flex-none
@@ -749,13 +734,10 @@ export default function AdminPage() {
 
                     </button>
 
-
-
                     <button
                       onClick={() =>
                         deleteRequest(c)
                       }
-
                       className="
                         flex-1
                         md:flex-none
@@ -776,33 +758,19 @@ export default function AdminPage() {
 
                     </button>
 
-
-
                   </div>
-
-
 
                 </div>
 
-
               ))}
-
 
             </div>
 
-
           )}
-
 
         </div>
 
-
-
-
-
         {/* CLIENTS ACTIFS */}
-
-
 
         <div className="
           bg-slate-900/70
@@ -813,18 +781,54 @@ export default function AdminPage() {
           p-5
         ">
 
-
-          <h2 className="
-            text-xl
-            font-bold
+          <div className="
+            flex
+            flex-col
+            sm:flex-row
+            sm:justify-between
+            sm:items-center
+            gap-3
             mb-4
           ">
 
-            🟢 Clients actifs
+            <h2 className="
+              text-xl
+              font-bold
+            ">
 
-          </h2>
+              🟢 Clients actifs
 
+            </h2>
 
+            {activeClients.length > 5 && (
+
+              <button
+                onClick={() =>
+                  setShowAllActive(
+                    !showAllActive
+                  )
+                }
+                className="
+                  bg-blue-500
+                  hover:bg-blue-400
+                  text-white
+                  px-4
+                  py-2
+                  rounded-xl
+                  font-bold
+                  text-sm
+                "
+              >
+
+                {showAllActive
+                  ? "Afficher seulement 5"
+                  : "Voir tous les clients"}
+
+              </button>
+
+            )}
+
+          </div>
 
           <div className="
             grid
@@ -832,68 +836,58 @@ export default function AdminPage() {
             gap-3
           ">
 
+            {displayedActiveClients.map(
+              (client) => (
 
-            {activeClients.map((client)=>(
+                <div
+                  key={client.id}
+                  className="
+                    bg-black/40
+                    border
+                    border-green-500/20
+                    rounded-2xl
+                    p-4
+                  "
+                >
 
-              <div
-                key={client.id}
-                className="
-                  bg-black/40
-                  border
-                  border-green-500/20
-                  rounded-2xl
-                  p-4
-                "
-              >
+                  <p className="font-bold">
+                    👤 {client.full_name}
+                  </p>
 
-                <p className="font-bold">
-                  👤 {client.full_name}
-                </p>
+                  <p className="
+                    text-sm
+                    text-slate-400
+                  ">
 
+                    📱 {client.phone}
 
-                <p className="
-                  text-sm
-                  text-slate-400
-                ">
+                  </p>
 
-                  📱 {client.phone}
+                  <p className="
+                    text-xs
+                    text-green-400
+                    mt-2
+                  ">
 
-                </p>
+                    Expire le :
+                    {" "}
+                    {new Date(
+                      client.end_date
+                    ).toLocaleDateString()}
 
+                  </p>
 
-                <p className="
-                  text-xs
-                  text-green-400
-                  mt-2
-                ">
+                </div>
 
-                  Expire le :
-                  {" "}
-                  {new Date(
-                    client.end_date
-                  ).toLocaleDateString()}
-
-                </p>
-
-
-              </div>
-
-
-            ))}
-
+              )
+            )}
 
           </div>
-
 
         </div>
 
 
-
-
-
         {/* CLIENTS EXPIRES */}
-
-
 
         <div className="
           bg-slate-900/70
@@ -904,18 +898,54 @@ export default function AdminPage() {
           p-5
         ">
 
-
-          <h2 className="
-            text-xl
-            font-bold
+          <div className="
+            flex
+            flex-col
+            sm:flex-row
+            sm:justify-between
+            sm:items-center
+            gap-3
             mb-4
           ">
 
-            🔴 Abonnements expirés
+            <h2 className="
+              text-xl
+              font-bold
+            ">
 
-          </h2>
+              🔴 Abonnements expirés
 
+            </h2>
 
+            {expiredClients.length > 5 && (
+
+              <button
+                onClick={() =>
+                  setShowAllExpired(
+                    !showAllExpired
+                  )
+                }
+                className="
+                  bg-red-500
+                  hover:bg-red-400
+                  text-white
+                  px-4
+                  py-2
+                  rounded-xl
+                  font-bold
+                  text-sm
+                "
+              >
+
+                {showAllExpired
+                  ? "Afficher seulement 5"
+                  : "Voir tous les expirés"}
+
+              </button>
+
+            )}
+
+          </div>
 
           {expiredClients.length === 0 ? (
 
@@ -927,85 +957,71 @@ export default function AdminPage() {
 
             </p>
 
-
           ) : (
-
 
             <div className="
               space-y-3
             ">
 
+              {displayedExpiredClients.map(
+                (client) => (
 
-              {expiredClients.map((client)=>(
+                  <div
+                    key={client.id}
+                    className="
+                      bg-black/40
+                      border
+                      border-red-500/20
+                      rounded-2xl
+                      p-4
+                      flex
+                      justify-between
+                      items-center
+                    "
+                  >
 
+                    <div>
 
-                <div
-                  key={client.id}
-                  className="
-                    bg-black/40
-                    border
-                    border-red-500/20
-                    rounded-2xl
-                    p-4
-                    flex
-                    justify-between
-                    items-center
-                  "
-                >
+                      <p className="font-bold">
+                        👤 {client.full_name}
+                      </p>
 
+                      <p className="
+                        text-sm
+                        text-slate-400
+                      ">
 
-                  <div>
+                        📱 {client.phone}
 
-                    <p className="font-bold">
-                      👤 {client.full_name}
-                    </p>
+                      </p>
 
+                    </div>
 
-                    <p className="
-                      text-sm
-                      text-slate-400
+                    <span className="
+                      text-xs
+                      bg-red-500/20
+                      text-red-300
+                      px-3
+                      py-1
+                      rounded-full
                     ">
 
-                      📱 {client.phone}
+                      Expiré
 
-                    </p>
+                    </span>
 
                   </div>
 
-
-                  <span className="
-                    text-xs
-                    bg-red-500/20
-                    text-red-300
-                    px-3
-                    py-1
-                    rounded-full
-                  ">
-
-                    Expiré
-
-                  </span>
-
-
-                </div>
-
-
-              ))}
-
+                )
+              )}
 
             </div>
 
-
           )}
-
 
         </div>
 
-
-
-
       </div>
-
 
     </main>
 
