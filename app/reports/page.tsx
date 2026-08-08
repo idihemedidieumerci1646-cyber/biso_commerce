@@ -13,6 +13,10 @@ import {
   ArrowUp,
   CalendarDays,
   X,
+  BarChart3,
+  TrendingUp,
+  Package,
+  ShoppingCart,
 } from "lucide-react";
 
 type Sale = {
@@ -45,7 +49,7 @@ export default function ReportsPage() {
   const [showGuide, setShowGuide] = useState(false);
   const [showTopButton, setShowTopButton] = useState(false);
 
-  const [today, setToday] = useState({
+  const [today, setToday] = useState<DayReport>({
     fc: 0,
     usd: 0,
     profitFc: 0,
@@ -53,7 +57,7 @@ export default function ReportsPage() {
     quantity: 0,
   });
 
-  const [yesterday, setYesterday] = useState({
+  const [yesterday, setYesterday] = useState<DayReport>({
     fc: 0,
     usd: 0,
     profitFc: 0,
@@ -62,7 +66,7 @@ export default function ReportsPage() {
   });
 
   const [beforeYesterday, setBeforeYesterday] =
-    useState({
+    useState<DayReport>({
       fc: 0,
       usd: 0,
       profitFc: 0,
@@ -90,11 +94,9 @@ export default function ReportsPage() {
       setShowTopButton(window.scrollY > 500);
     };
 
-    window.addEventListener(
-      "scroll",
-      handleScroll,
-      { passive: true }
-    );
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
 
     return () => {
       window.removeEventListener(
@@ -116,9 +118,29 @@ export default function ReportsPage() {
   // ======================================================
 
   const formatMoney = (value: number) => {
-    return Math.round(
-      Number(value || 0)
-    ).toLocaleString("fr-FR");
+  const number = Math.round(Number(value || 0));
+
+  return number
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+};
+
+  // ======================================================
+  // FORMAT DATE
+  // ======================================================
+
+  const getLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+
+    const month = String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+
+    const day = String(
+      date.getDate()
+    ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
   };
 
   // ======================================================
@@ -126,11 +148,13 @@ export default function ReportsPage() {
   // ======================================================
 
   const cleanPDF = (text: string) => {
-    return text
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^\x20-\x7E]/g, "");
-  };
+  return String(text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+};
 
   // ======================================================
   // CALCUL D'UNE JOURNÉE
@@ -156,11 +180,13 @@ export default function ReportsPage() {
         return;
       }
 
-      const amount =
-        Number(sale.total_sale || 0);
+      const amount = Number(
+        sale.total_sale || 0
+      );
 
-      const profit =
-        Number(sale.profit || 0);
+      const profit = Number(
+        sale.profit || 0
+      );
 
       quantity += Number(
         sale.quantity || 0
@@ -197,6 +223,9 @@ export default function ReportsPage() {
         localStorage.getItem("user_id");
 
       if (!userId) {
+        console.log(
+          "Utilisateur non connecté."
+        );
         return;
       }
 
@@ -210,7 +239,7 @@ export default function ReportsPage() {
           });
 
       if (error) {
-        console.log(
+        console.error(
           "Erreur chargement ventes :",
           error
         );
@@ -224,27 +253,8 @@ export default function ReportsPage() {
       setFilteredSales(list);
 
       // ==================================================
-      // DATES LOCALES
+      // CALCUL DES DATES
       // ==================================================
-
-      const getLocalDate = (
-        date: Date
-      ) => {
-        const year =
-          date.getFullYear();
-
-        const month =
-          String(
-            date.getMonth() + 1
-          ).padStart(2, "0");
-
-        const day =
-          String(
-            date.getDate()
-          ).padStart(2, "0");
-
-        return `${year}-${month}-${day}`;
-      };
 
       const now = new Date();
 
@@ -276,7 +286,7 @@ export default function ReportsPage() {
         );
 
       // ==================================================
-      // RAPPORTS
+      // RAPPORTS JOURNALIERS
       // ==================================================
 
       setToday(
@@ -310,19 +320,18 @@ export default function ReportsPage() {
       > = {};
 
       list.forEach((sale) => {
-        if (
-          !products[
-            sale.product_name
-          ]
-        ) {
-          products[
-            sale.product_name
-          ] = 0;
+        const name =
+          sale.product_name?.trim();
+
+        if (!name) {
+          return;
         }
 
-        products[
-          sale.product_name
-        ] += Number(
+        if (!products[name]) {
+          products[name] = 0;
+        }
+
+        products[name] += Number(
           sale.quantity || 0
         );
       });
@@ -332,12 +341,8 @@ export default function ReportsPage() {
 
       Object.keys(products).forEach(
         (name) => {
-          if (
-            products[name] > max
-          ) {
-            max =
-              products[name];
-
+          if (products[name] > max) {
+            max = products[name];
             best = name;
           }
         }
@@ -345,7 +350,7 @@ export default function ReportsPage() {
 
       setBestProduct(best);
     } catch (error) {
-      console.log(
+      console.error(
         "Erreur générale :",
         error
       );
@@ -358,22 +363,17 @@ export default function ReportsPage() {
 
   const filterByDate = () => {
     if (!selectedDate) {
-      alert(
-        "Choisissez une date."
-      );
+      alert("Choisissez une date.");
       return;
     }
 
     const result =
-      salesHistory.filter(
-        (sale) => {
-          return (
-            sale.created_at
-              .split("T")[0] ===
-            selectedDate
-          );
-        }
-      );
+      salesHistory.filter((sale) => {
+        return (
+          sale.created_at.split("T")[0] ===
+          selectedDate
+        );
+      });
 
     setFilteredSales(result);
     setShowAll(false);
@@ -384,10 +384,7 @@ export default function ReportsPage() {
   // ======================================================
 
   const filterByPeriod = () => {
-    if (
-      !startDate ||
-      !endDate
-    ) {
+    if (!startDate || !endDate) {
       alert(
         "Choisissez la date de début et la date de fin."
       );
@@ -402,18 +399,15 @@ export default function ReportsPage() {
     }
 
     const result =
-      salesHistory.filter(
-        (sale) => {
-          const saleDate =
-            sale.created_at
-              .split("T")[0];
+      salesHistory.filter((sale) => {
+        const saleDate =
+          sale.created_at.split("T")[0];
 
-          return (
-            saleDate >= startDate &&
-            saleDate <= endDate
-          );
-        }
-      );
+        return (
+          saleDate >= startDate &&
+          saleDate <= endDate
+        );
+      });
 
     setFilteredSales(result);
     setShowAll(false);
@@ -424,10 +418,7 @@ export default function ReportsPage() {
   // ======================================================
 
   const showEverything = () => {
-    setFilteredSales(
-      salesHistory
-    );
-
+    setFilteredSales(salesHistory);
     setShowAll(true);
   };
 
@@ -440,10 +431,7 @@ export default function ReportsPage() {
     setStartDate("");
     setEndDate("");
 
-    setFilteredSales(
-      salesHistory
-    );
-
+    setFilteredSales(salesHistory);
     setShowAll(false);
   };
 
@@ -451,11 +439,11 @@ export default function ReportsPage() {
   // VENTES AFFICHÉES
   // ======================================================
 
-  const displayedSales =
-    showAll
-      ? filteredSales
-      : filteredSales.slice(0, 5);
-        // ======================================================
+  const displayedSales = showAll
+    ? filteredSales
+    : filteredSales.slice(0, 5);
+
+  // ======================================================
   // CRÉATION DU PDF
   // ======================================================
 
@@ -463,44 +451,35 @@ export default function ReportsPage() {
     let data: Sale[] = [];
 
     // --------------------------------------------------
-    // PDF D'UNE SEULE DATE
+    // VENTE D'UNE SEULE DATE
     // --------------------------------------------------
 
     if (selectedDate) {
-      data =
-        salesHistory.filter(
-          (sale) =>
-            sale.created_at
-              .split("T")[0] ===
-            selectedDate
-        );
+      data = salesHistory.filter(
+        (sale) =>
+          sale.created_at.split("T")[0] ===
+          selectedDate
+      );
     }
 
     // --------------------------------------------------
-    // PDF D'UNE PÉRIODE
+    // VENTES D'UNE PÉRIODE
     // --------------------------------------------------
 
-    else if (
-      startDate &&
-      endDate
-    ) {
-      data =
-        salesHistory.filter(
-          (sale) => {
-            const saleDate =
-              sale.created_at
-                .split("T")[0];
+    else if (startDate && endDate) {
+      data = salesHistory.filter((sale) => {
+        const saleDate =
+          sale.created_at.split("T")[0];
 
-            return (
-              saleDate >= startDate &&
-              saleDate <= endDate
-            );
-          }
+        return (
+          saleDate >= startDate &&
+          saleDate <= endDate
         );
+      });
     }
 
     // --------------------------------------------------
-    // PDF COMPLET
+    // TOUTES LES VENTES
     // --------------------------------------------------
 
     else {
@@ -516,24 +495,19 @@ export default function ReportsPage() {
         alert(
           `Aucune vente à la date ${selectedDate}.`
         );
-      } else if (
-        startDate &&
-        endDate
-      ) {
+      } else if (startDate && endDate) {
         alert(
           `Aucune vente du ${startDate} au ${endDate}.`
         );
       } else {
-        alert(
-          "Aucune vente trouvée."
-        );
+        alert("Aucune vente trouvée.");
       }
 
       return;
     }
 
     // ==================================================
-    // CRÉATION DOCUMENT PDF
+    // DOCUMENT PDF
     // ==================================================
 
     const doc = new jsPDF({
@@ -544,10 +518,7 @@ export default function ReportsPage() {
       compress: true,
     });
 
-    doc.setFont(
-      "helvetica",
-      "normal"
-    );
+    doc.setFont("helvetica", "normal");
 
     // ==================================================
     // CALCULS
@@ -565,75 +536,99 @@ export default function ReportsPage() {
       string,
       {
         quantity: number;
-        montant: number;
-        currency: string;
-        profit: number;
+        montantFc: number;
+        montantUsd: number;
+        profitFc: number;
+        profitUsd: number;
       }
     > = {};
 
     data.forEach((sale) => {
-      const montant =
-        Number(
-          sale.total_sale || 0
-        );
+      const montant = Number(
+        sale.total_sale || 0
+      );
 
-      const benefice =
-        Number(
-          sale.profit || 0
-        );
+      const benefice = Number(
+        sale.profit || 0
+      );
 
-      const quantity =
-        Number(
-          sale.quantity || 0
-        );
+      const quantity = Number(
+        sale.quantity || 0
+      );
 
-      totalQuantity +=
-        quantity;
+      totalQuantity += quantity;
 
-      if (
-        sale.currency === "FC"
-      ) {
+      const isFC =
+        sale.currency === "FC";
+
+      const isUSD =
+        sale.currency === "$" ||
+        sale.currency === "USD";
+
+      if (isFC) {
         totalFc += montant;
         profitFc += benefice;
-      } else if (
-        sale.currency === "$" ||
-        sale.currency === "USD"
-      ) {
+      }
+
+      if (isUSD) {
         totalUsd += montant;
         profitUsd += benefice;
       }
 
-      if (
-        !produits[
-          sale.product_name
-        ]
-      ) {
-        produits[
-          sale.product_name
-        ] = {
+      const productName =
+        sale.product_name?.trim() ||
+        "Produit inconnu";
+
+      if (!produits[productName]) {
+        produits[productName] = {
           quantity: 0,
-          montant: 0,
-          currency:
-            sale.currency,
-          profit: 0,
+          montantFc: 0,
+          montantUsd: 0,
+          profitFc: 0,
+          profitUsd: 0,
         };
       }
 
-      produits[
-        sale.product_name
-      ].quantity +=
+      produits[productName].quantity +=
         quantity;
 
-      produits[
-        sale.product_name
-      ].montant +=
-        montant;
+      if (isFC) {
+        produits[productName].montantFc +=
+          montant;
 
-      produits[
-        sale.product_name
-      ].profit +=
-        benefice;
+        produits[productName].profitFc +=
+          benefice;
+      }
+
+      if (isUSD) {
+        produits[productName].montantUsd +=
+          montant;
+
+        produits[productName].profitUsd +=
+          benefice;
+      }
     });
+
+    // ==================================================
+    // PRODUIT LE PLUS VENDU SELON LA SÉLECTION
+    // ==================================================
+
+    let meilleurProduit = "Aucun";
+    let maxQuantite = 0;
+
+    Object.keys(produits).forEach(
+      (name) => {
+        if (
+          produits[name].quantity >
+          maxQuantite
+        ) {
+          maxQuantite =
+            produits[name].quantity;
+
+          meilleurProduit = name;
+        }
+      }
+    );
 
     // ==================================================
     // PÉRIODE DU RAPPORT
@@ -654,10 +649,20 @@ export default function ReportsPage() {
     }
 
     // ==================================================
+    // DATE DE CRÉATION
+    // ==================================================
+
+    const dateCreation =
+      new Date().toLocaleString(
+        "fr-FR"
+      );
+
+    // ==================================================
     // PAGE DE GARDE
     // ==================================================
 
-    doc.setFontSize(26);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(25);
 
     doc.text(
       "BISO-COMMERCE",
@@ -665,47 +670,118 @@ export default function ReportsPage() {
       35
     );
 
-    doc.setFontSize(16);
+    doc.setFontSize(18);
 
     doc.text(
-      "Rapport professionnel",
+      "Rapport des ventes",
       20,
-      50
+      49
+    );
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+
+    doc.text(
+      cleanPDF(
+        "Analyse professionnelle de l'activite commerciale"
+      ),
+      20,
+      61
+    );
+
+    doc.setDrawColor(
+      220,
+      220,
+      220
+    );
+
+    doc.line(
+      20,
+      70,
+      190,
+      70
+    );
+
+    // --------------------------------------------------
+    // INFORMATIONS DU RAPPORT
+    // --------------------------------------------------
+
+    doc.setFont(
+      "helvetica",
+      "bold"
     );
 
     doc.setFontSize(12);
 
     doc.text(
-      cleanPDF(
-        "Suivi des ventes et benefices"
-      ),
+      "Periode du rapport",
       20,
-      65
+      90
     );
 
-    doc.line(
-      20,
-      75,
-      190,
-      75
+    doc.setFont(
+      "helvetica",
+      "normal"
     );
-
-    doc.setFontSize(13);
 
     doc.text(
-      cleanPDF(
-        periodeTexte
-      ),
+      cleanPDF(periodeTexte),
       20,
-      95
+      99
     );
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.text(
+      "Date de generation",
+      20,
+      116
+    );
+
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    doc.text(
+      cleanPDF(dateCreation),
+      20,
+      125
+    );
+
+    // --------------------------------------------------
+    // RÉSUMÉ
+    // --------------------------------------------------
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(12);
+
+    doc.text(
+      "Resume",
+      20,
+      145
+    );
+
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    doc.setFontSize(11);
 
     doc.text(
       cleanPDF(
         `Nombre de ventes : ${data.length}`
       ),
       20,
-      110
+      155
     );
 
     doc.text(
@@ -713,15 +789,15 @@ export default function ReportsPage() {
         `Quantite vendue : ${totalQuantity}`
       ),
       20,
-      125
+      164
     );
 
     doc.text(
       cleanPDF(
-        `Produit le plus vendu : ${bestProduct}`
+        `Produit le plus vendu : ${meilleurProduit}`
       ),
       20,
-      140
+      173
     );
 
     // ==================================================
@@ -729,6 +805,11 @@ export default function ReportsPage() {
     // ==================================================
 
     doc.addPage();
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
 
     doc.setFontSize(20);
 
@@ -767,51 +848,97 @@ export default function ReportsPage() {
         ],
       ],
 
+      theme: "grid",
+
       styles: {
+        font: "helvetica",
         fontSize: 11,
         cellPadding: 5,
+        textColor: [35, 35, 35],
+      },
+
+      headStyles: {
+        fontStyle: "bold",
+        textColor: [255, 255, 255],
+      },
+
+      alternateRowStyles: {
+        fillColor: [248, 248, 248],
+      },
+
+      margin: {
+        left: 20,
+        right: 20,
       },
     });
 
     // ==================================================
-    // DÉTAIL DES VENTES
+    // DÉTAIL DES PRODUITS
     // ==================================================
 
     doc.addPage();
 
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
     doc.setFontSize(20);
 
     doc.text(
-      "Detail des ventes",
+      "Detail des produits",
       20,
       30
     );
 
-    const rows =
-      Object.keys(
-        produits
-      ).map((name) => [
+    const rows = Object.keys(
+      produits
+    ).map((name) => {
+      const product =
+        produits[name];
+
+      let ventes = "";
+      let benefice = "";
+
+      if (product.montantFc > 0) {
+        ventes +=
+          `${formatMoney(
+            product.montantFc
+          )} FC`;
+
+        benefice +=
+          `${formatMoney(
+            product.profitFc
+          )} FC`;
+      }
+
+      if (product.montantUsd > 0) {
+        if (ventes) {
+          ventes += " / ";
+        }
+
+        if (benefice) {
+          benefice += " / ";
+        }
+
+        ventes +=
+          `${formatMoney(
+            product.montantUsd
+          )} $`;
+
+        benefice +=
+          `${formatMoney(
+            product.profitUsd
+          )} $`;
+      }
+
+      return [
         cleanPDF(name),
-
-        produits[name]
-          .quantity,
-
-        `${formatMoney(
-          produits[name]
-            .montant
-        )} ${
-          produits[name]
-            .currency
-        }`,
-
-        `${formatMoney(
-          produits[name]
-            .profit
-        )} ${
-          produits[name]
-            .currency
-        }`,
-      ]);
+        product.quantity,
+        ventes || "0",
+        benefice || "0",
+      ];
+    });
 
     autoTable(doc, {
       startY: 45,
@@ -827,9 +954,43 @@ export default function ReportsPage() {
 
       body: rows,
 
+      theme: "grid",
+
       styles: {
-        fontSize: 10,
+        font: "helvetica",
+        fontSize: 9,
         cellPadding: 4,
+        textColor: [35, 35, 35],
+      },
+
+      headStyles: {
+        fontStyle: "bold",
+        textColor: [255, 255, 255],
+      },
+
+      alternateRowStyles: {
+        fillColor: [248, 248, 248],
+      },
+
+      columnStyles: {
+        0: {
+          cellWidth: 65,
+        },
+        1: {
+          cellWidth: 25,
+          halign: "center",
+        },
+        2: {
+          cellWidth: 45,
+        },
+        3: {
+          cellWidth: 45,
+        },
+      },
+
+      margin: {
+        left: 10,
+        right: 10,
       },
     });
 
@@ -839,6 +1000,11 @@ export default function ReportsPage() {
 
     doc.addPage();
 
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
     doc.setFontSize(20);
 
     doc.text(
@@ -847,11 +1013,16 @@ export default function ReportsPage() {
       30
     );
 
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
     doc.setFontSize(12);
 
     doc.text(
       cleanPDF(
-        `Produit le plus vendu : ${bestProduct}`
+        `Produit le plus vendu : ${meilleurProduit}`
       ),
       20,
       55
@@ -862,7 +1033,15 @@ export default function ReportsPage() {
         `Quantite totale vendue : ${totalQuantity}`
       ),
       20,
-      70
+      68
+    );
+
+    doc.text(
+      cleanPDF(
+        `Nombre total de ventes : ${data.length}`
+      ),
+      20,
+      81
     );
 
     doc.text(
@@ -870,7 +1049,7 @@ export default function ReportsPage() {
         totalFc
       )} FC`,
       20,
-      90
+      98
     );
 
     doc.text(
@@ -878,7 +1057,7 @@ export default function ReportsPage() {
         totalUsd
       )} $`,
       20,
-      105
+      111
     );
 
     doc.text(
@@ -886,7 +1065,7 @@ export default function ReportsPage() {
         profitFc
       )} FC`,
       20,
-      120
+      124
     );
 
     doc.text(
@@ -894,59 +1073,102 @@ export default function ReportsPage() {
         profitUsd
       )} $`,
       20,
-      135
+      137
     );
+
+    // --------------------------------------------------
+    // CONCLUSION
+    // --------------------------------------------------
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(13);
 
     doc.text(
-      cleanPDF(
-        "Ce document permet au responsable de suivre les ventes et les benefices du commerce."
-      ),
+      "Conclusion",
       20,
-      175
+      160
+    );
+
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    doc.setFontSize(10);
+
+    const conclusion =
+      "Ce rapport permet au responsable du commerce " +
+      "de suivre les ventes, les quantites vendues " +
+      "et les benefices generes pendant la periode choisie.";
+
+    const conclusionLines =
+      doc.splitTextToSize(
+        cleanPDF(conclusion),
+        170
+      );
+
+    doc.text(
+      conclusionLines,
+      20,
+      171
     );
 
     // ==================================================
-    // TÉLÉCHARGEMENT PDF
+    // PIED DE PAGE
     // ==================================================
 
-    const pdfBlob =
-      doc.output("blob");
+    const totalPages =
+      doc.getNumberOfPages();
 
-    const url =
-      URL.createObjectURL(
-        pdfBlob
+    for (
+      let page = 1;
+      page <= totalPages;
+      page++
+    ) {
+      doc.setPage(page);
+
+      doc.setFont(
+        "helvetica",
+        "normal"
       );
 
-    const link =
-      document.createElement(
-        "a"
+      doc.setFontSize(8);
+
+      doc.setTextColor(
+        120,
+        120,
+        120
       );
 
-    link.href = url;
-
-    link.download =
-      `Rapport-BISO-COMMERCE-${
-        selectedDate ||
-        (startDate && endDate
-          ? `${startDate}-${endDate}`
-          : "complet")
-      }.pdf`;
-
-    document.body.appendChild(
-      link
-    );
-
-    link.click();
-
-    document.body.removeChild(
-      link
-    );
-
-    setTimeout(() => {
-      URL.revokeObjectURL(
-        url
+      doc.text(
+        "BISO-COMMERCE",
+        20,
+        287
       );
-    }, 1000);
+
+      doc.text(
+        `Page ${page} / ${totalPages}`,
+        165,
+        287
+      );
+    }
+
+    // ==================================================
+    // TÉLÉCHARGEMENT
+    // ==================================================
+
+    const fileName =
+      selectedDate
+        ? `Rapport-BISO-COMMERCE-${selectedDate}.pdf`
+        : startDate && endDate
+        ? `Rapport-BISO-COMMERCE-${startDate}-${endDate}.pdf`
+        : "Rapport-BISO-COMMERCE-complet.pdf";
+
+    doc.save(fileName);
   };
 
   // ======================================================
@@ -954,347 +1176,425 @@ export default function ReportsPage() {
   // ======================================================
 
   return (
-    <main className="min-h-screen w-full">
-      <div
+    <main className="min-h-screen space-y-6 pb-24">
+      {/* ==================================================
+          HEADER
+      ================================================== */}
+
+      <section
         className="
-          w-full
-          max-w-7xl
-          mx-auto
-          px-3
-          sm:px-5
-          lg:px-8
-          py-5
-          sm:py-8
-          space-y-5
-          sm:space-y-6
+          rounded-3xl
+          border border-white/10
+          bg-white/[0.04]
+          p-5
+          shadow-xl
+          backdrop-blur-xl
+          sm:p-6
         "
       >
-
-        {/* ==================================================
-            HEADER
-        ================================================== */}
-
-        <section
+        <div
           className="
-            rounded-3xl
-            bg-white/5
-            border
-            border-white/10
-            p-5
-            sm:p-6
-            backdrop-blur-xl
+            flex
+            flex-col
+            gap-4
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
           "
         >
-          <div
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
+              <div
+                className="
+                  flex
+                  h-12
+                  w-12
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-orange-500/10
+                  text-orange-400
+                "
+              >
+                <BarChart3 size={24} />
+              </div>
+
+              <div>
+                <h1
+                  className="
+                    text-2xl
+                    font-black
+                    tracking-tight
+                    text-white
+                    sm:text-3xl
+                  "
+                >
+                  Rapport
+                </h1>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Analyse complète de votre activité commerciale
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setShowGuide(!showGuide)
+            }
             className="
-              flex
-              flex-col
-              sm:flex-row
-              sm:justify-between
-              sm:items-center
-              gap-4
+              inline-flex
+              w-full
+              items-center
+              justify-center
+              gap-2
+              rounded-xl
+              border
+              border-orange-400/20
+              bg-orange-500/10
+              px-4
+              py-3
+              text-sm
+              font-black
+              text-orange-300
+              transition
+              hover:bg-orange-500/20
+              sm:w-auto
             "
           >
-            <div>
-              <h1
-                className="
-                  text-2xl
-                  sm:text-3xl
-                  font-black
-                  text-white
-                "
-              >
-                📊 Rapport
-              </h1>
+            <Sparkles size={17} />
+            Guide
+          </button>
+        </div>
 
-              <p
-                className="
-                  text-slate-400
-                  mt-2
-                "
-              >
-                Analyse complète du commerce
+        {showGuide && (
+          <div
+            className="
+              mt-5
+              rounded-2xl
+              border
+              border-white/10
+              bg-black/20
+              p-4
+            "
+          >
+            <div className="space-y-3 text-sm leading-6 text-slate-300">
+              <p>
+                <span className="mr-2">📅</span>
+                Choisissez une date pour afficher
+                uniquement les ventes de cette journée.
+              </p>
+
+              <p>
+                <span className="mr-2">📆</span>
+                Utilisez « Du » et « Au » pour rechercher
+                les ventes d'une période.
+              </p>
+
+              <p>
+                <span className="mr-2">📄</span>
+                Le bouton « Créer PDF » génère un rapport
+                professionnel selon votre sélection.
               </p>
             </div>
 
             <button
+              type="button"
               onClick={() =>
-                setShowGuide(
-                  !showGuide
-                )
+                setShowGuide(false)
               }
               className="
-                bg-orange-500/20
-                border
-                border-orange-400/30
+                mt-4
+                w-full
+                rounded-xl
+                bg-orange-500
                 px-4
                 py-3
-                rounded-xl
-                font-bold
-                text-white
+                font-black
+                text-black
+                transition
+                hover:bg-orange-400
               "
             >
-              <Sparkles
-                size={16}
-                className="inline mr-2"
-              />
-
-              Guide
+              Fermer le guide
             </button>
           </div>
+        )}
+      </section>
 
-          {/* GUIDE */}
+      {/* ==================================================
+          STATISTIQUES
+      ================================================== */}
 
-          {showGuide && (
+      <section
+        className="
+          grid
+          grid-cols-1
+          gap-4
+          md:grid-cols-3
+        "
+      >
+        <ReportCard
+          icon="🔥"
+          title="Aujourd'hui"
+          value={`${formatMoney(
+            today.fc
+          )} FC | ${formatMoney(
+            today.usd
+          )} $`}
+          subtitle={`Bénéfice : ${formatMoney(
+            today.profitFc
+          )} FC | ${formatMoney(
+            today.profitUsd
+          )} $`}
+        />
+
+        <ReportCard
+          icon="📅"
+          title="Hier"
+          value={`${formatMoney(
+            yesterday.fc
+          )} FC | ${formatMoney(
+            yesterday.usd
+          )} $`}
+          subtitle={`Bénéfice : ${formatMoney(
+            yesterday.profitFc
+          )} FC | ${formatMoney(
+            yesterday.profitUsd
+          )} $`}
+        />
+
+        <ReportCard
+          icon="📈"
+          title="Avant-hier"
+          value={`${formatMoney(
+            beforeYesterday.fc
+          )} FC | ${formatMoney(
+            beforeYesterday.usd
+          )} $`}
+          subtitle={`Bénéfice : ${formatMoney(
+            beforeYesterday.profitFc
+          )} FC | ${formatMoney(
+            beforeYesterday.profitUsd
+          )} $`}
+        />
+      </section>
+
+      {/* ==================================================
+          RECHERCHE
+      ================================================== */}
+
+      <section
+        className="
+          rounded-3xl
+          border
+          border-white/10
+          bg-white/[0.04]
+          p-5
+          shadow-xl
+          sm:p-6
+        "
+      >
+        <div className="mb-6">
+          <div className="flex items-center gap-3">
             <div
               className="
-                mt-4
-                rounded-2xl
-                bg-black/30
-                border
-                border-white/10
-                p-4
-                text-sm
-                text-slate-300
-                leading-6
+                flex
+                h-10
+                w-10
+                items-center
+                justify-center
+                rounded-xl
+                bg-blue-500/10
+                text-blue-400
               "
             >
-              <p>
-                📅 Choisissez une date
-                pour voir uniquement
-                les ventes de cette
-                journée.
-              </p>
-
-              <p className="mt-2">
-                📆 Utilisez les deux
-                dates pour voir une
-                période, par exemple
-                du 20 au 30.
-              </p>
-
-              <p className="mt-2">
-                📄 Le PDF sera créé
-                selon votre sélection.
-              </p>
-
-              <button
-                onClick={() =>
-                  setShowGuide(false)
-                }
-                className="
-                  mt-4
-                  w-full
-                  bg-orange-500
-                  text-black
-                  py-3
-                  rounded-xl
-                  font-black
-                "
-              >
-                Fermer le guide
-              </button>
+              <Search size={19} />
             </div>
-          )}
-        </section>
 
-        {/* ==================================================
-            STATISTIQUES
-        ================================================== */}
+            <div>
+              <h2 className="text-xl font-black text-white">
+                Rechercher les ventes
+              </h2>
 
-        <section
-          className="
-            grid
-            grid-cols-1
-            md:grid-cols-3
-            gap-5
-          "
-        >
-          <ReportCard
-            icon="🔥"
-            title="Aujourd'hui"
-            value={`${formatMoney(
-              today.fc
-            )} FC | ${formatMoney(
-              today.usd
-            )} $`}
-            subtitle={`Bénéfice :
-${formatMoney(
-  today.profitFc
-)} FC | ${formatMoney(
-  today.profitUsd
-)} $`}
-          />
+              <p className="mt-1 text-xs text-slate-500">
+                Filtrez vos ventes par date ou par période.
+              </p>
+            </div>
+          </div>
+        </div>
 
-          <ReportCard
-            icon="📅"
-            title="Hier"
-            value={`${formatMoney(
-              yesterday.fc
-            )} FC | ${formatMoney(
-              yesterday.usd
-            )} $`}
-            subtitle={`Bénéfice :
-${formatMoney(
-  yesterday.profitFc
-)} FC | ${formatMoney(
-  yesterday.profitUsd
-)} $`}
-          />
+        {/* UNE DATE */}
 
-          
-        </section>
-
-        {/* ==================================================
-            RECHERCHE
-        ================================================== */}
-
-        <section
-          className="
-            rounded-3xl
-            bg-white/5
-            border
-            border-white/10
-            p-5
-            sm:p-6
-          "
-        >
-          <h2
+        <div className="mb-6">
+          <label
             className="
-              text-xl
-              font-black
-              mb-5
-              text-white
+              mb-2
+              block
+              text-sm
+              font-bold
+              text-slate-300
             "
           >
-            📄 Rechercher les ventes
-          </h2>
+            Rechercher une date
+          </label>
 
-          
-{/* ==================================================
-    UNE DATE
-================================================== */}
+          <div
+            className="
+              flex
+              flex-col
+              gap-3
+              sm:flex-row
+              sm:items-center
+            "
+          >
+            <div
+              className="
+                relative
+                min-w-0
+                flex-1
+                overflow-hidden
+              "
+            >
+              <CalendarDays
+                size={18}
+                className="
+                  pointer-events-none
+                  absolute
+                  left-3
+                  top-1/2
+                  z-10
+                  -translate-y-1/2
+                  text-orange-400
+                "
+              />
 
-<div className="mb-6 w-full min-w-0">
-  <label
-    className="
-      block
-      text-sm
-      font-bold
-      text-slate-300
-      mb-2
-    "
-  >
-    Voir les ventes d'une date
-  </label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) =>
+                  setSelectedDate(
+                    e.target.value
+                  )
+                }
+                className="
+                  block
+                  min-h-[48px]
+                  w-full
+                  min-w-0
+                  max-w-full
+                  appearance-none
+                  rounded-xl
+                  border
+                  border-white/10
+                  bg-[#111827]
+                  p-3
+                  pl-10
+                  text-[16px]
+                  text-white
+                  outline-none
+                  transition
+                  focus:border-orange-400
+                  focus:ring-1
+                  focus:ring-orange-400
+                  [color-scheme:dark]
+                "
+              />
+            </div>
 
-  <div
-    className="
-      flex
-      flex-col
-      sm:flex-row
-      gap-3
-      w-full
-      min-w-0
-      overflow-hidden
-    "
-  >
-  
-{/* CHAMP DATE */}
+            <button
+              type="button"
+              onClick={filterByDate}
+              className="
+                inline-flex
+                min-h-[48px]
+                w-full
+                shrink-0
+                items-center
+                justify-center
+                gap-2
+                rounded-xl
+                bg-blue-500
+                px-5
+                py-3
+                font-black
+                text-white
+                transition
+                hover:bg-blue-400
+                active:scale-[0.98]
+                sm:w-auto
+              "
+            >
+              <Search size={17} />
+              Chercher
+            </button>
+          </div>
+        </div>
 
-<div className="w-full min-w-0">
-  <input
-    type="date"
-    value={selectedDate}
-    onChange={(e) =>
-      setSelectedDate(e.target.value)
-    }
-    className="
-      w-full
-      min-w-0
-      bg-[#111827]
-      border
-      border-white/10
-      rounded-xl
-      p-3
-      text-white
-      outline-none
-      focus:border-orange-400
-      focus:ring-1
-      focus:ring-orange-400
-      [color-scheme:dark]
-    "
-  />
-</div>
+        {/* SÉPARATEUR */}
 
+        <div className="mb-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-white/10" />
 
-    {/* BOUTON */}
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+            ou
+          </span>
 
-    <button
-      onClick={filterByDate}
-      className="
-        w-full
-        sm:w-auto
-        shrink-0
-        bg-blue-500
-        hover:bg-blue-400
-        px-5
-        py-3
-        rounded-xl
-        font-black
-        text-white
-        flex
-        items-center
-        justify-center
-        gap-2
-      "
-    >
-      <Search size={17} />
-      Chercher
-    </button>
-  </div>
-</div>
-
+          <div className="h-px flex-1 bg-white/10" />
+        </div>
 
         {/* PÉRIODE */}
 
-<div className="mb-6 w-full min-w-0">
-  <label
-    className="
-      block
-      text-sm
-      font-bold
-      text-slate-300
-      mb-2
-    "
-  >
-    Voir une période
-  </label>
+        <div>
+          <label
+            className="
+              mb-3
+              block
+              text-sm
+              font-bold
+              text-slate-300
+            "
+          >
+            Rechercher une période
+          </label>
 
-  <div
-    className="
-      grid
-      grid-cols-1
-      sm:grid-cols-2
-      lg:grid-cols-3
-      gap-3
-      w-full
-      min-w-0
-    "
-  >
-              {/* DATE DE DÉBUT */}
+          <div
+            className="
+              grid
+              grid-cols-1
+              gap-3
+              md:grid-cols-[1fr_1fr_auto]
+              md:items-end
+            "
+          >
+            <div className="min-w-0">
+              <label
+                className="
+                  mb-2
+                  block
+                  text-xs
+                  font-bold
+                  text-slate-500
+                "
+              >
+                Du
+              </label>
 
-              <div>
-                <label
+              <div className="relative min-w-0">
+                <CalendarDays
+                  size={17}
                   className="
-                    block
-                    text-xs
-                    text-slate-500
-                    mb-1
+                    pointer-events-none
+                    absolute
+                    left-3
+                    top-1/2
+                    -translate-y-1/2
+                    text-purple-400
                   "
-                >
-                  Du
-                </label>
+                />
 
                 <input
                   type="date"
@@ -1305,36 +1605,54 @@ ${formatMoney(
                     )
                   }
                   className="
+                    block
+                    min-h-[48px]
                     w-full
                     min-w-0
-                    bg-[#111827]
+                    rounded-xl
                     border
                     border-white/10
-                    rounded-xl
+                    bg-[#111827]
                     p-3
+                    pl-10
+                    text-[16px]
                     text-white
                     outline-none
-                    focus:border-orange-400
+                    transition
+                    focus:border-purple-400
                     focus:ring-1
-                    focus:ring-orange-400
+                    focus:ring-purple-400
                     [color-scheme:dark]
                   "
                 />
               </div>
+            </div>
 
-              {/* DATE DE FIN */}
+            <div className="min-w-0">
+              <label
+                className="
+                  mb-2
+                  block
+                  text-xs
+                  font-bold
+                  text-slate-500
+                "
+              >
+                Au
+              </label>
 
-              <div>
-                <label
+              <div className="relative min-w-0">
+                <CalendarDays
+                  size={17}
                   className="
-                    block
-                    text-xs
-                    text-slate-500
-                    mb-1
+                    pointer-events-none
+                    absolute
+                    left-3
+                    top-1/2
+                    -translate-y-1/2
+                    text-purple-400
                   "
-                >
-                  Au
-                </label>
+                />
 
                 <input
                   type="date"
@@ -1345,381 +1663,436 @@ ${formatMoney(
                     )
                   }
                   className="
+                    block
+                    min-h-[48px]
                     w-full
                     min-w-0
-                    bg-[#111827]
+                    rounded-xl
                     border
                     border-white/10
-                    rounded-xl
+                    bg-[#111827]
                     p-3
+                    pl-10
+                    text-[16px]
                     text-white
                     outline-none
-                    focus:border-orange-400
+                    transition
+                    focus:border-purple-400
                     focus:ring-1
-                    focus:ring-orange-400
+                    focus:ring-purple-400
                     [color-scheme:dark]
                   "
                 />
               </div>
-
-              {/* BOUTON PÉRIODE */}
-
-              <button
-                onClick={filterByPeriod}
-                className="
-                  bg-purple-500
-                  hover:bg-purple-400
-                  px-5
-                  py-3
-                  rounded-xl
-                  font-black
-                  text-white
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  self-end
-                "
-              >
-                <CalendarDays
-                  size={17}
-                />
-
-                Voir la période
-              </button>
             </div>
-          </div>
-
-          {/* BOUTONS */}
-
-          <div
-            className="
-              flex
-              flex-col
-              sm:flex-row
-              gap-3
-            "
-          >
-            <button
-              onClick={showEverything}
-              className="
-                bg-orange-500
-                hover:bg-orange-400
-                text-black
-                px-5
-                py-3
-                rounded-xl
-                font-black
-              "
-            >
-              Voir toutes les ventes
-            </button>
 
             <button
-              onClick={resetFilters}
+              type="button"
+              onClick={filterByPeriod}
               className="
-                border
-                border-white/10
-                bg-black/30
-                px-5
-                py-3
-                rounded-xl
-                font-bold
-                text-slate-300
-                flex
+                inline-flex
+                min-h-[48px]
                 items-center
                 justify-center
                 gap-2
-              "
-            >
-              <X size={17} />
-              Réinitialiser
-            </button>
-
-            <button
-              onClick={downloadPDF}
-              className="
-                bg-gradient-to-r
-                from-orange-500
-                to-yellow-400
-                text-black
+                rounded-xl
+                bg-purple-500
                 px-5
                 py-3
-                rounded-xl
                 font-black
-                flex
-                items-center
-                justify-center
-                gap-2
+                text-white
+                transition
+                hover:bg-purple-400
+                active:scale-[0.98]
               "
             >
-              <Download size={17} />
-              Créer PDF
+              <CalendarDays size={17} />
+              Voir la période
             </button>
           </div>
-        </section>
-                {/* ==================================================
-            RÉSULTAT DE LA RECHERCHE
-        ================================================== */}
+        </div>
 
-        {(selectedDate ||
-          startDate ||
-          endDate) && (
-          <section
-            className="
-              rounded-2xl
-              bg-orange-500/10
-              border
-              border-orange-400/20
-              p-4
-            "
-          >
-            <p
-              className="
-                text-sm
-                font-bold
-                text-orange-300
-              "
-            >
-              {selectedDate
-                ? `Résultat pour le ${selectedDate}`
-                : startDate &&
-                  endDate
-                ? `Résultat du ${startDate} au ${endDate}`
-                : "Sélection incomplète"}
-            </p>
+        {/* ACTIONS */}
 
-            <p
-              className="
-                mt-1
-                text-xs
-                text-slate-400
-              "
-            >
-              {filteredSales.length} vente
-              {filteredSales.length > 1
-                ? "s"
-                : ""} trouvée
-              {filteredSales.length > 1
-                ? "s"
-                : ""}
-            </p>
-          </section>
-        )}
-
-        {/* ==================================================
-            HISTORIQUE
-        ================================================== */}
-
-        <section
+        <div
           className="
-            rounded-3xl
-            bg-white/5
-            border
-            border-white/10
-            p-5
-            sm:p-6
+            mt-6
+            grid
+            grid-cols-1
+            gap-3
+            sm:grid-cols-2
+            lg:grid-cols-3
           "
         >
-          <div
+          <button
+            type="button"
+            onClick={showEverything}
             className="
-              flex
-              flex-col
-              sm:flex-row
-              sm:justify-between
-              sm:items-center
-              gap-3
-              mb-5
+              inline-flex
+              min-h-[48px]
+              items-center
+              justify-center
+              gap-2
+              rounded-xl
+              bg-orange-500
+              px-5
+              py-3
+              font-black
+              text-black
+              transition
+              hover:bg-orange-400
             "
           >
-            <div>
-              <h2
-                className="
-                  text-xl
-                  font-black
-                  text-white
-                "
-              >
-                🧾 Historique des ventes
-              </h2>
+            <ShoppingCart size={17} />
+            Toutes les ventes
+          </button>
 
-              <p
-                className="
-                  text-xs
-                  text-slate-400
-                  mt-1
-                "
-              >
-                Consultez les dernières ventes
-                enregistrées.
-              </p>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="
+              inline-flex
+              min-h-[48px]
+              items-center
+              justify-center
+              gap-2
+              rounded-xl
+              border
+              border-white/10
+              bg-black/30
+              px-5
+              py-3
+              font-bold
+              text-slate-300
+              transition
+              hover:bg-white/5
+            "
+          >
+            <X size={17} />
+            Réinitialiser
+          </button>
+
+          <button
+            type="button"
+            onClick={downloadPDF}
+            className="
+              inline-flex
+              min-h-[48px]
+              items-center
+              justify-center
+              gap-2
+              rounded-xl
+              bg-gradient-to-r
+              from-orange-500
+              to-yellow-400
+              px-5
+              py-3
+              font-black
+              text-black
+              shadow-lg
+              shadow-orange-500/10
+              transition
+              hover:brightness-110
+            "
+          >
+            <Download size={17} />
+            Créer le PDF
+          </button>
+        </div>
+      </section>
+
+      {/* ==================================================
+          RÉSULTAT DE LA RECHERCHE
+      ================================================== */}
+
+      {(selectedDate ||
+        startDate ||
+        endDate) && (
+        <section
+          className="
+            rounded-2xl
+            border
+            border-orange-400/20
+            bg-orange-500/10
+            p-4
+          "
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 text-orange-400">
+              <Search size={18} />
             </div>
 
-            {filteredSales.length > 5 && (
-              <button
-                onClick={() =>
-                  setShowAll(!showAll)
-                }
-                className="
-                  bg-orange-500
-                  hover:bg-orange-400
-                  text-black
-                  px-4
-                  py-2
-                  rounded-xl
-                  font-black
-                "
-              >
-                {showAll
-                  ? "Afficher seulement 5"
-                  : "Voir toutes les ventes"}
-              </button>
-            )}
+            <div className="min-w-0">
+              <p className="text-sm font-black text-orange-300">
+                {selectedDate
+                  ? `Résultat pour le ${selectedDate}`
+                  : startDate && endDate
+                  ? `Résultat du ${startDate} au ${endDate}`
+                  : "Sélection incomplète"}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                {filteredSales.length} vente
+                {filteredSales.length > 1
+                  ? "s"
+                  : ""}{" "}
+                trouvée
+                {filteredSales.length > 1
+                  ? "s"
+                  : ""}
+              </p>
+            </div>
           </div>
+        </section>
+      )}
 
-          {/* ==================================================
-              AUCUNE VENTE
-          ================================================== */}
+      {/* ==================================================
+          HISTORIQUE
+      ================================================== */}
 
-          {displayedSales.length === 0 ? (
+      <section
+        className="
+          rounded-3xl
+          border
+          border-white/10
+          bg-white/[0.04]
+          p-5
+          shadow-xl
+          sm:p-6
+        "
+      >
+        <div
+          className="
+            mb-5
+            flex
+            flex-col
+            gap-4
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
+          "
+        >
+          <div className="flex items-center gap-3">
             <div
               className="
-                rounded-2xl
-                bg-black/30
-                border
-                border-white/10
-                p-8
-                text-center
+                flex
+                h-10
+                w-10
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-green-500/10
+                text-green-400
               "
             >
-              <p
-                className="
-                  font-black
-                  text-white
-                "
-              >
-                {selectedDate
-                  ? "Aucune vente à cette date."
-                  : startDate &&
-                    endDate
-                  ? "Aucune vente dans cette période."
-                  : "Aucune vente disponible."}
-              </p>
+              <TrendingUp size={19} />
+            </div>
 
-              <p
-                className="
-                  text-xs
-                  text-slate-500
-                  mt-2
-                "
-              >
-                Essayez une autre date
-                ou une autre période.
+            <div>
+              <h2 className="text-xl font-black text-white">
+                Historique des ventes
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Consultez les ventes enregistrées.
               </p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {displayedSales.map(
-                (sale) => (
+          </div>
+
+          {filteredSales.length > 5 && (
+            <button
+              type="button"
+              onClick={() =>
+                setShowAll(!showAll)
+              }
+              className="
+                inline-flex
+                items-center
+                justify-center
+                rounded-xl
+                bg-orange-500
+                px-4
+                py-2.5
+                text-sm
+                font-black
+                text-black
+                transition
+                hover:bg-orange-400
+              "
+            >
+              {showAll
+                ? "Afficher seulement 5"
+                : "Voir toutes les ventes"}
+            </button>
+          )}
+        </div>
+
+        {displayedSales.length === 0 ? (
+          <div
+            className="
+              rounded-2xl
+              border
+              border-white/10
+              bg-black/20
+              p-10
+              text-center
+            "
+          >
+            <div
+              className="
+                mx-auto
+                flex
+                h-14
+                w-14
+                items-center
+                justify-center
+                rounded-2xl
+                bg-white/5
+                text-slate-500
+              "
+            >
+              <Package size={25} />
+            </div>
+
+            <p className="mt-4 font-black text-white">
+              {selectedDate
+                ? "Aucune vente à cette date."
+                : startDate && endDate
+                ? "Aucune vente dans cette période."
+                : "Aucune vente disponible."}
+            </p>
+
+            <p className="mt-2 text-xs text-slate-500">
+              Essayez une autre date ou une autre période.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {displayedSales.map(
+              (sale) => (
+                <div
+                  key={sale.id}
+                  className="
+                    rounded-2xl
+                    border
+                    border-white/10
+                    bg-black/20
+                    p-4
+                    transition
+                    hover:border-white/20
+                    hover:bg-black/30
+                  "
+                >
                   <div
-                    key={sale.id}
                     className="
-                      rounded-2xl
-                      bg-black/30
-                      border
-                      border-white/10
-                      p-4
                       flex
                       flex-col
+                      gap-4
                       lg:flex-row
                       lg:items-center
                       lg:justify-between
-                      gap-4
                     "
                   >
-                    {/* PRODUIT */}
-
                     <div
                       className="
                         min-w-0
                         flex-1
                       "
                     >
-                      <p
-                        className="
-                          font-black
-                          text-white
-                          break-words
-                        "
-                      >
-                        📦{" "}
-                        {sale.product_name}
-                      </p>
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="
+                            flex
+                            h-10
+                            w-10
+                            shrink-0
+                            items-center
+                            justify-center
+                            rounded-xl
+                            bg-orange-500/10
+                            text-orange-400
+                          "
+                        >
+                          <Package size={18} />
+                        </div>
 
-                      <p
-                        className="
-                          text-xs
-                          text-slate-400
-                          mt-1
-                          break-words
-                        "
-                      >
-                        📅{" "}
-                        {new Date(
-                          sale.created_at
-                        ).toLocaleString(
-                          "fr-FR"
-                        )}
-                      </p>
+                        <div className="min-w-0">
+                          <p
+                            className="
+                              break-words
+                              font-black
+                              text-white
+                            "
+                          >
+                            {sale.product_name}
+                          </p>
+
+                          <p
+                            className="
+                              mt-1
+                              break-words
+                              text-xs
+                              text-slate-500
+                            "
+                          >
+                            {new Date(
+                              sale.created_at
+                            ).toLocaleString(
+                              "fr-FR"
+                            )}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-
-                    {/* INFORMATIONS */}
 
                     <div
                       className="
                         grid
-                        grid-cols-2
-                        sm:grid-cols-3
-                        gap-4
-                        text-sm
-                        shrink-0
+                        grid-cols-3
+                        gap-3
+                        sm:gap-5
+                        lg:min-w-[420px]
                       "
                     >
-                      <div>
-                        <p
-                          className="
-                            text-xs
-                            text-slate-500
-                          "
-                        >
+                      <div
+                        className="
+                          rounded-xl
+                          border
+                          border-white/5
+                          bg-white/[0.03]
+                          p-3
+                        "
+                      >
+                        <p className="text-[11px] text-slate-500">
                           Quantité
                         </p>
 
-                        <p
-                          className="
-                            font-black
-                            text-white
-                          "
-                        >
+                        <p className="mt-1 font-black text-white">
                           x{sale.quantity}
                         </p>
                       </div>
 
-                      <div>
-                        <p
-                          className="
-                            text-xs
-                            text-slate-500
-                          "
-                        >
+                      <div
+                        className="
+                          rounded-xl
+                          border
+                          border-white/5
+                          bg-white/[0.03]
+                          p-3
+                        "
+                      >
+                        <p className="text-[11px] text-slate-500">
                           Vente
                         </p>
 
                         <p
                           className="
+                            mt-1
+                            whitespace-nowrap
+                            text-sm
                             font-black
                             text-orange-400
-                            whitespace-nowrap
                           "
                         >
                           {formatMoney(
@@ -1729,21 +2102,26 @@ ${formatMoney(
                         </p>
                       </div>
 
-                      <div>
-                        <p
-                          className="
-                            text-xs
-                            text-slate-500
-                          "
-                        >
+                      <div
+                        className="
+                          rounded-xl
+                          border
+                          border-white/5
+                          bg-white/[0.03]
+                          p-3
+                        "
+                      >
+                        <p className="text-[11px] text-slate-500">
                           Bénéfice
                         </p>
 
                         <p
                           className="
+                            mt-1
+                            whitespace-nowrap
+                            text-sm
                             font-black
                             text-green-400
-                            whitespace-nowrap
                           "
                         >
                           {formatMoney(
@@ -1754,44 +2132,47 @@ ${formatMoney(
                       </div>
                     </div>
                   </div>
-                )
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* ==================================================
-            RETOUR EN HAUT
-        ================================================== */}
-
-        {showTopButton && (
-          <button
-            onClick={scrollToTop}
-            className="
-              fixed
-              bottom-5
-              right-5
-              sm:bottom-6
-              sm:right-6
-              z-[9999]
-              bg-orange-500
-              hover:bg-orange-400
-              text-black
-              p-4
-              rounded-full
-              shadow-2xl
-              transition-all
-              duration-200
-              active:scale-95
-            "
-            title="Retour en haut"
-            aria-label="Retour en haut"
-          >
-            <ArrowUp size={22} />
-          </button>
+                </div>
+              )
+            )}
+          </div>
         )}
+      </section>
 
-      </div>
+      {/* ==================================================
+          RETOUR EN HAUT
+      ================================================== */}
+
+      {showTopButton && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="
+            fixed
+            bottom-5
+            right-5
+            z-[9999]
+            flex
+            h-12
+            w-12
+            items-center
+            justify-center
+            rounded-full
+            bg-orange-500
+            text-black
+            shadow-2xl
+            transition
+            hover:bg-orange-400
+            active:scale-95
+            sm:bottom-6
+            sm:right-6
+          "
+          title="Retour en haut"
+          aria-label="Retour en haut"
+        >
+          <ArrowUp size={21} />
+        </button>
+      )}
     </main>
   );
 }
@@ -1815,18 +2196,23 @@ function ReportCard({
     <div
       className="
         rounded-3xl
-        bg-white/5
         border
         border-white/10
+        bg-white/[0.04]
         p-5
-        sm:p-6
-        backdrop-blur-xl
-        overflow-hidden
+        shadow-xl
       "
     >
       <div
         className="
-          text-3xl
+          flex
+          h-12
+          w-12
+          items-center
+          justify-center
+          rounded-2xl
+          bg-orange-500/10
+          text-2xl
         "
       >
         {icon}
@@ -1834,7 +2220,7 @@ function ReportCard({
 
       <h3
         className="
-          mt-3
+          mt-4
           font-black
           text-white
         "
@@ -1845,11 +2231,11 @@ function ReportCard({
       <p
         className="
           mt-3
+          break-words
           text-lg
-          sm:text-xl
           font-black
           text-orange-400
-          break-words
+          sm:text-xl
         "
       >
         {value}
@@ -1861,7 +2247,6 @@ function ReportCard({
           text-xs
           leading-5
           text-slate-400
-          whitespace-pre-line
         "
       >
         {subtitle}
