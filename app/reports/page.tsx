@@ -1195,9 +1195,11 @@ ${formatMoney(
             >
               <div
                 className="
-                  relative
-                  flex-1
-                "
+  relative
+  flex-1
+  min-w-0
+  w-full
+"
               >
                 <CalendarDays
                   size={18}
@@ -1220,9 +1222,11 @@ ${formatMoney(
                     )
                   }
                   className="
-                    w-full
-                    min-w-0
-                    bg-[#111827]
+  w-full
+  max-w-full
+  min-w-0
+  box-border
+  bg-[#111827]
                     border
                     border-white/10
                     rounded-xl
@@ -1307,9 +1311,11 @@ ${formatMoney(
                     )
                   }
                   className="
-                    w-full
-                    min-w-0
-                    bg-[#111827]
+  w-full
+  max-w-full
+  min-w-0
+  box-border
+  bg-[#111827]
                     border
                     border-white/10
                     rounded-xl
@@ -1347,9 +1353,11 @@ ${formatMoney(
                     )
                   }
                   className="
-                    w-full
-                    min-w-0
-                    bg-[#111827]
+  w-full
+  max-w-full
+  min-w-0
+  box-border
+  bg-[#111827]
                     border
                     border-white/10
                     rounded-xl
@@ -1643,9 +1651,11 @@ ${formatMoney(
 
                     <div
                       className="
-                        min-w-0
-                        flex-1
-                      "
+  relative
+  flex-1
+  min-w-0
+  w-full
+"
                     >
                       <p
   className="
@@ -1663,16 +1673,13 @@ ${formatMoney(
                       </p>
 
                       <p
-  className="
-    text-xs
-    text-slate-400
-    mt-1
-    whitespace-nowrap
-    overflow-hidden
-    text-ellipsis
-    max-w-full
-  "
->
+                        className="
+                          text-xs
+                          text-slate-400
+                          mt-1
+                          break-words
+                        "
+                      >
                         📅{" "}
                         {new Date(
                           sale.created_at
@@ -1686,13 +1693,13 @@ ${formatMoney(
 
                     <div
                       className="
-  grid
-  grid-cols-2
-  gap-3
-  text-sm
-  w-full
-  min-w-0
-"
+                        grid
+                        grid-cols-2
+                        sm:grid-cols-3
+                        gap-4
+                        text-sm
+                        shrink-0
+                      "
                     >
                       <div>
                         <p
@@ -1852,16 +1859,15 @@ function ReportCard({
       </h3>
 
       <p
-  className="
-    text-xs
-    text-slate-400
-    mt-1
-    whitespace-nowrap
-    overflow-hidden
-    text-ellipsis
-    max-w-full
-  "
->
+        className="
+          mt-3
+          text-lg
+          sm:text-xl
+          font-black
+          text-orange-400
+          break-words
+        "
+      >
         {value}
       </p>
 
