@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -46,7 +45,7 @@ export default function ReportsPage() {
   const [showGuide, setShowGuide] = useState(false);
   const [showTopButton, setShowTopButton] = useState(false);
 
-  const [today, setToday] = useState<DayReport>({
+  const [today, setToday] = useState({
     fc: 0,
     usd: 0,
     profitFc: 0,
@@ -54,7 +53,7 @@ export default function ReportsPage() {
     quantity: 0,
   });
 
-  const [yesterday, setYesterday] = useState<DayReport>({
+  const [yesterday, setYesterday] = useState({
     fc: 0,
     usd: 0,
     profitFc: 0,
@@ -63,7 +62,7 @@ export default function ReportsPage() {
   });
 
   const [beforeYesterday, setBeforeYesterday] =
-    useState<DayReport>({
+    useState({
       fc: 0,
       usd: 0,
       profitFc: 0,
@@ -93,7 +92,8 @@ export default function ReportsPage() {
 
     window.addEventListener(
       "scroll",
-      handleScroll
+      handleScroll,
+      { passive: true }
     );
 
     return () => {
@@ -122,7 +122,7 @@ export default function ReportsPage() {
   };
 
   // ======================================================
-  // NETTOYAGE DU TEXTE POUR LE PDF
+  // NETTOYAGE PDF
   // ======================================================
 
   const cleanPDF = (text: string) => {
@@ -224,37 +224,56 @@ export default function ReportsPage() {
       setFilteredSales(list);
 
       // ==================================================
-      // DATES
+      // DATES LOCALES
       // ==================================================
+
+      const getLocalDate = (
+        date: Date
+      ) => {
+        const year =
+          date.getFullYear();
+
+        const month =
+          String(
+            date.getMonth() + 1
+          ).padStart(2, "0");
+
+        const day =
+          String(
+            date.getDate()
+          ).padStart(2, "0");
+
+        return `${year}-${month}-${day}`;
+      };
 
       const now = new Date();
 
       const todayDate =
-        now.toISOString().split("T")[0];
+        getLocalDate(now);
 
       const yesterdayDate =
         new Date(now);
 
       yesterdayDate.setDate(
-        now.getDate() - 1
+        yesterdayDate.getDate() - 1
       );
 
       const yesterdayString =
-        yesterdayDate
-          .toISOString()
-          .split("T")[0];
+        getLocalDate(
+          yesterdayDate
+        );
 
       const beforeYesterdayDate =
         new Date(now);
 
       beforeYesterdayDate.setDate(
-        now.getDate() - 2
+        beforeYesterdayDate.getDate() - 2
       );
 
       const beforeYesterdayString =
-        beforeYesterdayDate
-          .toISOString()
-          .split("T")[0];
+        getLocalDate(
+          beforeYesterdayDate
+        );
 
       // ==================================================
       // RAPPORTS
@@ -316,7 +335,9 @@ export default function ReportsPage() {
           if (
             products[name] > max
           ) {
-            max = products[name];
+            max =
+              products[name];
+
             best = name;
           }
         }
@@ -344,13 +365,15 @@ export default function ReportsPage() {
     }
 
     const result =
-      salesHistory.filter((sale) => {
-        return (
-          sale.created_at
-            .split("T")[0] ===
-          selectedDate
-        );
-      });
+      salesHistory.filter(
+        (sale) => {
+          return (
+            sale.created_at
+              .split("T")[0] ===
+            selectedDate
+          );
+        }
+      );
 
     setFilteredSales(result);
     setShowAll(false);
@@ -361,7 +384,10 @@ export default function ReportsPage() {
   // ======================================================
 
   const filterByPeriod = () => {
-    if (!startDate || !endDate) {
+    if (
+      !startDate ||
+      !endDate
+    ) {
       alert(
         "Choisissez la date de début et la date de fin."
       );
@@ -376,16 +402,18 @@ export default function ReportsPage() {
     }
 
     const result =
-      salesHistory.filter((sale) => {
-        const saleDate =
-          sale.created_at
-            .split("T")[0];
+      salesHistory.filter(
+        (sale) => {
+          const saleDate =
+            sale.created_at
+              .split("T")[0];
 
-        return (
-          saleDate >= startDate &&
-          saleDate <= endDate
-        );
-      });
+          return (
+            saleDate >= startDate &&
+            saleDate <= endDate
+          );
+        }
+      );
 
     setFilteredSales(result);
     setShowAll(false);
@@ -427,8 +455,7 @@ export default function ReportsPage() {
     showAll
       ? filteredSales
       : filteredSales.slice(0, 5);
-
-  // ======================================================
+        // ======================================================
   // CRÉATION DU PDF
   // ======================================================
 
@@ -594,15 +621,18 @@ export default function ReportsPage() {
 
       produits[
         sale.product_name
-      ].quantity += quantity;
+      ].quantity +=
+        quantity;
 
       produits[
         sale.product_name
-      ].montant += montant;
+      ].montant +=
+        montant;
 
       produits[
         sale.product_name
-      ].profit += benefice;
+      ].profit +=
+        benefice;
     });
 
     // ==================================================
@@ -919,26 +949,24 @@ export default function ReportsPage() {
     }, 1000);
   };
 
-  
   // ======================================================
   // JSX
   // ======================================================
 
   return (
-    <main
-      className="
-        min-h-screen
-        bg-[#081221]
-        text-white
-        p-4
-        sm:p-6
-      "
-    >
+    <main className="min-h-screen w-full">
       <div
         className="
-          max-w-6xl
+          w-full
+          max-w-7xl
           mx-auto
-          space-y-6
+          px-3
+          sm:px-5
+          lg:px-8
+          py-5
+          sm:py-8
+          space-y-5
+          sm:space-y-6
         "
       >
 
@@ -952,7 +980,8 @@ export default function ReportsPage() {
             bg-white/5
             border
             border-white/10
-            p-6
+            p-5
+            sm:p-6
             backdrop-blur-xl
           "
         >
@@ -972,9 +1001,10 @@ export default function ReportsPage() {
                   text-2xl
                   sm:text-3xl
                   font-black
+                  text-white
                 "
               >
-                📊 Rapport 
+                📊 Rapport
               </h1>
 
               <p
@@ -1001,6 +1031,7 @@ export default function ReportsPage() {
                 py-3
                 rounded-xl
                 font-bold
+                text-white
               "
             >
               <Sparkles
@@ -1111,21 +1142,7 @@ ${formatMoney(
 )} $`}
           />
 
-          <ReportCard
-            icon="⏳"
-            title="Avant-hier"
-            value={`${formatMoney(
-              beforeYesterday.fc
-            )} FC | ${formatMoney(
-              beforeYesterday.usd
-            )} $`}
-            subtitle={`Bénéfice :
-${formatMoney(
-  beforeYesterday.profitFc
-)} FC | ${formatMoney(
-  beforeYesterday.profitUsd
-)} $`}
-          />
+          
         </section>
 
         {/* ==================================================
@@ -1147,6 +1164,7 @@ ${formatMoney(
               text-xl
               font-black
               mb-5
+              text-white
             "
           >
             📄 Rechercher les ventes
@@ -1189,6 +1207,7 @@ ${formatMoney(
                     top-1/2
                     -translate-y-1/2
                     text-orange-400
+                    pointer-events-none
                   "
                 />
 
@@ -1202,7 +1221,8 @@ ${formatMoney(
                   }
                   className="
                     w-full
-                    bg-black/40
+                    min-w-0
+                    bg-[#111827]
                     border
                     border-white/10
                     rounded-xl
@@ -1210,6 +1230,10 @@ ${formatMoney(
                     pl-10
                     text-white
                     outline-none
+                    focus:border-orange-400
+                    focus:ring-1
+                    focus:ring-orange-400
+                    [color-scheme:dark]
                   "
                 />
               </div>
@@ -1223,6 +1247,7 @@ ${formatMoney(
                   py-3
                   rounded-xl
                   font-black
+                  text-white
                   flex
                   items-center
                   justify-center
@@ -1230,7 +1255,6 @@ ${formatMoney(
                 "
               >
                 <Search size={17} />
-
                 Chercher
               </button>
             </div>
@@ -1260,6 +1284,8 @@ ${formatMoney(
                 gap-3
               "
             >
+              {/* DATE DE DÉBUT */}
+
               <div>
                 <label
                   className="
@@ -1282,16 +1308,23 @@ ${formatMoney(
                   }
                   className="
                     w-full
-                    bg-black/40
+                    min-w-0
+                    bg-[#111827]
                     border
                     border-white/10
                     rounded-xl
                     p-3
                     text-white
                     outline-none
+                    focus:border-orange-400
+                    focus:ring-1
+                    focus:ring-orange-400
+                    [color-scheme:dark]
                   "
                 />
               </div>
+
+              {/* DATE DE FIN */}
 
               <div>
                 <label
@@ -1315,16 +1348,23 @@ ${formatMoney(
                   }
                   className="
                     w-full
-                    bg-black/40
+                    min-w-0
+                    bg-[#111827]
                     border
                     border-white/10
                     rounded-xl
                     p-3
                     text-white
                     outline-none
+                    focus:border-orange-400
+                    focus:ring-1
+                    focus:ring-orange-400
+                    [color-scheme:dark]
                   "
                 />
               </div>
+
+              {/* BOUTON PÉRIODE */}
 
               <button
                 onClick={filterByPeriod}
@@ -1335,6 +1375,7 @@ ${formatMoney(
                   py-3
                   rounded-xl
                   font-black
+                  text-white
                   flex
                   items-center
                   justify-center
@@ -1394,7 +1435,6 @@ ${formatMoney(
               "
             >
               <X size={17} />
-
               Réinitialiser
             </button>
 
@@ -1416,13 +1456,11 @@ ${formatMoney(
               "
             >
               <Download size={17} />
-
               Créer PDF
             </button>
           </div>
         </section>
-
-        {/* ==================================================
+                {/* ==================================================
             RÉSULTAT DE LA RECHERCHE
         ================================================== */}
 
@@ -1501,6 +1539,7 @@ ${formatMoney(
                 className="
                   text-xl
                   font-black
+                  text-white
                 "
               >
                 🧾 Historique des ventes
@@ -1513,16 +1552,15 @@ ${formatMoney(
                   mt-1
                 "
               >
-                
+                Consultez les dernières ventes
+                enregistrées.
               </p>
             </div>
 
             {filteredSales.length > 5 && (
               <button
                 onClick={() =>
-                  setShowAll(
-                    !showAll
-                  )
+                  setShowAll(!showAll)
                 }
                 className="
                   bg-orange-500
@@ -1541,7 +1579,9 @@ ${formatMoney(
             )}
           </div>
 
-          {/* AUCUNE VENTE */}
+          {/* ==================================================
+              AUCUNE VENTE
+          ================================================== */}
 
           {displayedSales.length === 0 ? (
             <div
@@ -1581,7 +1621,6 @@ ${formatMoney(
             </div>
           ) : (
             <div className="space-y-3">
-
               {displayedSales.map(
                 (sale) => (
                   <div
@@ -1600,12 +1639,12 @@ ${formatMoney(
                       gap-4
                     "
                   >
-
                     {/* PRODUIT */}
 
                     <div
                       className="
                         min-w-0
+                        flex-1
                       "
                     >
                       <p
@@ -1624,6 +1663,7 @@ ${formatMoney(
                           text-xs
                           text-slate-400
                           mt-1
+                          break-words
                         "
                       >
                         📅{" "}
@@ -1644,9 +1684,9 @@ ${formatMoney(
                         sm:grid-cols-3
                         gap-4
                         text-sm
+                        shrink-0
                       "
                     >
-
                       <div>
                         <p
                           className="
@@ -1660,6 +1700,7 @@ ${formatMoney(
                         <p
                           className="
                             font-black
+                            text-white
                           "
                         >
                           x{sale.quantity}
@@ -1680,6 +1721,7 @@ ${formatMoney(
                           className="
                             font-black
                             text-orange-400
+                            whitespace-nowrap
                           "
                         >
                           {formatMoney(
@@ -1703,6 +1745,7 @@ ${formatMoney(
                           className="
                             font-black
                             text-green-400
+                            whitespace-nowrap
                           "
                         >
                           {formatMoney(
@@ -1711,12 +1754,10 @@ ${formatMoney(
                           {sale.currency}
                         </p>
                       </div>
-
                     </div>
                   </div>
                 )
               )}
-
             </div>
           )}
         </section>
@@ -1730,18 +1771,23 @@ ${formatMoney(
             onClick={scrollToTop}
             className="
               fixed
-              bottom-6
-              right-6
-              z-50
+              bottom-5
+              right-5
+              sm:bottom-6
+              sm:right-6
+              z-[9999]
               bg-orange-500
               hover:bg-orange-400
               text-black
               p-4
               rounded-full
               shadow-2xl
-              transition
+              transition-all
+              duration-200
+              active:scale-95
             "
             title="Retour en haut"
+            aria-label="Retour en haut"
           >
             <ArrowUp size={22} />
           </button>
@@ -1775,10 +1821,16 @@ function ReportCard({
         border
         border-white/10
         p-5
-        shadow-xl
+        sm:p-6
+        backdrop-blur-xl
+        overflow-hidden
       "
     >
-      <div className="text-3xl">
+      <div
+        className="
+          text-3xl
+        "
+      >
         {icon}
       </div>
 

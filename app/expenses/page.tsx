@@ -763,27 +763,32 @@ export default function ExpensesPage() {
                 "
               />
 
-              <input
-                type="date"
-                value={searchDate}
-                onChange={(e) =>
-                  setSearchDate(
-                    e.target.value
-                  )
-                }
-                className="
-                  w-full
-                  rounded-xl
-                  bg-black/40
-                  border
-                  border-white/10
-                  p-3
-                  pl-10
-                  text-white
-                  outline-none
-                  focus:border-orange-400
-                "
-              />
+              
+<input
+  type="date"
+  value={searchDate}
+  onChange={(e) =>
+    setSearchDate(
+      e.target.value
+    )
+  }
+  className="
+    w-full
+    rounded-xl
+    bg-[#111827]
+    border
+    border-white/10
+    p-3
+    pl-10
+    text-white
+    outline-none
+    focus:border-orange-400
+    [color-scheme:dark]
+    appearance-auto
+  "
+/>
+
+
 
             </div>
 
