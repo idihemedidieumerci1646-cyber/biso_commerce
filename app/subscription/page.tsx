@@ -1509,8 +1509,6 @@ mt-2
 
 Votre demande est envoyée.
 
-Vous pouvez continuer à utiliser votre espace.
-
 L'administration va vérifier votre paiement.
 
 </p>

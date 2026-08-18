@@ -3,7 +3,14 @@
 /* ======================================================================
    BISO-COMMERCE — PAGE RAPPORT
    ----------------------------------------------------------------------
-   Version complète corrigée
+   Version complète professionnelle
+   - Pas de Top 5 produits
+   - Filtre par produit
+   - Filtre par période Du / Au
+   - Suppression d'une vente
+   - 5 dernières ventes affichées
+   - Bouton "Voir toutes les ventes"
+   - PDF professionnel
    ====================================================================== */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -25,9 +32,7 @@ import {
   TrendingDown,
   Package,
   ShoppingCart,
-  FileSpreadsheet,
   Wallet,
-  Trophy,
   Loader2,
   AlertCircle,
   RefreshCw,
@@ -35,7 +40,7 @@ import {
 
 /* ======================================================
    TYPES
-   ====================================================== */
+====================================================== */
 
 type Sale = {
   id: string;
@@ -55,15 +60,6 @@ type DayReport = {
   quantity: number;
 };
 
-type ProductStat = {
-  name: string;
-  quantity: number;
-  montantFc: number;
-  montantUsd: number;
-  profitFc: number;
-  profitUsd: number;
-};
-
 type Notice = {
   type: "info" | "error" | "success";
   message: string;
@@ -81,12 +77,14 @@ const PAGE_STEP = 5;
 
 /* ======================================================
    OUTILS
-   ====================================================== */
+====================================================== */
 
 const formatMoney = (value: number) => {
   const number = Math.round(Number(value || 0));
 
-  return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return number
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 };
 
 const getLocalDate = (date: Date) => {
@@ -105,12 +103,19 @@ const prettyDate = (value: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const isFC = (currency: string) => currency === "FC";
+const isFC = (currency: string) =>
+  String(currency || "").toUpperCase() === "FC";
 
-const isUSD = (currency: string) =>
-  currency === "$" || currency === "USD";
+const isUSD = (currency: string) => {
+  const value = String(currency || "").toUpperCase();
 
-/* Nettoyage des caractères non gérés par la police PDF standard. */
+  return value === "$" || value === "USD";
+};
+
+/*
+  Nettoyage pour les zones qui utilisent la police standard
+  Helvetica de jsPDF.
+*/
 const cleanPDF = (text: string) =>
   String(text || "")
     .normalize("NFD")
@@ -157,47 +162,10 @@ const calculateDayReport = (
   };
 };
 
-/* Agrégation par produit. */
-const buildProductStats = (sales: Sale[]): ProductStat[] => {
-  const map: Record<string, ProductStat> = {};
-
-  sales.forEach((sale) => {
-    const name = sale.product_name?.trim() || "Produit inconnu";
-
-    if (!map[name]) {
-      map[name] = {
-        name,
-        quantity: 0,
-        montantFc: 0,
-        montantUsd: 0,
-        profitFc: 0,
-        profitUsd: 0,
-      };
-    }
-
-    const amount = Number(sale.total_sale || 0);
-    const profit = Number(sale.profit || 0);
-
-    map[name].quantity += Number(sale.quantity || 0);
-
-    if (isFC(sale.currency)) {
-      map[name].montantFc += amount;
-      map[name].profitFc += profit;
-    }
-
-    if (isUSD(sale.currency)) {
-      map[name].montantUsd += amount;
-      map[name].profitUsd += profit;
-    }
-  });
-
-  return Object.values(map).sort(
-    (a, b) => b.quantity - a.quantity
-  );
-};
-
-/* Variation protégée contre la division par zéro. */
-const variation = (current: number, previous: number) => {
+const variation = (
+  current: number,
+  previous: number
+) => {
   if (!previous) {
     return current > 0 ? 100 : 0;
   }
@@ -207,19 +175,18 @@ const variation = (current: number, previous: number) => {
 
 /* ======================================================
    PAGE
-   ====================================================== */
+====================================================== */
 
 export default function ReportsPage() {
   const [salesHistory, setSalesHistory] = useState<Sale[]>([]);
   const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
 
-  const [selectedDate, setSelectedDate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [productQuery, setProductQuery] = useState("");
 
   const [showAll, setShowAll] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_STEP);
+
   const [showGuide, setShowGuide] = useState(false);
   const [showTopButton, setShowTopButton] = useState(false);
 
@@ -228,7 +195,7 @@ export default function ReportsPage() {
 
   /* ==================================================
      CHARGEMENT DES VENTES
-     ================================================== */
+  ================================================== */
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -279,13 +246,10 @@ export default function ReportsPage() {
       setSalesHistory(list);
       setFilteredSales(list);
 
-      setSelectedDate("");
       setStartDate("");
       setEndDate("");
       setProductQuery("");
-
       setShowAll(false);
-      setVisibleCount(PAGE_STEP);
 
       setNotice(null);
     } catch (error) {
@@ -310,7 +274,7 @@ export default function ReportsPage() {
 
   /* ==================================================
      BOUTON RETOUR EN HAUT
-     ================================================== */
+  ================================================== */
 
   useEffect(() => {
     const handleScroll = () => {
@@ -340,21 +304,13 @@ export default function ReportsPage() {
 
   /* ==================================================
      RAPPORTS JOURNALIERS
-     ================================================== */
+  ================================================== */
 
   const {
     today,
     yesterday,
     beforeYesterday,
   } = useMemo(() => {
-    if (salesHistory.length === 0) {
-      return {
-        today: EMPTY_DAY,
-        yesterday: EMPTY_DAY,
-        beforeYesterday: EMPTY_DAY,
-      };
-    }
-
     const now = new Date();
 
     const d1 = new Date(now);
@@ -379,17 +335,9 @@ export default function ReportsPage() {
     };
   }, [salesHistory]);
 
-  const bestProduct = useMemo(() => {
-    const stats = buildProductStats(
-      salesHistory
-    );
-
-    return stats[0]?.name || "Aucun";
-  }, [salesHistory]);
-
   /* ==================================================
-     RÉSUMÉ DE LA SÉLECTION
-     ================================================== */
+     RÉSUMÉ
+  ================================================== */
 
   const summary = useMemo(() => {
     let totalFc = 0;
@@ -446,14 +394,6 @@ export default function ReportsPage() {
     };
   }, [filteredSales]);
 
-  const topProducts = useMemo(
-    () =>
-      buildProductStats(
-        filteredSales
-      ).slice(0, 5),
-    [filteredSales]
-  );
-
   const dayVariationFc = useMemo(
     () =>
       variation(
@@ -474,7 +414,7 @@ export default function ReportsPage() {
 
   /* ==================================================
      FILTRE PRODUIT
-     ================================================== */
+  ================================================== */
 
   const applyProductQuery = useCallback(
     (list: Sale[]) => {
@@ -493,42 +433,8 @@ export default function ReportsPage() {
   );
 
   /* ==================================================
-     FILTRE PAR DATE
-     ================================================== */
-
-  const filterByDate = () => {
-    if (!selectedDate) {
-      setNotice({
-        type: "info",
-        message:
-          "Choisissez d'abord une date.",
-      });
-
-      return;
-    }
-
-    const result = salesHistory.filter(
-      (sale) =>
-        sale.created_at.split("T")[0] ===
-        selectedDate
-    );
-
-    setStartDate("");
-    setEndDate("");
-
-    setFilteredSales(
-      applyProductQuery(result)
-    );
-
-    setShowAll(false);
-    setVisibleCount(PAGE_STEP);
-
-    setNotice(null);
-  };
-
-  /* ==================================================
      FILTRE PAR PÉRIODE
-     ================================================== */
+  ================================================== */
 
   const filterByPeriod = () => {
     if (!startDate || !endDate) {
@@ -563,21 +469,17 @@ export default function ReportsPage() {
       }
     );
 
-    setSelectedDate("");
-
     setFilteredSales(
       applyProductQuery(result)
     );
 
     setShowAll(false);
-    setVisibleCount(PAGE_STEP);
-
     setNotice(null);
   };
 
   /* ==================================================
      RECHERCHE PRODUIT
-     ================================================== */
+  ================================================== */
 
   const searchProduct = (
     value: string
@@ -586,16 +488,7 @@ export default function ReportsPage() {
 
     let base = salesHistory;
 
-    if (selectedDate) {
-      base = base.filter(
-        (sale) =>
-          sale.created_at.split("T")[0] ===
-          selectedDate
-      );
-    } else if (
-      startDate &&
-      endDate
-    ) {
+    if (startDate && endDate) {
       base = base.filter(
         (sale) => {
           const saleDate =
@@ -622,42 +515,30 @@ export default function ReportsPage() {
 
     setFilteredSales(result);
     setShowAll(false);
-    setVisibleCount(PAGE_STEP);
-
     setNotice(null);
   };
 
   /* ==================================================
      TOUTES LES VENTES
-     ================================================== */
+  ================================================== */
 
   const showEverything = () => {
-    /*
-      Correction :
-      On conserve la recherche produit si elle existe.
-    */
-
     const result =
       applyProductQuery(salesHistory);
 
-    setSelectedDate("");
     setStartDate("");
     setEndDate("");
 
     setFilteredSales(result);
-
     setShowAll(true);
-    setVisibleCount(result.length);
-
     setNotice(null);
   };
 
   /* ==================================================
      RÉINITIALISER
-     ================================================== */
+  ================================================== */
 
   const resetFilters = () => {
-    setSelectedDate("");
     setStartDate("");
     setEndDate("");
     setProductQuery("");
@@ -667,107 +548,125 @@ export default function ReportsPage() {
     );
 
     setShowAll(false);
-    setVisibleCount(PAGE_STEP);
-
     setNotice(null);
   };
-  const deleteSale = async (saleId: string) => {
-  const confirmed = window.confirm(
-    "Voulez-vous vraiment supprimer cette vente ? Cette action est irréversible."
-  );
 
-  if (!confirmed) return;
+  /* ==================================================
+     SUPPRIMER UNE VENTE
+  ================================================== */
 
-  try {
-    const { error } = await supabase
-      .from("sales")
-      .delete()
-      .eq("id", saleId);
+  const deleteSale = async (
+    saleId: string
+  ) => {
+    const confirmed =
+      window.confirm(
+        "Voulez-vous vraiment supprimer cette vente ? Cette action est irréversible."
+      );
 
-    if (error) {
-      console.error("Erreur suppression vente :", error);
+    if (!confirmed) return;
+
+    try {
+      const userId =
+        typeof window !== "undefined"
+          ? localStorage.getItem("user_id")
+          : null;
+
+      if (!userId) {
+        setNotice({
+          type: "error",
+          message:
+            "Utilisateur non connecté.",
+        });
+
+        return;
+      }
+
+      const { error } = await supabase
+        .from("sales")
+        .delete()
+        .eq("id", saleId)
+        .eq("user_id", userId);
+
+      if (error) {
+        console.error(
+          "Erreur suppression vente :",
+          error
+        );
+
+        setNotice({
+          type: "error",
+          message:
+            "Impossible de supprimer cette vente.",
+        });
+
+        return;
+      }
+
+      setSalesHistory((current) =>
+        current.filter(
+          (sale) =>
+            sale.id !== saleId
+        )
+      );
+
+      setFilteredSales((current) =>
+        current.filter(
+          (sale) =>
+            sale.id !== saleId
+        )
+      );
+
+      setNotice({
+        type: "success",
+        message:
+          "Vente supprimée avec succès.",
+      });
+    } catch (error) {
+      console.error(
+        "Erreur générale suppression :",
+        error
+      );
 
       setNotice({
         type: "error",
-        message: "Impossible de supprimer cette vente.",
+        message:
+          "Une erreur est survenue lors de la suppression.",
       });
-
-      return;
     }
-
-    // Supprime immédiatement la vente de l'affichage
-    setSalesHistory((current) =>
-      current.filter((sale) => sale.id !== saleId)
-    );
-
-    setFilteredSales((current) =>
-      current.filter((sale) => sale.id !== saleId)
-    );
-
-    setNotice({
-      type: "success",
-      message: "Vente supprimée avec succès.",
-    });
-  } catch (error) {
-    console.error("Erreur générale suppression :", error);
-
-    setNotice({
-      type: "error",
-      message: "Une erreur est survenue lors de la suppression.",
-    });
-  }
-};
+  };
 
   /* ==================================================
      VENTES AFFICHÉES
-     ================================================== */
+  ================================================== */
 
   const displayedSales = showAll
     ? filteredSales
     : filteredSales.slice(
         0,
-        visibleCount
+        PAGE_STEP
       );
 
   /* ==================================================
-     LABEL DE PÉRIODE
-     ================================================== */
+     LABEL PÉRIODE
+  ================================================== */
 
-  const periodLabel = selectedDate
-    ? `Date : ${prettyDate(
-        selectedDate
-      )}`
-    : startDate && endDate
-    ? `Du ${prettyDate(
-        startDate
-      )} au ${prettyDate(endDate)}`
-    : "Toutes les ventes";
+  const periodLabel =
+    startDate && endDate
+      ? `Du ${prettyDate(
+          startDate
+        )} au ${prettyDate(
+          endDate
+        )}`
+      : "Toutes les ventes";
 
   /* ==================================================
-     DONNÉES EXPORT
-     ================================================== */
+     DONNÉES EXPORT PDF
+  ================================================== */
 
   const getExportData = (): Sale[] => {
-    /*
-      Important :
-      l'export utilise exactement les filtres
-      de date/période + recherche produit.
-    */
-
     let data = salesHistory;
 
-    if (selectedDate) {
-      data = data.filter(
-        (sale) =>
-          sale.created_at.split("T")[0] ===
-          selectedDate
-      );
-    }
-
-    if (
-      startDate &&
-      endDate
-    ) {
+    if (startDate && endDate) {
       data = data.filter(
         (sale) => {
           const saleDate =
@@ -785,143 +684,38 @@ export default function ReportsPage() {
   };
 
   const exportFileBase =
-    selectedDate
-      ? `Rapport-BISO-COMMERCE-${selectedDate}`
-      : startDate && endDate
+    startDate && endDate
       ? `Rapport-BISO-COMMERCE-${startDate}-${endDate}`
       : productQuery
       ? `Rapport-BISO-COMMERCE-${productQuery
           .trim()
-          .replace(/[^a-zA-Z0-9-_]/g, "-")}`
+          .replace(
+            /[^a-zA-Z0-9-_]/g,
+            "-"
+          )}`
       : "Rapport-BISO-COMMERCE-complet";
 
   /* ==================================================
-     EXPORT CSV
-     ================================================== */
-
-  const downloadCSV = () => {
-    const data = getExportData();
-
-    if (!data.length) {
-      const message = selectedDate
-        ? `Aucune vente à la date ${prettyDate(
-            selectedDate
-          )}.`
-        : startDate && endDate
-        ? `Aucune vente du ${prettyDate(
-            startDate
-          )} au ${prettyDate(
-            endDate
-          )}.`
-        : productQuery
-        ? `Aucune vente pour le produit « ${productQuery} ».`
-        : "Aucune vente à exporter.";
-
-      setNotice({
-        type: "info",
-        message,
-      });
-
-      return;
-    }
-
-    const header = [
-      "Date",
-      "Produit",
-      "Quantite",
-      "Montant",
-      "Benefice",
-      "Devise",
-    ];
-
-    const lines = data.map(
-      (sale) =>
-        [
-          `"${new Date(
-            sale.created_at
-          ).toLocaleString("fr-FR")}"`,
-          `"${(
-            sale.product_name || ""
-          ).replace(/"/g, '""')}"`,
-          sale.quantity,
-          Math.round(
-            Number(
-              sale.total_sale || 0
-            )
-          ),
-          Math.round(
-            Number(
-              sale.profit || 0
-            )
-          ),
-          `"${sale.currency || ""}"`,
-        ].join(";")
-    );
-
-    const csv =
-      "\uFEFF" +
-      [
-        header.join(";"),
-        ...lines,
-      ].join("\n");
-
-    const blob = new Blob(
-      [csv],
-      {
-        type: "text/csv;charset=utf-8;",
-      }
-    );
-
-    const url =
-      URL.createObjectURL(blob);
-
-    const link =
-      document.createElement("a");
-
-    link.href = url;
-    link.download = `${exportFileBase}.csv`;
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    URL.revokeObjectURL(url);
-
-    setNotice({
-      type: "success",
-      message:
-        "Fichier Excel (CSV) téléchargé avec succès.",
-    });
-  };
-
-  /* ==================================================
-     CRÉATION DU PDF
-     ================================================== */
+     PDF PROFESSIONNEL
+  ================================================== */
 
   const downloadPDF = () => {
-    const data = getExportData();
-
-    const noSalesMessage =
-      data.length === 0
-        ? selectedDate
-          ? `Aucune vente à la date ${prettyDate(
-              selectedDate
-            )}.`
-          : startDate && endDate
-          ? `Aucune vente du ${prettyDate(
-              startDate
-            )} au ${prettyDate(
-              endDate
-            )}.`
-          : productQuery
-          ? `Aucune vente pour le produit « ${productQuery} ».`
-          : "Aucune vente trouvée."
-        : null;
+    const data =
+      getExportData();
 
     if (!data.length) {
       setNotice({
         type: "info",
-        message: noSalesMessage || "Aucune vente trouvée.",
+        message:
+          startDate && endDate
+            ? `Aucune vente du ${prettyDate(
+                startDate
+              )} au ${prettyDate(
+                endDate
+              )}.`
+            : productQuery
+            ? `Aucune vente pour le produit « ${productQuery} ».`
+            : "Aucune vente trouvée.",
       });
     }
 
@@ -933,6 +727,10 @@ export default function ReportsPage() {
       compress: true,
     });
 
+    /* ==================================================
+       PALETTE PDF
+    ================================================== */
+
     const ORANGE: [
       number,
       number,
@@ -943,20 +741,66 @@ export default function ReportsPage() {
       number,
       number,
       number
-    ] = [17, 24, 39];
+    ] = [15, 23, 42];
+
+    const DARKER: [
+      number,
+      number,
+      number
+    ] = [10, 15, 28];
+
+    const GREEN: [
+      number,
+      number,
+      number
+    ] = [22, 163, 74];
+
+    const BLUE: [
+      number,
+      number,
+      number
+    ] = [37, 99, 235];
 
     const GREY: [
       number,
       number,
       number
-    ] = [110, 110, 110];
+    ] = [100, 116, 139];
 
-    doc.setFont(
-      "helvetica",
-      "normal"
-    );
+    const LIGHT: [
+      number,
+      number,
+      number
+    ] = [248, 250, 252];
 
-    /* ---------- CALCULS ---------- */
+    const BORDER: [
+      number,
+      number,
+      number
+    ] = [226, 232, 240];
+
+    const WHITE: [
+      number,
+      number,
+      number
+    ] = [255, 255, 255];
+
+    /* ==================================================
+       DATE GÉNÉRATION
+    ================================================== */
+
+    const generatedAt =
+      new Date().toLocaleString(
+        "fr-FR",
+        {
+          dateStyle: "long",
+          timeStyle: "short",
+        }
+      );
+
+    /* ==================================================
+       CALCULS
+    ================================================== */
 
     let totalFc = 0;
     let totalUsd = 0;
@@ -965,11 +809,11 @@ export default function ReportsPage() {
     let totalQuantity = 0;
 
     data.forEach((sale) => {
-      const montant = Number(
+      const amount = Number(
         sale.total_sale || 0
       );
 
-      const benefice = Number(
+      const profit = Number(
         sale.profit || 0
       );
 
@@ -978,21 +822,15 @@ export default function ReportsPage() {
       );
 
       if (isFC(sale.currency)) {
-        totalFc += montant;
-        profitFc += benefice;
+        totalFc += amount;
+        profitFc += profit;
       }
 
       if (isUSD(sale.currency)) {
-        totalUsd += montant;
-        profitUsd += benefice;
+        totalUsd += amount;
+        profitUsd += profit;
       }
     });
-
-    const produits =
-      buildProductStats(data);
-
-    const meilleurProduit =
-      produits[0]?.name || "Aucun";
 
     const margeFc =
       totalFc > 0
@@ -1005,47 +843,224 @@ export default function ReportsPage() {
         : 0;
 
     const periodeTexte =
-      selectedDate
-        ? `Date : ${prettyDate(
-            selectedDate
-          )}`
-        : startDate && endDate
+      startDate && endDate
         ? `Du ${prettyDate(
             startDate
-          )} au ${prettyDate(endDate)}`
+          )} au ${prettyDate(
+            endDate
+          )}`
         : productQuery
         ? `Produit : ${productQuery}`
         : "Toutes les ventes";
 
-    const dateCreation =
-      new Date().toLocaleString(
-        "fr-FR"
+    /* ==================================================
+       FONCTIONS PDF
+    ================================================== */
+
+    const addPageHeader = (
+      title: string,
+      subtitle?: string
+    ) => {
+      doc.setFillColor(
+        DARKER[0],
+        DARKER[1],
+        DARKER[2]
       );
 
-    /* ---------- PAGE DE GARDE ---------- */
+      doc.rect(
+        0,
+        0,
+        210,
+        28,
+        "F"
+      );
 
-    doc.setFillColor(...DARK);
-    doc.rect(
-      0,
-      0,
-      210,
-      78,
-      "F"
+      doc.setTextColor(
+        WHITE[0],
+        WHITE[1],
+        WHITE[2]
+      );
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(17);
+
+      doc.text(
+        "BISO-COMMERCE",
+        15,
+        12
+      );
+
+      doc.setFontSize(9);
+      doc.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      doc.text(
+        "GESTION COMMERCIALE",
+        15,
+        19
+      );
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(14);
+
+      doc.text(
+        cleanPDF(title),
+        195,
+        12,
+        {
+          align: "right",
+        }
+      );
+
+      if (subtitle) {
+        doc.setFont(
+          "helvetica",
+          "normal"
+        );
+
+        doc.setFontSize(8);
+
+        doc.text(
+          cleanPDF(subtitle),
+          195,
+          19,
+          {
+            align: "right",
+          }
+        );
+      }
+    };
+
+    const addFooter = () => {
+      const pageCount =
+        doc.getNumberOfPages();
+
+      for (
+        let page = 1;
+        page <= pageCount;
+        page++
+      ) {
+        doc.setPage(page);
+
+        const height =
+          doc.internal.pageSize
+            .height;
+
+        doc.setDrawColor(
+          BORDER[0],
+          BORDER[1],
+          BORDER[2]
+        );
+
+        doc.line(
+          15,
+          height - 15,
+          195,
+          height - 15
+        );
+
+        doc.setFont(
+          "helvetica",
+          "normal"
+        );
+
+        doc.setFontSize(7);
+
+        doc.setTextColor(
+          GREY[0],
+          GREY[1],
+          GREY[2]
+        );
+
+        doc.text(
+          "https://bisocommerce.vercel.app ",
+          15,
+          height - 9
+        );
+
+        doc.text(
+          `Page ${page} / ${pageCount}`,
+          195,
+          height - 9,
+          {
+            align: "right",
+          }
+        );
+      }
+    };
+
+    const addSectionTitle = (
+      title: string,
+      y: number
+    ) => {
+      doc.setFillColor(
+        ORANGE[0],
+        ORANGE[1],
+        ORANGE[2]
+      );
+
+      doc.roundedRect(
+        15,
+        y - 5,
+        3,
+        9,
+        1,
+        1,
+        "F"
+      );
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.setFontSize(13);
+
+      doc.setTextColor(
+        DARK[0],
+        DARK[1],
+        DARK[2]
+      );
+
+      doc.text(
+        cleanPDF(title),
+        22,
+        y + 2
+      );
+    };
+
+    /* ==================================================
+       PAGE 1 — COUVERTURE / RÉSUMÉ
+    ================================================== */
+
+    doc.setFillColor(
+      DARKER[0],
+      DARKER[1],
+      DARKER[2]
     );
 
-    doc.setFillColor(...ORANGE);
     doc.rect(
       0,
-      78,
+      0,
       210,
-      3,
+      42,
       "F"
     );
 
     doc.setTextColor(
-      255,
-      255,
-      255
+      WHITE[0],
+      WHITE[1],
+      WHITE[2]
     );
 
     doc.setFont(
@@ -1053,26 +1068,95 @@ export default function ReportsPage() {
       "bold"
     );
 
-    doc.setFontSize(26);
+    doc.setFontSize(25);
 
     doc.text(
       "BISO-COMMERCE",
       20,
-      38
+      19
     );
 
-    doc.setFontSize(15);
+    doc.setFontSize(10);
 
-    doc.setTextColor(
-      255,
-      190,
-      130
+    doc.setFont(
+      "helvetica",
+      "normal"
     );
 
     doc.text(
-      "Rapport officiel des ventes",
+      "RAPPORT COMMERCIAL",
       20,
-      52
+      27
+    );
+
+    doc.setFontSize(8);
+
+    doc.text(
+      cleanPDF(
+        `Genere le ${generatedAt}`
+      ),
+      20,
+      34
+    );
+
+    doc.setFillColor(
+      ORANGE[0],
+      ORANGE[1],
+      ORANGE[2]
+    );
+
+    doc.roundedRect(
+      145,
+      12,
+      45,
+      18,
+      4,
+      4,
+      "F"
+    );
+
+    doc.setTextColor(
+      WHITE[0],
+      WHITE[1],
+      WHITE[2]
+    );
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(9);
+
+    doc.text(
+      cleanPDF(periodeTexte),
+      167.5,
+      23,
+      {
+        align: "center",
+        maxWidth: 38,
+      }
+    );
+
+    /* ---------- INTRO ---------- */
+
+    doc.setTextColor(
+      DARK[0],
+      DARK[1],
+      DARK[2]
+    );
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(16);
+
+    doc.text(
+      "Synthese financiere",
+      15,
+      57
     );
 
     doc.setFont(
@@ -1080,321 +1164,206 @@ export default function ReportsPage() {
       "normal"
     );
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
 
     doc.setTextColor(
-      220,
-      220,
-      220
+      GREY[0],
+      GREY[1],
+      GREY[2]
     );
 
     doc.text(
       cleanPDF(
-        "Analyse professionnelle de l'activite commerciale"
+        "Vue generale de l'activite commerciale pour la periode selectionnee."
       ),
-      20,
-      63
+      15,
+      64
     );
 
-    doc.setTextColor(
-      35,
-      35,
-      35
+    /* ==================================================
+       CARTES FINANCIÈRES
+    ================================================== */
+
+    const cards = [
+      {
+        x: 15,
+        title: "VENTES FC",
+        value: `${formatMoney(
+          totalFc
+        )} FC`,
+        color: ORANGE,
+      },
+      {
+        x: 108,
+        title: "VENTES USD",
+        value: `${formatMoney(
+          totalUsd
+        )} $`,
+        color: BLUE,
+      },
+      {
+        x: 15,
+        y: 95,
+        title: "BENEFICE FC",
+        value: `${formatMoney(
+          profitFc
+        )} FC`,
+        color: GREEN,
+      },
+      {
+        x: 108,
+        y: 95,
+        title: "BENEFICE USD",
+        value: `${formatMoney(
+          profitUsd
+        )} $`,
+        color: GREEN,
+      },
+    ];
+
+    cards.forEach(
+      (card, index) => {
+        const y =
+          card.y ||
+          (index < 2 ? 72 : 95);
+
+        doc.setFillColor(
+          LIGHT[0],
+          LIGHT[1],
+          LIGHT[2]
+        );
+
+        doc.setDrawColor(
+          BORDER[0],
+          BORDER[1],
+          BORDER[2]
+        );
+
+        doc.roundedRect(
+          card.x,
+          y,
+          87,
+          18,
+          3,
+          3,
+          "FD"
+        );
+
+        doc.setFillColor(
+          card.color[0],
+          card.color[1],
+          card.color[2]
+        );
+
+        doc.roundedRect(
+          card.x,
+          y,
+          3,
+          18,
+          1.5,
+          1.5,
+          "F"
+        );
+
+        doc.setTextColor(
+          GREY[0],
+          GREY[1],
+          GREY[2]
+        );
+
+        doc.setFont(
+          "helvetica",
+          "bold"
+        );
+
+        doc.setFontSize(7);
+
+        doc.text(
+          card.title,
+          card.x + 8,
+          y + 6
+        );
+
+        doc.setTextColor(
+          DARK[0],
+          DARK[1],
+          DARK[2]
+        );
+
+        doc.setFontSize(11);
+
+        doc.text(
+          cleanPDF(card.value),
+          card.x + 8,
+          y + 13
+        );
+      }
+    );
+
+    /* ==================================================
+       INDICATEURS
+    ================================================== */
+
+    addSectionTitle(
+      "Indicateurs principaux",
+      127
     );
 
     autoTable(doc, {
-      startY: 95,
+      startY: 135,
 
       head: [
         [
-          "Informations du rapport",
-          "",
+          "Indicateur",
+          "Valeur",
+          "Indication",
         ],
       ],
 
       body: [
         [
-          "Periode",
-          cleanPDF(
-            periodeTexte
-          ),
-        ],
-        [
-          "Date de generation",
-          cleanPDF(
-            dateCreation
-          ),
-        ],
-        [
           "Nombre de ventes",
-          String(
-            data.length
-          ),
+          String(data.length),
+          "Transactions",
         ],
         [
           "Quantite vendue",
-          String(
-            totalQuantity
-          ),
-        ],
-        [
-          "Produits differents",
-          String(
-            produits.length
-          ),
-        ],
-        [
-          "Produit le plus vendu",
-          cleanPDF(
-            meilleurProduit
-          ),
-        ],
-      ],
-
-      theme: "grid",
-
-      styles: {
-        font: "helvetica",
-        fontSize: 11,
-        cellPadding: 5,
-        textColor: [
-          35,
-          35,
-          35,
-        ],
-      },
-
-      headStyles: {
-        fillColor: ORANGE,
-        fontStyle: "bold",
-        textColor: [
-          255,
-          255,
-          255,
-        ],
-      },
-
-      alternateRowStyles: {
-        fillColor: [
-          248,
-          248,
-          248,
-        ],
-      },
-
-      columnStyles: {
-        0: {
-          fontStyle: "bold",
-          cellWidth: 70,
-        },
-      },
-
-      margin: {
-        left: 20,
-        right: 20,
-      },
-    });
-
-    /* ---------- RÉSUMÉ FINANCIER ---------- */
-
-    doc.addPage();
-
-    doc.setFont(
-      "helvetica",
-      "bold"
-    );
-
-    doc.setFontSize(20);
-
-    doc.text(
-      "Resume financier",
-      20,
-      30
-    );
-
-    autoTable(doc, {
-      startY: 42,
-
-      head: [
-        [
-          "Categorie",
-          "Montant",
-          "Part",
-        ],
-      ],
-
-      body: [
-        [
-          "Ventes FC",
-          `${formatMoney(
-            totalFc
-          )} FC`,
-          "-",
-        ],
-        [
-          "Ventes USD",
-          `${formatMoney(
-            totalUsd
-          )} $`,
-          "-",
-        ],
-        [
-          "Benefice FC",
-          `${formatMoney(
-            profitFc
-          )} FC`,
-          `${margeFc.toFixed(
-            1
-          )} %`,
-        ],
-        [
-          "Benefice USD",
-          `${formatMoney(
-            profitUsd
-          )} $`,
-          `${margeUsd.toFixed(
-            1
-          )} %`,
+          String(totalQuantity),
+          "Articles",
         ],
         [
           "Panier moyen FC",
           `${formatMoney(
             data.length
-              ? totalFc /
-                  data.length
+              ? totalFc / data.length
               : 0
           )} FC`,
-          "-",
+          "Moyenne",
         ],
         [
           "Panier moyen USD",
           `${formatMoney(
             data.length
-              ? totalUsd /
-                  data.length
+              ? totalUsd / data.length
               : 0
           )} $`,
-          "-",
+          "Moyenne",
         ],
-      ],
-
-      theme: "grid",
-
-      styles: {
-        font: "helvetica",
-        fontSize: 11,
-        cellPadding: 5,
-        textColor: [
-          35,
-          35,
-          35,
-        ],
-      },
-
-      headStyles: {
-        fillColor: ORANGE,
-        fontStyle: "bold",
-        textColor: [
-          255,
-          255,
-          255,
-        ],
-      },
-
-      alternateRowStyles: {
-        fillColor: [
-          248,
-          248,
-          248,
-        ],
-      },
-
-      margin: {
-        left: 20,
-        right: 20,
-      },
-    });
-
-    /* ---------- DÉTAIL DES PRODUITS ---------- */
-
-    doc.addPage();
-
-    doc.setFont(
-      "helvetica",
-      "bold"
-    );
-
-    doc.setFontSize(20);
-
-    doc.text(
-      "Detail des produits",
-      20,
-      30
-    );
-
-    const rows =
-      produits.map(
-        (product) => {
-          let ventes = "";
-          let benefice = "";
-
-          if (
-            product.montantFc >
-            0
-          ) {
-            ventes += `${formatMoney(
-              product.montantFc
-            )} FC`;
-
-            benefice += `${formatMoney(
-              product.profitFc
-            )} FC`;
-          }
-
-          if (
-            product.montantUsd >
-            0
-          ) {
-            if (ventes)
-              ventes += " / ";
-
-            if (benefice)
-              benefice +=
-                " / ";
-
-            ventes += `${formatMoney(
-              product.montantUsd
-            )} $`;
-
-            benefice += `${formatMoney(
-              product.profitUsd
-            )} $`;
-          }
-
-          return [
-            cleanPDF(
-              product.name
-            ),
-            product.quantity,
-            ventes || "0",
-            benefice || "0",
-          ];
-        }
-      );
-
-    autoTable(doc, {
-      startY: 42,
-
-      head: [
         [
-          "Produit",
-          "Quantite",
-          "Ventes",
-          "Benefice",
+          "Marge FC",
+          `${margeFc.toFixed(
+            1
+          )} %`,
+          "Rentabilite",
+        ],
+        [
+          "Marge USD",
+          `${margeUsd.toFixed(
+            1
+          )} %`,
+          "Rentabilite",
         ],
       ],
-
-      body: rows,
 
       theme: "grid",
 
@@ -1402,57 +1371,38 @@ export default function ReportsPage() {
         font: "helvetica",
         fontSize: 9,
         cellPadding: 4,
-        textColor: [
-          35,
-          35,
-          35,
-        ],
+        textColor: DARK,
+        lineColor: BORDER,
+        lineWidth: 0.2,
       },
 
       headStyles: {
-        fillColor: ORANGE,
+        fillColor: DARK,
+        textColor: WHITE,
         fontStyle: "bold",
-        textColor: [
-          255,
-          255,
-          255,
-        ],
+        fontSize: 8,
       },
 
       alternateRowStyles: {
-        fillColor: [
-          248,
-          248,
-          248,
-        ],
-      },
-
-      columnStyles: {
-        0: {
-          cellWidth: 65,
-        },
-
-        1: {
-          cellWidth: 25,
-          halign: "center",
-        },
-
-        2: {
-          cellWidth: 45,
-        },
-
-        3: {
-          cellWidth: 45,
-        },
+        fillColor: LIGHT,
       },
 
       margin: {
-        left: 10,
-        right: 10,
+        left: 15,
+        right: 15,
       },
     });
 
-    /* ---------- SUIVI JOURNALIER ---------- */
+    /* ==================================================
+       PAGE 2 — SUIVI JOURNALIER
+    ================================================== */
+
+    doc.addPage();
+
+    addPageHeader(
+      "Suivi journalier",
+      periodeTexte
+    );
 
     const perDay: Record<
       string,
@@ -1497,180 +1447,519 @@ export default function ReportsPage() {
       }
     });
 
-    const dayRows = Object.keys(
-      perDay
-    )
-      .sort((a, b) =>
-        a < b ? 1 : -1
-      )
-      .map((day) => [
-        prettyDate(day),
-        perDay[day].quantity,
-        `${formatMoney(
-          perDay[day].fc
-        )} FC`,
-        `${formatMoney(
-          perDay[day].usd
-        )} $`,
-        `${formatMoney(
-          perDay[day].profitFc
-        )} FC`,
-        `${formatMoney(
-          perDay[day].profitUsd
-        )} $`,
-      ]);
+    const dayRows =
+      Object.keys(perDay)
+        .sort((a, b) =>
+          a < b ? 1 : -1
+        )
+        .map((day) => [
+          prettyDate(day),
+          String(
+            perDay[day].quantity
+          ),
+          `${formatMoney(
+            perDay[day].fc
+          )} FC`,
+          `${formatMoney(
+            perDay[day].usd
+          )} $`,
+          `${formatMoney(
+            perDay[day].profitFc
+          )} FC`,
+          `${formatMoney(
+            perDay[day].profitUsd
+          )} $`,
+        ]);
+
+    addSectionTitle(
+      "Performance par jour",
+      40
+    );
+
+    if (dayRows.length > 0) {
+      autoTable(doc, {
+        startY: 48,
+
+        head: [
+          [
+            "Date",
+            "Qte",
+            "Ventes FC",
+            "Ventes USD",
+            "Benefice FC",
+            "Benefice USD",
+          ],
+        ],
+
+        body: dayRows,
+
+        theme: "grid",
+
+        styles: {
+          font: "helvetica",
+          fontSize: 8,
+          cellPadding: 3.5,
+          textColor: DARK,
+          lineColor: BORDER,
+          lineWidth: 0.2,
+        },
+
+        headStyles: {
+          fillColor: ORANGE,
+          fontStyle: "bold",
+          textColor: WHITE,
+          fontSize: 8,
+        },
+
+        alternateRowStyles: {
+          fillColor: LIGHT,
+        },
+
+        columnStyles: {
+          0: {
+            cellWidth: 27,
+          },
+          1: {
+            halign: "center",
+            cellWidth: 18,
+          },
+          2: {
+            halign: "right",
+          },
+          3: {
+            halign: "right",
+          },
+          4: {
+            halign: "right",
+          },
+          5: {
+            halign: "right",
+          },
+        },
+
+        margin: {
+          left: 12,
+          right: 12,
+        },
+      });
+    } else {
+      doc.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      doc.setFontSize(10);
+
+      doc.setTextColor(
+        GREY[0],
+        GREY[1],
+        GREY[2]
+      );
+
+      doc.text(
+        "Aucune donnee disponible pour cette periode.",
+        15,
+        52
+      );
+    }
+
+    /* ==================================================
+       PAGE 3 — DÉTAIL DES VENTES
+    ================================================== */
 
     doc.addPage();
 
-    doc.setFont(
-      "helvetica",
-      "bold"
+    addPageHeader(
+      "Detail des ventes",
+      `${data.length} transaction${
+        data.length > 1 ? "s" : ""
+      }`
     );
 
-    doc.setFontSize(20);
-
-    doc.text(
-      "Suivi journalier",
-      20,
-      30
+    addSectionTitle(
+      "Liste des transactions",
+      40
     );
+
+    const salesRows = data.map(
+      (sale) => {
+        const saleDate =
+          new Date(
+            sale.created_at
+          ).toLocaleDateString(
+            "fr-FR"
+          );
+
+        return [
+          saleDate,
+          cleanPDF(
+            sale.product_name ||
+              "Produit inconnu"
+          ),
+          `x${Number(
+            sale.quantity || 0
+          )}`,
+          `${formatMoney(
+            Number(
+              sale.total_sale || 0
+            )
+          )} ${cleanPDF(
+            sale.currency || ""
+          )}`,
+          `${formatMoney(
+            Number(
+              sale.profit || 0
+            )
+          )} ${cleanPDF(
+            sale.currency || ""
+          )}`,
+        ];
+      }
+    );
+
+    if (salesRows.length > 0) {
+      autoTable(doc, {
+        startY: 48,
+
+        head: [
+          [
+            "Date",
+            "Produit",
+            "Qte",
+            "Vente",
+            "Benefice",
+          ],
+        ],
+
+        body: salesRows,
+
+        theme: "grid",
+
+        styles: {
+          font: "helvetica",
+          fontSize: 8,
+          cellPadding: 3,
+          textColor: DARK,
+          lineColor: BORDER,
+          lineWidth: 0.2,
+          overflow: "linebreak",
+        },
+
+        headStyles: {
+          fillColor: DARK,
+          textColor: WHITE,
+          fontStyle: "bold",
+          fontSize: 8,
+        },
+
+        alternateRowStyles: {
+          fillColor: LIGHT,
+        },
+
+        columnStyles: {
+          0: {
+            cellWidth: 24,
+          },
+          1: {
+            cellWidth: 68,
+          },
+          2: {
+            cellWidth: 16,
+            halign: "center",
+          },
+          3: {
+            halign: "right",
+          },
+          4: {
+            halign: "right",
+          },
+        },
+
+        margin: {
+          left: 12,
+          right: 12,
+        },
+      });
+    } else {
+      doc.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      doc.setFontSize(10);
+
+      doc.setTextColor(
+        GREY[0],
+        GREY[1],
+        GREY[2]
+      );
+
+      doc.text(
+        "Aucune vente a afficher.",
+        15,
+        52
+      );
+    }
+
+    /* ==================================================
+       PAGE 4 — ANALYSE COMMERCIALE
+    ================================================== */
+
+    doc.addPage();
+
+    addPageHeader(
+      "Analyse commerciale",
+      periodeTexte
+    );
+
+    addSectionTitle(
+      "Analyse de l'activite",
+      42
+    );
+
+    const analyseRows = [
+      [
+        "Quantite totale vendue",
+        String(totalQuantity),
+        "articles",
+      ],
+      [
+        "Nombre total de ventes",
+        String(data.length),
+        "transactions",
+      ],
+      [
+        "Total ventes FC",
+        `${formatMoney(
+          totalFc
+        )} FC`,
+        "chiffre d'affaires",
+      ],
+      [
+        "Total ventes USD",
+        `${formatMoney(
+          totalUsd
+        )} $`,
+        "chiffre d'affaires",
+      ],
+      [
+        "Benefice total FC",
+        `${formatMoney(
+          profitFc
+        )} FC`,
+        "benefice",
+      ],
+      [
+        "Benefice total USD",
+        `${formatMoney(
+          profitUsd
+        )} $`,
+        "benefice",
+      ],
+      [
+        "Marge FC",
+        `${margeFc.toFixed(
+          1
+        )} %`,
+        "rentabilite",
+      ],
+      [
+        "Marge USD",
+        `${margeUsd.toFixed(
+          1
+        )} %`,
+        "rentabilite",
+      ],
+    ];
 
     autoTable(doc, {
-      startY: 42,
+      startY: 50,
 
       head: [
         [
-          "Date",
-          "Qte",
-          "Ventes FC",
-          "Ventes USD",
-          "Ben. FC",
-          "Ben. USD",
+          "Indicateur",
+          "Resultat",
+          "Type",
         ],
       ],
 
-      body: dayRows,
+      body: analyseRows,
 
       theme: "grid",
 
       styles: {
         font: "helvetica",
         fontSize: 9,
-        cellPadding: 3.5,
-        textColor: [
-          35,
-          35,
-          35,
-        ],
+        cellPadding: 4.5,
+        textColor: DARK,
+        lineColor: BORDER,
+        lineWidth: 0.2,
       },
 
       headStyles: {
         fillColor: ORANGE,
+        textColor: WHITE,
         fontStyle: "bold",
-        textColor: [
-          255,
-          255,
-          255,
-        ],
       },
 
       alternateRowStyles: {
-        fillColor: [
-          248,
-          248,
-          248,
-        ],
+        fillColor: LIGHT,
+      },
+
+      columnStyles: {
+        1: {
+          fontStyle: "bold",
+          halign: "right",
+        },
+        2: {
+          textColor: GREY,
+        },
       },
 
       margin: {
-        left: 12,
-        right: 12,
+        left: 15,
+        right: 15,
       },
     });
 
-    /* ---------- ANALYSE COMMERCIALE ---------- */
+    /* ==================================================
+       BLOC INTERPRÉTATION
+    ================================================== */
 
-    doc.addPage();
+    const interpretationY =
+      (doc as any).lastAutoTable?.finalY
+        ? (doc as any).lastAutoTable
+            .finalY + 15
+        : 155;
 
-    doc.setFont(
-      "helvetica",
-      "bold"
+    addSectionTitle(
+      "Lecture du rapport",
+      interpretationY
     );
 
-    doc.setFontSize(20);
+    const observations: string[] = [];
 
-    doc.text(
-      "Analyse commerciale",
-      20,
-      30
-    );
+    if (data.length === 0) {
+      observations.push(
+        "Aucune vente n'a ete enregistree pour la selection actuelle."
+      );
+    } else {
+      observations.push(
+        `L'activite comprend ${data.length} transaction${
+          data.length > 1 ? "s" : ""
+        } pour une quantite totale de ${totalQuantity} article${
+          totalQuantity > 1 ? "s" : ""
+        }.`
+      );
+
+      if (totalFc > 0) {
+        observations.push(
+          `Le chiffre d'affaires en FC s'eleve a ${formatMoney(
+            totalFc
+          )} FC, avec un benefice de ${formatMoney(
+            profitFc
+          )} FC.`
+        );
+      }
+
+      if (totalUsd > 0) {
+        observations.push(
+          `Le chiffre d'affaires en USD s'eleve a ${formatMoney(
+            totalUsd
+          )} $, avec un benefice de ${formatMoney(
+            profitUsd
+          )} $.`
+        );
+      }
+
+      if (
+        totalFc > 0 &&
+        totalUsd > 0
+      ) {
+        observations.push(
+          `Les marges calculees sont de ${margeFc.toFixed(
+            1
+          )} % en FC et ${margeUsd.toFixed(
+            1
+          )} % en USD.`
+        );
+      }
+    }
+
+    let observationY =
+      interpretationY + 12;
 
     doc.setFont(
       "helvetica",
       "normal"
     );
 
-    doc.setFontSize(12);
+    doc.setFontSize(9);
 
-    const analyse = [
-      `Produit le plus vendu : ${cleanPDF(
-        meilleurProduit
-      )}`,
+    doc.setTextColor(
+      DARK[0],
+      DARK[1],
+      DARK[2]
+    );
 
-      `Quantite totale vendue : ${totalQuantity}`,
+    observations.forEach(
+      (text) => {
+        const lines =
+          doc.splitTextToSize(
+            cleanPDF(text),
+            170
+          );
 
-      `Nombre total de ventes : ${data.length}`,
-
-      `Total ventes FC : ${formatMoney(
-        totalFc
-      )} FC`,
-
-      `Total ventes USD : ${formatMoney(
-        totalUsd
-      )} $`,
-
-      `Benefice total FC : ${formatMoney(
-        profitFc
-      )} FC`,
-
-      `Benefice total USD : ${formatMoney(
-        profitUsd
-      )} $`,
-
-      `Marge FC : ${margeFc.toFixed(
-        1
-      )} %`,
-
-      `Marge USD : ${margeUsd.toFixed(
-        1
-      )} %`,
-    ];
-
-    let y = 50;
-
-    analyse.forEach(
-      (line) => {
         doc.text(
-          cleanPDF(line),
+          lines,
           20,
-          y
+          observationY
         );
 
-        y += 11;
+        observationY +=
+          lines.length * 5 + 5;
       }
     );
 
+    /* ==================================================
+       SIGNATURE / IDENTIFICATION
+    ================================================== */
+
+    const signatureY = Math.min(
+      observationY + 8,
+      255
+    );
+
+    doc.setDrawColor(
+      BORDER[0],
+      BORDER[1],
+      BORDER[2]
+    );
+
+    doc.line(
+      20,
+      signatureY,
+      190,
+      signatureY
+    );
+
     doc.setFont(
       "helvetica",
       "bold"
     );
 
-    doc.setFontSize(13);
+    doc.setFontSize(8);
+
+    doc.setTextColor(
+      DARK[0],
+      DARK[1],
+      DARK[2]
+    );
 
     doc.text(
-      "Conclusion",
+      "BISO-COMMERCE",
       20,
-      y + 8
+      signatureY + 8
     );
 
     doc.setFont(
@@ -1678,130 +1967,36 @@ export default function ReportsPage() {
       "normal"
     );
 
-    doc.setFontSize(10);
-
-    const conclusion =
-      "Ce rapport permet au responsable du commerce de suivre les ventes, " +
-      "les quantites vendues, les benefices generes et la marge realisee " +
-      "pendant la periode choisie. Il peut etre archive ou presente comme " +
-      "document officiel de gestion.";
-
-    doc.text(
-      doc.splitTextToSize(
-        cleanPDF(
-          conclusion
-        ),
-        170
-      ),
-      20,
-      y + 19
+    doc.setTextColor(
+      GREY[0],
+      GREY[1],
+      GREY[2]
     );
 
-    /* ---------- PIED DE PAGE ---------- */
+    doc.text(
+      "Rapport genere automatiquement par la plateforme.",
+      20,
+      signatureY + 14
+    );
 
-    const totalPages =
-      doc.getNumberOfPages();
+    /* ==================================================
+       PIED DE PAGE SUR TOUTES LES PAGES
+    ================================================== */
 
-    for (
-      let page = 1;
-      page <= totalPages;
-      page++
-    ) {
-      doc.setPage(page);
+    addFooter();
 
-      doc.setDrawColor(
-        225,
-        225,
-        225
-      );
-
-      doc.line(
-        20,
-        281,
-        190,
-        281
-      );
-
-      doc.setFont(
-        "helvetica",
-        "normal"
-      );
-
-      doc.setFontSize(8);
-
-      doc.setTextColor(
-        ...GREY
-      );
-
-      doc.text(
-        "BISO-COMMERCE",
-        20,
-        287
-      );
-
-      doc.text(
-        cleanPDF(
-          periodeTexte
-        ),
-        78,
-        287
-      );
-
-      doc.text(
-        `Page ${page} / ${totalPages}`,
-        165,
-        287
-      );
-    }
-
-    /* ---------- MESSAGE SI AUCUNE VENTE ---------- */
-
-    if (noSalesMessage) {
-      doc.setPage(
-        doc.getNumberOfPages()
-      );
-
-      const pageHeight =
-        doc.internal.pageSize.getHeight();
-
-      doc.setFont(
-        "helvetica",
-        "bold"
-      );
-
-      doc.setFontSize(11);
-
-      doc.setTextColor(
-        180,
-        60,
-        60
-      );
-
-      doc.text(
-        cleanPDF(
-          noSalesMessage
-        ),
-        20,
-        pageHeight - 20
-      );
-    }
+    /* ==================================================
+       SAUVEGARDE
+    ================================================== */
 
     doc.save(
       `${exportFileBase}.pdf`
     );
-
-    if (data.length) {
-      setNotice({
-        type: "success",
-        message:
-          "Rapport PDF généré avec succès.",
-      });
-    }
   };
 
   /* ======================================================
-     JSX — PARTIE 1
-     ====================================================== */
+     JSX
+  ====================================================== */
 
   return (
     <main
@@ -1823,13 +2018,17 @@ export default function ReportsPage() {
         {/* ================== HEADER ================== */}
 
         <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl backdrop-blur-xl sm:p-6">
+
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
             <div className="flex min-w-0 items-center gap-3">
+
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-400">
                 <BarChart3 size={24} />
               </div>
 
               <div className="min-w-0">
+
                 <h1 className="truncate text-2xl font-black tracking-tight text-white sm:text-3xl">
                   Rapport
                 </h1>
@@ -1837,10 +2036,13 @@ export default function ReportsPage() {
                 <p className="mt-1 break-words text-sm text-slate-400">
                   Analyse complète de votre activité commerciale
                 </p>
+
               </div>
+
             </div>
 
             <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+
               <button
                 type="button"
                 onClick={loadReports}
@@ -1855,27 +2057,27 @@ export default function ReportsPage() {
                       : ""
                   }
                 />
+
                 Actualiser
               </button>
 
               <button
                 type="button"
                 onClick={() =>
-                  setShowGuide(
-                    !showGuide
-                  )
+                  setShowGuide(!showGuide)
                 }
                 className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl border border-orange-400/20 bg-orange-500/10 px-4 py-3 text-sm font-black text-orange-300 transition hover:bg-orange-500/20 sm:flex-none"
               >
                 <Sparkles size={17} />
                 Guide
               </button>
+
             </div>
+
           </div>
 
-          {/* Bandeau période active */}
-
           <div className="mt-5 flex flex-wrap items-center gap-2">
+
             <span className="rounded-lg border border-white/10 bg-black/25 px-3 py-1.5 text-xs font-bold text-slate-300">
               {periodLabel}
             </span>
@@ -1887,49 +2089,32 @@ export default function ReportsPage() {
                 : ""}
             </span>
 
-            <span className="rounded-lg border border-white/10 bg-black/25 px-3 py-1.5 text-xs font-bold text-slate-300">
-              Meilleur produit :{" "}
-              {bestProduct}
-            </span>
           </div>
 
           {showGuide && (
             <div className="mt-5 w-full overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4">
+
               <div className="space-y-3 text-sm leading-6 text-slate-300">
+
                 <p>
-                  <span className="mr-2">
-                    📅
-                  </span>
-                  Choisissez une date pour
-                  afficher uniquement les ventes
-                  de cette journée.
+                  Tapez le nom d'un produit
+                  pour retrouver toutes ses
+                  ventes.
                 </p>
 
                 <p>
-                  <span className="mr-2">
-                    📆
-                  </span>
                   Utilisez « Du » et « Au »
                   pour rechercher les ventes
                   d'une période.
                 </p>
 
                 <p>
-                  <span className="mr-2">
-                    🔎
-                  </span>
-                  Tapez le nom d'un produit pour
-                  retrouver toutes ses ventes.
+                  « Créer le PDF » génère un
+                  rapport avec
+                  résumé, suivi journalier,
+                  détail des ventes et analyse.
                 </p>
 
-                <p>
-                  <span className="mr-2">
-                    📄
-                  </span>
-                  « Créer le PDF » génère un
-                  rapport officiel ; « Excel »
-                  exporte les données brutes.
-                </p>
               </div>
 
               <button
@@ -1941,8 +2126,10 @@ export default function ReportsPage() {
               >
                 Fermer le guide
               </button>
+
             </div>
           )}
+
         </section>
 
         {/* ================== MESSAGE ================== */}
@@ -1960,6 +2147,7 @@ export default function ReportsPage() {
             }`}
             role="status"
           >
+
             <AlertCircle
               size={18}
               className="mt-0.5 shrink-0"
@@ -1979,14 +2167,16 @@ export default function ReportsPage() {
             >
               <X size={16} />
             </button>
+
           </div>
         )}
 
         {/* ================== STATISTIQUES ================== */}
 
         <section className="grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
+
           <ReportCard
-            icon="🔥"
+            icon="📊"
             title="Aujourd'hui"
             value={`${formatMoney(
               today.fc
@@ -2035,7 +2225,7 @@ export default function ReportsPage() {
           />
 
           <ReportCard
-            icon="📈"
+            icon="📆"
             title="Avant-hier"
             value={`${formatMoney(
               beforeYesterday.fc
@@ -2053,17 +2243,21 @@ export default function ReportsPage() {
                 : ""
             }`}
           />
+
         </section>
 
         {/* ================== RÉSUMÉ ================== */}
 
         <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl sm:p-6">
+
           <div className="mb-5 flex min-w-0 items-center gap-3">
+
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-400">
               <Wallet size={19} />
             </div>
 
             <div className="min-w-0">
+
               <h2 className="text-xl font-black text-white">
                 Résumé de la sélection
               </h2>
@@ -2071,10 +2265,13 @@ export default function ReportsPage() {
               <p className="mt-1 text-xs text-slate-500">
                 {periodLabel}
               </p>
+
             </div>
+
           </div>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+
             <MiniStat
               label="Ventes FC"
               value={`${formatMoney(
@@ -2144,123 +2341,39 @@ export default function ReportsPage() {
               )} $`}
               tone="slate"
             />
+
           </div>
+
         </section>
-
-        {/* ================== TOP PRODUITS ================== */}
-
-        {topProducts.length >
-          0 && (
-          <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl sm:p-6">
-            <div className="mb-5 flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
-                <Trophy size={19} />
-              </div>
-
-              <div className="min-w-0">
-                <h2 className="text-xl font-black text-white">
-                  Top 5 des produits
-                </h2>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Classement par quantité vendue
-                  sur la sélection.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {topProducts.map(
-                (
-                  product,
-                  index
-                ) => (
-                  <div
-                    key={
-                      product.name
-                    }
-                    className="flex min-w-0 flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500/15 text-sm font-black text-orange-300">
-                        {index + 1}
-                      </span>
-
-                      <p className="min-w-0 break-words font-black text-white">
-                        {product.name}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 sm:w-[380px] sm:gap-3">
-                      <MiniStat
-                        label="Quantité"
-                        value={`x${product.quantity}`}
-                        tone="slate"
-                        dense
-                      />
-
-                      <MiniStat
-                        label="Ventes"
-                        value={
-                          product.montantFc >
-                          0
-                            ? `${formatMoney(
-                                product.montantFc
-                              )} FC`
-                            : `${formatMoney(
-                                product.montantUsd
-                              )} $`
-                        }
-                        tone="orange"
-                        dense
-                      />
-
-                      <MiniStat
-                        label="Bénéfice"
-                        value={
-                          product.montantFc >
-                          0
-                            ? `${formatMoney(
-                                product.profitFc
-                              )} FC`
-                            : `${formatMoney(
-                                product.profitUsd
-                              )} $`
-                        }
-                        tone="green"
-                        dense
-                      />
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          </section>
-        )}
 
         {/* ================== RECHERCHE ================== */}
 
         <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl sm:p-6">
+
           <div className="mb-6 flex min-w-0 items-center gap-3">
+
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
               <Search size={19} />
             </div>
 
             <div className="min-w-0">
+
               <h2 className="text-xl font-black text-white">
                 Rechercher les ventes
               </h2>
 
               <p className="mt-1 text-xs text-slate-500">
-                Filtrez par produit, par date
-                ou par période.
+                Filtrez par produit ou par période.
               </p>
+
             </div>
+
           </div>
 
           {/* PRODUIT */}
 
           <div className="mb-6 min-w-0">
+
             <label
               htmlFor="product-search"
               className="mb-2 block text-sm font-bold text-slate-300"
@@ -2269,6 +2382,7 @@ export default function ReportsPage() {
             </label>
 
             <div className="relative min-w-0">
+
               <Package
                 size={18}
                 className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-green-400"
@@ -2286,55 +2400,15 @@ export default function ReportsPage() {
                 placeholder="Ex : Savon, Riz, Huile..."
                 className="block min-h-[48px] w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-[#111827] p-3 pl-10 text-[16px] text-white outline-none transition placeholder:text-slate-600 focus:border-green-400 focus:ring-1 focus:ring-green-400"
               />
+
             </div>
-          </div>
 
-          {/* UNE DATE */}
-
-          <div className="mb-6 min-w-0">
-            <label
-              htmlFor="single-date"
-              className="mb-2 block text-sm font-bold text-slate-300"
-            >
-              Rechercher une date
-            </label>
-
-            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="relative min-w-0 flex-1 overflow-hidden">
-                <CalendarDays
-                  size={18}
-                  className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-orange-400"
-                />
-
-                <input
-                  id="single-date"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) =>
-                    setSelectedDate(
-                      e.target.value
-                    )
-                  }
-                  className="block min-h-[48px] w-full min-w-0 max-w-full appearance-none rounded-xl border border-white/10 bg-[#111827] p-3 pl-10 text-[16px] text-white outline-none transition focus:border-orange-400 focus:ring-1 focus:ring-orange-400 [color-scheme:dark]"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={
-                  filterByDate
-                }
-                className="inline-flex min-h-[48px] w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 font-black text-white transition hover:bg-blue-400 active:scale-[0.98] sm:w-auto"
-              >
-                <Search size={17} />
-                Chercher
-              </button>
-            </div>
           </div>
 
           {/* SÉPARATEUR */}
 
           <div className="mb-6 flex items-center gap-3">
+
             <div className="h-px flex-1 bg-white/10" />
 
             <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -2342,17 +2416,21 @@ export default function ReportsPage() {
             </span>
 
             <div className="h-px flex-1 bg-white/10" />
+
           </div>
 
           {/* PÉRIODE */}
 
           <div className="min-w-0">
+
             <span className="mb-3 block text-sm font-bold text-slate-300">
               Rechercher une période
             </span>
 
             <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+
               <div className="min-w-0">
+
                 <label
                   htmlFor="start-date"
                   className="mb-2 block text-xs font-bold text-slate-500"
@@ -2361,6 +2439,7 @@ export default function ReportsPage() {
                 </label>
 
                 <div className="relative min-w-0">
+
                   <CalendarDays
                     size={17}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-purple-400"
@@ -2377,10 +2456,13 @@ export default function ReportsPage() {
                     }
                     className="block min-h-[48px] w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-[#111827] p-3 pl-10 text-[16px] text-white outline-none transition focus:border-purple-400 focus:ring-1 focus:ring-purple-400 [color-scheme:dark]"
                   />
+
                 </div>
+
               </div>
 
               <div className="min-w-0">
+
                 <label
                   htmlFor="end-date"
                   className="mb-2 block text-xs font-bold text-slate-500"
@@ -2389,6 +2471,7 @@ export default function ReportsPage() {
                 </label>
 
                 <div className="relative min-w-0">
+
                   <CalendarDays
                     size={17}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-purple-400"
@@ -2405,7 +2488,9 @@ export default function ReportsPage() {
                     }
                     className="block min-h-[48px] w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-[#111827] p-3 pl-10 text-[16px] text-white outline-none transition focus:border-purple-400 focus:ring-1 focus:ring-purple-400 [color-scheme:dark]"
                   />
+
                 </div>
+
               </div>
 
               <button
@@ -2418,22 +2503,14 @@ export default function ReportsPage() {
                 <CalendarDays size={17} />
                 Voir la période
               </button>
+
             </div>
+
           </div>
 
           {/* ACTIONS */}
 
-          <div className="mt-6 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <button
-              type="button"
-              onClick={
-                showEverything
-              }
-              className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-black text-black transition hover:bg-orange-400"
-            >
-              <ShoppingCart size={17} />
-              Toutes les ventes
-            </button>
+          <div className="mt-6 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
 
             <button
               type="button"
@@ -2449,96 +2526,103 @@ export default function ReportsPage() {
             <button
               type="button"
               onClick={
-                downloadCSV
-              }
-              className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-green-400/20 bg-green-500/10 px-5 py-3 font-black text-green-300 transition hover:bg-green-500/20"
-            >
-              <FileSpreadsheet size={17} />
-              Excel (CSV)
-            </button>
-
-            <button
-              type="button"
-              onClick={
                 downloadPDF
               }
               className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-400 px-5 py-3 font-black text-black shadow-lg shadow-orange-500/10 transition hover:brightness-110"
             >
               <Download size={17} />
-              Créer le PDF
+              Créer le PDF 
             </button>
-          </div>
-        </section>
-                {/* ================== RÉSULTAT ================== */}
 
-        {(selectedDate || startDate || endDate || productQuery) && (
+          </div>
+
+        </section>
+
+        {/* ================== RÉSULTAT ================== */}
+
+        {(startDate ||
+          endDate ||
+          productQuery) && (
           <section className="w-full min-w-0 overflow-hidden rounded-2xl border border-orange-400/20 bg-orange-500/10 p-4">
+
             <div className="flex min-w-0 items-start gap-3">
+
               <div className="mt-0.5 shrink-0 text-orange-400">
                 <Search size={18} />
               </div>
 
               <div className="min-w-0">
+
                 <p className="break-words text-sm font-black text-orange-300">
+
                   {productQuery
                     ? `Résultat pour « ${productQuery} »`
-                    : selectedDate
-                    ? `Résultat pour le ${prettyDate(selectedDate)}`
-                    : startDate && endDate
-                    ? `Résultat du ${prettyDate(startDate)} au ${prettyDate(endDate)}`
+                    : startDate &&
+                      endDate
+                    ? `Résultat du ${prettyDate(
+                        startDate
+                      )} au ${prettyDate(
+                        endDate
+                      )}`
                     : "Sélection incomplète"}
+
                 </p>
 
                 <p className="mt-1 text-xs text-slate-400">
+
                   {filteredSales.length} vente
-                  {filteredSales.length > 1 ? "s" : ""} trouvée
-                  {filteredSales.length > 1 ? "s" : ""}
+                  {filteredSales.length >
+                  1
+                    ? "s"
+                    : ""} trouvée
+                  {filteredSales.length >
+                  1
+                    ? "s"
+                    : ""}
+
                 </p>
+
               </div>
+
             </div>
+
           </section>
         )}
 
         {/* ================== HISTORIQUE ================== */}
 
         <section className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl sm:p-6">
+
           <div className="mb-5 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
             <div className="flex min-w-0 items-center gap-3">
+
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-500/10 text-green-400">
                 <TrendingUp size={19} />
               </div>
 
               <div className="min-w-0">
+
                 <h2 className="truncate text-xl font-black text-white">
                   Historique des ventes
                 </h2>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Consultez les ventes enregistrées.
+                  Les 5 dernières ventes sont affichées.
                 </p>
+
               </div>
+
             </div>
 
-            {filteredSales.length > PAGE_STEP && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAll(!showAll);
-                  setVisibleCount(PAGE_STEP);
-                }}
-                className="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-orange-400 sm:w-auto"
-              >
-                {showAll
-                  ? "Afficher seulement 5"
-                  : "Voir toutes les ventes"}
-              </button>
-            )}
           </div>
 
-          {/* ================== CHARGEMENT ================== */}
+          {/* CHARGEMENT */}
 
           {loading ? (
+
             <div className="flex w-full flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/20 p-12 text-center">
+
               <Loader2
                 size={26}
                 className="animate-spin text-orange-400"
@@ -2547,139 +2631,188 @@ export default function ReportsPage() {
               <p className="mt-4 text-sm font-bold text-slate-400">
                 Chargement de vos ventes...
               </p>
+
             </div>
+
           ) : displayedSales.length === 0 ? (
-            /* ================== AUCUN RÉSULTAT ================== */
 
             <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-10 text-center">
+
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-slate-500">
                 <Package size={25} />
               </div>
 
               <p className="mt-4 font-black text-white">
+
                 {productQuery
                   ? "Aucun produit ne correspond à cette recherche."
-                  : selectedDate
-                  ? "Aucune vente à cette date."
-                  : startDate && endDate
+                  : startDate &&
+                    endDate
                   ? "Aucune vente dans cette période."
                   : "Aucune vente disponible."}
+
               </p>
 
               <p className="mt-2 text-xs text-slate-500">
-                Essayez un autre produit, une autre date ou une autre
-                période.
+                Essayez un autre produit ou une autre période.
               </p>
+
             </div>
+
           ) : (
+
             <>
-              {/* ================== LISTE DES VENTES ================== */}
 
               <div className="w-full min-w-0 space-y-3">
-                {displayedSales.map((sale) => (
-                  <article
-                    key={sale.id}
-                    className="w-full min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-white/20 hover:bg-black/30"
-                  >
-                    <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      
-                      {/* PRODUIT */}
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-400">
-                            <Package size={18} />
+                {displayedSales.map(
+                  (sale) => (
+
+                    <article
+                      key={sale.id}
+                      className="w-full min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-3 transition hover:border-white/20 hover:bg-black/30 sm:p-4"
+                    >
+
+                      <div className="flex min-w-0 flex-col gap-4">
+
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+
+                          <div className="flex min-w-0 items-center gap-3">
+
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-400">
+                              <Package size={18} />
+                            </div>
+
+                            <div className="min-w-0">
+
+                              <p className="break-words font-black text-white">
+                                {sale.product_name}
+                              </p>
+
+                              <p className="mt-1 break-words text-xs text-slate-500">
+                                {new Date(
+                                  sale.created_at
+                                ).toLocaleString(
+                                  "fr-FR"
+                                )}
+                              </p>
+
+                            </div>
+
                           </div>
 
-                          <div className="min-w-0">
-                            <p className="break-words font-black text-white">
-                              {sale.product_name}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteSale(
+                                sale.id
+                              )
+                            }
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-400/20 bg-red-500/10 text-red-400 transition hover:bg-red-500/20 hover:text-red-300 active:scale-95"
+                            title="Supprimer cette vente"
+                            aria-label="Supprimer cette vente"
+                          >
+                            <Trash2
+                              size={16}
+                            />
+                          </button>
+
+                        </div>
+
+                        <div className="grid w-full min-w-0 grid-cols-3 gap-3 sm:gap-4">
+
+                          <div className="min-w-0 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-3 sm:px-4 sm:py-3.5">
+
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]">
+                              Quantité
                             </p>
 
-                            <p className="mt-1 break-words text-xs text-slate-500">
-                              {new Date(
-                                sale.created_at
-                              ).toLocaleString("fr-FR")}
+                            <p className="mt-1.5 truncate text-sm font-black text-white sm:text-base">
+                              x{sale.quantity}
                             </p>
+
                           </div>
+
+                          <div className="min-w-0 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-3 sm:px-4 sm:py-3.5">
+
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]">
+                              Vente
+                            </p>
+
+                            <p className="mt-1.5 truncate text-sm font-black text-orange-400 sm:text-base">
+                              {formatMoney(
+                                Number(
+                                  sale.total_sale ||
+                                    0
+                                )
+                              )}{" "}
+                              {sale.currency}
+                            </p>
+
+                          </div>
+
+                          <div className="min-w-0 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-3 sm:px-4 sm:py-3.5">
+
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]">
+                              Bénéfice
+                            </p>
+
+                            <p className="mt-1.5 truncate text-sm font-black text-green-400 sm:text-base">
+                              {formatMoney(
+                                Number(
+                                  sale.profit ||
+                                    0
+                                )
+                              )}{" "}
+                              {sale.currency}
+                            </p>
+
+                          </div>
+
                         </div>
+
                       </div>
 
-                      {/* STATISTIQUES DE LA VENTE */}
+                    </article>
 
-                     <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 lg:w-auto lg:min-w-[560px] lg:gap-5">
-                        
-                        {/* QUANTITÉ */}
+                  )
+                )}
 
-                        <div className="min-w-0 overflow-hidden rounded-xl border border-white/5 bg-white/[0.03] p-2.5 sm:p-3">
-                          <p className="text-[11px] text-slate-500">
-                            Quantité
-                          </p>
-
-                          <p className="mt-1 truncate font-black text-white">
-                            x{sale.quantity}
-                          </p>
-                        </div>
-
-                        {/* VENTE */}
-
-                        <div className="min-w-0 overflow-hidden rounded-xl border border-white/5 bg-white/[0.03] p-2.5 sm:p-3">
-                          <p className="text-[11px] text-slate-500">
-                            Vente
-                          </p>
-
-                          <p className="mt-1 truncate text-sm font-black text-orange-400">
-                            {formatMoney(
-                              Number(sale.total_sale || 0)
-                            )}{" "}
-                            {sale.currency}
-                          </p>
-                        </div>
-                        
-                        
-
-                        {/* BÉNÉFICE */}
-
-                        <div className="min-w-0 overflow-hidden rounded-xl border border-white/5 bg-white/[0.03] p-2.5 sm:p-3">
-                          <p className="text-[11px] text-slate-500">
-                            Bénéfice
-                          </p>
-
-                          <p className="mt-1 truncate text-sm font-black text-green-400">
-                            {formatMoney(
-                              Number(sale.profit || 0)
-                            )}{" "}
-                            {sale.currency}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-                ))}
               </div>
-              
 
-              {/* ================== CHARGER PLUS ================== */}
+              {filteredSales.length >
+                PAGE_STEP && (
+                <div className="mt-6 border-t border-white/10 pt-5">
 
-              {!showAll &&
-                filteredSales.length > displayedSales.length && (
                   <button
                     type="button"
-                    onClick={() =>
-                      setVisibleCount(
-                        visibleCount + PAGE_STEP
-                      )
-                    }
-                    className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/30 px-5 py-3 font-bold text-slate-300 transition hover:bg-white/5"
+                    onClick={() => {
+                      if (showAll) {
+                        setShowAll(false);
+                      } else {
+                        showEverything();
+                      }
+                    }}
+                    className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-black text-black shadow-lg shadow-orange-500/10 transition hover:bg-orange-400 active:scale-[0.98]"
                   >
-                    Charger 5 ventes de plus (
-                    {filteredSales.length -
-                      displayedSales.length}{" "}
-                    restantes)
+
+                    <ShoppingCart
+                      size={17}
+                    />
+
+                    {showAll
+                      ? "Afficher seulement les 5 dernières ventes"
+                      : `Voir toutes les ventes (${filteredSales.length})`}
+
                   </button>
-                )}
+
+                </div>
+              )}
+
             </>
+
           )}
+
         </section>
 
         {/* ================== RETOUR EN HAUT ================== */}
@@ -2687,7 +2820,9 @@ export default function ReportsPage() {
         {showTopButton && (
           <button
             type="button"
-            onClick={scrollToTop}
+            onClick={
+              scrollToTop
+            }
             className="fixed bottom-5 right-5 z-[9999] flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 text-black shadow-2xl transition hover:bg-orange-400 active:scale-95 sm:bottom-6 sm:right-6"
             title="Retour en haut"
             aria-label="Retour en haut"
@@ -2695,6 +2830,7 @@ export default function ReportsPage() {
             <ArrowUp size={21} />
           </button>
         )}
+
       </div>
     </main>
   );
@@ -2702,7 +2838,7 @@ export default function ReportsPage() {
 
 /* ======================================================
    COMPOSANT CARTE RAPPORT
-   ====================================================== */
+====================================================== */
 
 function ReportCard({
   icon,
@@ -2725,20 +2861,17 @@ function ReportCard({
     typeof trend === "number" &&
     Number.isFinite(trend);
 
-  const positive = (trend || 0) >= 0;
+  const positive =
+    (trend || 0) >= 0;
 
   return (
     <div className="w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl backdrop-blur-xl sm:p-6">
-      
+
       <div className="flex items-start justify-between gap-3">
-        
-        {/* ICÔNE */}
 
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-500/10 text-2xl">
           {icon}
         </div>
-
-        {/* VARIATION */}
 
         {hasTrend && (
           <span
@@ -2748,50 +2881,48 @@ function ReportCard({
                 : "bg-red-500/10 text-red-400"
             }`}
           >
+
             {positive ? (
               <TrendingUp size={13} />
             ) : (
               <TrendingDown size={13} />
             )}
 
-            {Math.abs(trend as number).toFixed(0)}%{" "}
-            {trendLabel}
+            {Math.abs(
+              trend as number
+            ).toFixed(0)}
+            % {trendLabel}
+
           </span>
         )}
-      </div>
 
-      {/* TITRE */}
+      </div>
 
       <h3 className="mt-4 truncate font-black text-white">
         {title}
       </h3>
 
-      {/* VALEUR */}
-
       <p className="mt-3 break-words text-base font-black leading-6 text-orange-400 sm:text-xl">
         {value}
       </p>
 
-      {/* SOUS-TITRE */}
-
       <p className="mt-2 break-words text-xs leading-5 text-slate-400">
         {subtitle}
       </p>
-
-      {/* EXTRA */}
 
       {extra && (
         <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
           {extra}
         </p>
       )}
+
     </div>
   );
 }
 
 /* ======================================================
    COMPOSANT MINI STATISTIQUE
-   ====================================================== */
+====================================================== */
 
 function MiniStat({
   label,
@@ -2818,9 +2949,12 @@ function MiniStat({
   return (
     <div
       className={`min-w-0 overflow-hidden rounded-xl border border-white/5 bg-white/[0.03] ${
-        dense ? "p-2.5" : "p-3 sm:p-4"
+        dense
+          ? "p-2.5"
+          : "p-3 sm:p-4"
       }`}
     >
+
       <p className="text-[11px] text-slate-500">
         {label}
       </p>
@@ -2840,6 +2974,7 @@ function MiniStat({
           {hint}
         </p>
       )}
+
     </div>
   );
 }
