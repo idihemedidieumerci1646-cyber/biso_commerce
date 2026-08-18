@@ -874,15 +874,15 @@ const bestProduct = Object.entries(productSales)
         </GlassCard>
 
         {/* INFORMATION BUTTON */}
-        <div className="text-center">
-          <button
-            onClick={() => setShowInfo(true)}
-            className="text-xs text-slate-400 underline transition hover:text-orange-400"
-          >
-            ✨ Clique ici pour en savoir plus sur Biso-commerce
-          </button>
-        </div>
-        
+<div className="flex justify-center">
+  <button
+    onClick={() => setShowInfo(true)}
+    className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[11px] font-bold text-white shadow-sm transition hover:border-white/40 hover:bg-white/20 active:scale-95"
+  >
+    
+    ✨ Clique ici pour en savoir plus sur Biso-commerce
+  </button>
+</div>
 
         {/* QUICK SALE */}
         <Link
@@ -1124,146 +1124,310 @@ const bestProduct = Object.entries(productSales)
           ⚡ BISO-COMMERCE ( PDG DIEUMERCI IDI )
         </p>
       </div>
-
-      {/* MODAL INFORMATION */}
-            {showInfo && (
-        <div
-          onClick={() => setShowInfo(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[2rem] border border-white/10 bg-[#081221] p-6 shadow-2xl"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-lg font-black">
-                BISO-
-                <span className="bg-gradient-to-r from-orange-400 to-yellow-300 bg-clip-text text-transparent">
-                  COMMERCE
-                </span>
-              </p>
-
-              <button
-                onClick={() => setShowInfo(false)}
-                className="rounded-xl bg-white/10 px-3 py-2 text-slate-300"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-4 text-sm text-slate-300">
-              <div>
-                <p className="font-bold text-white">
-                  📖 BIENVENUE SUR BISO-COMMERCE
-                </p>
-
-                <p className="mt-1 leading-relaxed">
-                  Biso-Commerce est une caisse digitale intelligente qui vous
-                  permet de gérer facilement votre commerce depuis votre
-                  téléphone.
-                </p>
-              </div>
-
-              <div>
-                <p className="font-bold text-white">
-                  💼 Avec Biso-Commerce vous pouvez :
-                </p>
-
-                <ul className="mt-1 space-y-1">
-                  <li>✅ Ajouter et gérer vos produits</li>
-                  <li>✅ Enregistrer vos ventes chaque jour</li>
-                  <li>✅ Suivre vos bénéfices automatiquement</li>
-                  <li>✅ Contrôler vos dépenses</li>
-                  <li>✅ Gérer les dettes des clients</li>
-                  <li>✅ Voir vos rapports de commerce</li>
-                </ul>
-              </div>
-
-              <div>
-  <p className="font-bold text-white">
-    📱 Installation de Biso-Commerce sur votre téléphone
-  </p>
-
-  <p className="mt-2 leading-relaxed">
-    Pour installer Biso-Commerce, ouvrez d'abord ce lien :
-  </p>
-
-  <a
-    href="https://bisocommerce.vercel.app"
-    target="_blank"
-    className="mt-2 block break-all font-bold text-orange-300 underline"
+{/* MODAL INFORMATION */}
+{showInfo && (
+  <div
+    onClick={() => setShowInfo(false)}
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
   >
-    https://bisocommerce.vercel.app
-  </a>
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2rem] border border-white/10 bg-[#07111f] shadow-[0_25px_80px_-20px_rgba(0,0,0,0.9)]"
+    >
+      {/* HEADER */}
+      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#07111f]/95 px-5 py-4 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-lg font-black tracking-tight text-white">
+              BISO-
+              <span className="bg-gradient-to-r from-orange-400 to-yellow-300 bg-clip-text text-transparent">
+                COMMERCE
+              </span>
+            </p>
 
-  <div className="mt-3 space-y-3">
-    <div>
-      <p className="font-bold text-orange-300">
-        🤖 Android (Samsung, Tecno, Infinix, Xiaomi, etc.)
-      </p>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Votre commerce, simplement mieux géré
+            </p>
+          </div>
 
-      <p className="mt-1 leading-relaxed">
-        1️⃣ Ouvrez le lien ci-dessus avec <strong>Google Chrome</strong>.<br />
-        2️⃣ Attendez que la page Biso-Commerce se charge complètement.<br />
-        3️⃣ Appuyez sur les trois points <strong>⋮</strong> en haut à droite de Chrome.<br />
-        4️⃣ Choisissez <strong>"Installer l'application"</strong> ou
-        <strong> "Ajouter à l'écran d'accueil"</strong>.<br />
-        5️⃣ Appuyez sur <strong>Installer</strong> pour confirmer.<br />
-        6️⃣ L'icône Biso-Commerce apparaîtra sur votre téléphone.
-      </p>
-    </div>
+          <button
+            type="button"
+            onClick={() => setShowInfo(false)}
+            className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            aria-label="Fermer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
 
-    <div>
-      <p className="font-bold text-orange-300">
-        🍎 iPhone (iOS)
-      </p>
+      {/* CONTENU */}
+      <div className="space-y-5 p-5">
 
-      <p className="mt-1 leading-relaxed">
-        1️⃣ Ouvrez le lien avec l'application <strong>Safari</strong>.<br />
-        2️⃣ Appuyez sur le bouton <strong>Partager</strong> 
-        (carré avec une flèche vers le haut ⬆️).<br />
-        3️⃣ Faites défiler les options vers le bas.<br />
-        4️⃣ Appuyez sur <strong>"Sur l'écran d'accueil"</strong>.<br />
-        5️⃣ Appuyez sur <strong>"Ajouter"</strong>.<br />
-        6️⃣ Biso-Commerce apparaîtra comme une application sur votre écran.
-      </p>
-    </div>
+        {/* BIENVENUE */}
+        <div className="overflow-hidden rounded-[1.5rem] border border-orange-400/20 bg-gradient-to-br from-orange-500/15 via-orange-500/5 to-yellow-400/5 p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 p-2">
+              <Zap className="h-4 w-4 text-black" />
+            </span>
 
-    <p className="text-xs text-slate-400">
-      💡 Après l'installation, ouvrez Biso-Commerce directement depuis l'icône
-      sur votre écran d'accueil comme une application normale.
-    </p>
-  </div>
-</div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-orange-300">
+              Bienvenue
+            </span>
+          </div>
 
-              <div>
-                <p className="font-bold text-white">
-                  🎯 Conseil PDG
-                </p>
+          <h2 className="text-xl font-black leading-tight text-white">
+            Gérez votre commerce
+            <br />
+            <span className="bg-gradient-to-r from-orange-400 to-yellow-300 bg-clip-text text-transparent">
+              avec plus de simplicité.
+            </span>
+          </h2>
 
-                <p className="mt-1">
-                  Ajoutez vos produits avant de commencer les ventes pour obtenir
-                  des statistiques précises.
+          <p className="mt-3 text-sm leading-relaxed text-slate-300">
+            Biso-Commerce est une solution digitale conçue pour vous aider à
+            gérer vos produits, vos ventes, vos bénéfices, vos dépenses et les
+            dettes de vos clients depuis votre téléphone.
+          </p>
+        </div>
+
+        {/* FONCTIONNALITÉS */}
+        <div>
+          <div className="mb-3">
+            <p className="text-sm font-black text-white">
+              Tout ce dont votre commerce a besoin
+            </p>
+
+            <p className="mt-1 text-[11px] text-slate-500">
+              Retrouvez l'essentiel au même endroit.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              {
+                icon: "📦",
+                title: "Produits",
+                text: "Gérez votre stock",
+              },
+              {
+                icon: "🛒",
+                title: "Ventes",
+                text: "Enregistrez vos ventes",
+              },
+              {
+                icon: "📈",
+                title: "Bénéfices",
+                text: "Suivez vos résultats",
+              },
+              {
+                icon: "💰",
+                title: "Dépenses",
+                text: "Contrôlez vos dépenses",
+              },
+              {
+                icon: "🤝",
+                title: "Dettes",
+                text: "Suivez vos clients",
+              },
+              {
+                icon: "📊",
+                title: "Rapports",
+                text: "Analysez votre activité",
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 transition hover:border-orange-400/20 hover:bg-white/[0.06]"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{item.icon}</span>
+                  <p className="text-xs font-black text-white">
+                    {item.title}
+                  </p>
+                </div>
+
+                <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                  {item.text}
                 </p>
               </div>
-
-              <p className="text-center text-xs text-slate-400">
-                Merci d'utiliser Biso-Commerce 💚
-                <br />
-                PDG DIEUMERCI IDI
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowInfo(false)}
-              className="mt-6 w-full rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black"
-            >
-              J'ai compris 🚀
-            </button>
+            ))}
           </div>
         </div>
-      )}
 
+        {/* POURQUOI */}
+        <div className="rounded-[1.5rem] border border-emerald-400/15 bg-emerald-500/[0.04] p-4">
+          <p className="text-sm font-black text-white">
+            🎯 Pourquoi utiliser Biso-Commerce ?
+          </p>
+
+          <div className="mt-3 space-y-2">
+            {[
+              "Gagnez du temps dans la gestion quotidienne",
+              "Réduisez les erreurs de calcul",
+              "Connaissez rapidement vos ventes et bénéfices",
+              "Gardez un œil sur votre stock",
+              "Prenez de meilleures décisions pour votre commerce",
+            ].map((text) => (
+              <div
+                key={text}
+                className="flex items-start gap-2 text-xs leading-relaxed text-slate-300"
+              >
+                <span className="mt-0.5 text-emerald-400">✓</span>
+                <span>{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* INSTALLATION */}
+        <div className="rounded-[1.5rem] border border-sky-400/15 bg-sky-500/[0.04] p-4">
+          <div className="flex items-start gap-3">
+            <span className="rounded-xl bg-sky-500/10 p-2 text-lg">
+              📱
+            </span>
+
+            <div>
+              <p className="text-sm font-black text-white">
+                Installer Biso-Commerce
+              </p>
+
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                Utilisez Biso-Commerce directement depuis votre téléphone,
+                comme une application.
+              </p>
+            </div>
+          </div>
+
+          {/* LIEN UNIQUEMENT POUR L'INSTALLATION */}
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Adresse de Biso-Commerce
+            </p>
+
+            <a
+              href="https://bisocommerce.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 block break-all text-xs font-bold text-orange-300 underline decoration-orange-300/40 underline-offset-2 transition hover:text-yellow-300"
+            >
+              https://bisocommerce.vercel.app
+            </a>
+          </div>
+
+          {/* ANDROID */}
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-xs font-black text-orange-300">
+              🤖 Android
+            </p>
+
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
+              1️⃣ Ouvrez le lien avec <strong>Google Chrome</strong>.<br />
+              2️⃣ Attendez que Biso-Commerce soit chargé.<br />
+              3️⃣ Appuyez sur <strong>⋮</strong> en haut à droite.<br />
+              4️⃣ Choisissez <strong>« Installer l'application »</strong> ou
+              <strong> « Ajouter à l'écran d'accueil »</strong>.<br />
+              5️⃣ Confirmez l'installation.
+            </p>
+          </div>
+
+          {/* IPHONE */}
+          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-xs font-black text-orange-300">
+              🍎 iPhone
+            </p>
+
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
+              1️⃣ Ouvrez le lien avec <strong>Safari</strong>.<br />
+              2️⃣ Appuyez sur <strong>Partager ⬆️</strong>.<br />
+              3️⃣ Sélectionnez <strong>« Sur l'écran d'accueil »</strong>.<br />
+              4️⃣ Appuyez sur <strong>« Ajouter »</strong>.
+            </p>
+          </div>
+
+          <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-500">
+            💡 Une fois installé, vous pourrez ouvrir Biso-Commerce depuis
+            l'icône présente sur votre écran d'accueil.
+          </p>
+        </div>
+
+        {/* AIDE / WHATSAPP */}
+        <div className="rounded-[1.5rem] border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.02] p-4">
+          <div className="flex items-center gap-3">
+            <span className="rounded-xl bg-emerald-500/15 p-2.5 text-lg">
+              💬
+            </span>
+
+            <div>
+              <p className="text-sm font-black text-white">
+                Besoin d'aide ?
+              </p>
+
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                Notre support est disponible sur WhatsApp.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="https://wa.me/243994864173?text=Bonjour%20Biso-Commerce%2C%20j%27ai%20besoin%20d%27aide."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-500/10 transition hover:brightness-110 active:scale-[0.98]"
+          >
+            <span className="text-lg">💬</span>
+            Contacter le support WhatsApp
+          </a>
+
+          <p className="mt-2 text-center text-[10px] text-slate-500">
+            +243 994 864 173
+          </p>
+        </div>
+
+        {/* CONSEIL */}
+        <div className="rounded-2xl border border-orange-400/10 bg-orange-500/[0.03] p-4">
+          <p className="text-xs font-black text-orange-300">
+            💡 Conseil pour commencer
+          </p>
+
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+            Commencez par ajouter vos produits avec leur prix d'achat, leur
+            prix de vente et leur quantité en stock. Vous pourrez ensuite
+            enregistrer vos ventes et laisser Biso-Commerce vous aider à
+            suivre votre activité.
+          </p>
+        </div>
+
+        {/* SIGNATURE */}
+        <div className="border-t border-white/10 pt-4 text-center">
+          <p className="text-xs font-bold text-slate-300">
+            Merci d'utiliser Biso-Commerce 💚
+          </p>
+
+          <p className="mt-1 text-[10px] text-slate-500">
+            Une solution pensée pour simplifier la gestion de votre commerce.
+          </p>
+
+          <p className="mt-2 text-[10px] font-bold text-slate-600">
+            PDG DIEUMERCI IDI
+          </p>
+        </div>
+      </div>
+
+      {/* BOUTON FERMER */}
+      <div className="sticky bottom-0 border-t border-white/10 bg-[#07111f]/95 p-4 backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => setShowInfo(false)}
+          className="w-full rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 text-sm font-black text-black shadow-lg shadow-orange-500/10 transition hover:brightness-110 active:scale-[0.98]"
+        >
+          J'ai compris  🚀
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+      
       {/* Fenêtre : Toutes les ventes */}
       {showAllSales && (
         <div

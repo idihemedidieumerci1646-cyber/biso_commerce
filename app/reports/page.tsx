@@ -554,87 +554,92 @@ export default function ReportsPage() {
   /* ==================================================
      SUPPRIMER UNE VENTE
   ================================================== */
+const deleteSale = async (saleId: string) => {
+  const confirmed = window.confirm(
+    "Voulez-vous vraiment supprimer cette vente ? Cette action est irréversible."
+  );
 
-  const deleteSale = async (
-    saleId: string
-  ) => {
-    const confirmed =
-      window.confirm(
-        "Voulez-vous vraiment supprimer cette vente ? Cette action est irréversible."
-      );
+  if (!confirmed) return;
 
-    if (!confirmed) return;
+  try {
+    const userId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("user_id")
+        : null;
 
-    try {
-      const userId =
-        typeof window !== "undefined"
-          ? localStorage.getItem("user_id")
-          : null;
-
-      if (!userId) {
-        setNotice({
-          type: "error",
-          message:
-            "Utilisateur non connecté.",
-        });
-
-        return;
-      }
-
-      const { error } = await supabase
-        .from("sales")
-        .delete()
-        .eq("id", saleId)
-        .eq("user_id", userId);
-
-      if (error) {
-        console.error(
-          "Erreur suppression vente :",
-          error
-        );
-
-        setNotice({
-          type: "error",
-          message:
-            "Impossible de supprimer cette vente.",
-        });
-
-        return;
-      }
-
-      setSalesHistory((current) =>
-        current.filter(
-          (sale) =>
-            sale.id !== saleId
-        )
-      );
-
-      setFilteredSales((current) =>
-        current.filter(
-          (sale) =>
-            sale.id !== saleId
-        )
-      );
-
+    if (!userId) {
       setNotice({
-        type: "success",
-        message:
-          "Vente supprimée avec succès.",
+        type: "error",
+        message: "Utilisateur non connecté.",
       });
-    } catch (error) {
+
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("sales")
+      .delete()
+      .eq("id", saleId)
+      .eq("user_id", userId)
+      .select("id");
+
+    if (error) {
       console.error(
-        "Erreur générale suppression :",
+        "Erreur suppression vente :",
         error
       );
 
       setNotice({
         type: "error",
         message:
-          "Une erreur est survenue lors de la suppression.",
+          "La vente n'a pas pu être supprimée de la base de données.",
       });
-    }
-  };
 
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setNotice({
+        type: "error",
+        message:
+          "La vente n'a pas été supprimée dans la base de données.",
+      });
+
+      return;
+    }
+
+    setSalesHistory((current) =>
+      current.filter(
+        (sale) => sale.id !== saleId
+      )
+    );
+
+    setFilteredSales((current) =>
+      current.filter(
+        (sale) => sale.id !== saleId
+      )
+    );
+
+    setNotice({
+      type: "success",
+      message:
+        "Vente supprimée définitivement.",
+    });
+
+  } catch (error) {
+    console.error(
+      "Erreur générale suppression :",
+      error
+    );
+
+    setNotice({
+      type: "error",
+      message:
+        "Une erreur est survenue lors de la suppression.",
+    });
+  }
+};
+ 
   /* ==================================================
      VENTES AFFICHÉES
   ================================================== */
