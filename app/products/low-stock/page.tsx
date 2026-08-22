@@ -771,7 +771,7 @@ function ProductCard({
 
 
         <Link
-          href="/products"
+          href={`/products/edit/${product.id}`}
           className="
           flex-1
           flex
