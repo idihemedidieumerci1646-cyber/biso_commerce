@@ -34,7 +34,7 @@ export default function AddProductPage() {
   >("nouveau");
 
   // Affichage du guide
-  const [showGuide, setShowGuide] = useState(true);
+  const [showGuide, setShowGuide] = useState(false);
 
   // ==========================================================
   // CALCUL AUTOMATIQUE
@@ -719,16 +719,7 @@ export default function AddProductPage() {
 
         </div>
 
-        {!showGuide && (
-  <>
-    {/* ======================================================
-        FORMULAIRE
-    ====================================================== */}
-
-    
-
-  </>
-)}
+        
 
         <div className="space-y-5 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-xl sm:p-6">
 
