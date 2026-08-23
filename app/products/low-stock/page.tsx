@@ -166,113 +166,151 @@ export default function LowStockPage() {
 
 
 
-      return (
+  return (
     <main
       className="
-      relative
       min-h-screen
-      overflow-hidden
-      bg-[#050b16]
-      text-white
+      bg-[#f5f7fb]
+      text-slate-900
       px-4
       py-6
       pb-24
+      sm:px-6
+      lg:px-8
       "
     >
 
 
-      {/* HALO DESIGN */}
       <div
         className="
-        pointer-events-none
-        absolute
-        inset-0
-        bg-[radial-gradient(circle_at_top,rgba(249,115,22,0.18),transparent_35%)]
-        "
-      />
-
-
-      <div
-        className="
-        relative
-        z-10
         mx-auto
-        max-w-xl
-        ">
+        max-w-6xl
+        "
+      >
 
 
 
-        {/* HEADER */}
+        {/* =========================================================
+            HEADER
+        ========================================================= */}
+
         <div
           className="
-          mb-8
-          flex
-          items-center
-          justify-between
+          mb-6
+          rounded-[26px]
+          border
+          border-slate-200
+          bg-white
+          p-5
+          shadow-sm
+          sm:p-7
           "
         >
 
-          <div>
 
-            <h1
-              className="
-              flex
-              items-center
-              gap-2
-              text-3xl
-              font-black
-              "
-            >
-
-              <AlertTriangle
-                className="text-orange-400"
-              />
-
-              Gestion du stock
-
-            </h1>
-
-
-            <p
-              className="
-              mt-2
-              text-sm
-              text-slate-400
-              "
-            >
-              Retrouvez rapidement les produits à réapprovisionner.
-            </p>
-
-          </div>
-
-
-
-          <Link
-            href="/products"
+          <div
             className="
             flex
-            items-center
-            gap-2
-            rounded-2xl
-            bg-gradient-to-r
-            from-orange-500
-            to-yellow-400
-            px-4
-            py-3
-            text-sm
-            font-black
-            text-black
-            shadow-lg
-            transition
-            hover:scale-105
+            flex-col
+            gap-5
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
             "
           >
 
-            <Package size={18}/>
 
-            Produits
+            <div className="min-w-0">
 
-          </Link>
+
+              <div
+                className="
+                mb-4
+                flex
+                h-12
+                w-12
+                items-center
+                justify-center
+                rounded-2xl
+                bg-indigo-50
+                "
+              >
+
+                <AlertTriangle
+                  className="text-indigo-600"
+                  size={25}
+                />
+
+              </div>
+
+
+              <h1
+                className="
+                text-2xl
+                font-black
+                tracking-tight
+                text-slate-900
+                sm:text-3xl
+                "
+              >
+
+                Gestion du stock
+
+              </h1>
+
+
+              <p
+                className="
+                mt-2
+                max-w-2xl
+                text-sm
+                leading-6
+                text-slate-500
+                "
+              >
+
+                Retrouvez rapidement les produits à
+                réapprovisionner avant de perdre des ventes.
+
+              </p>
+
+            </div>
+
+
+
+            <Link
+              href="/products"
+              className="
+              flex
+              w-full
+              items-center
+              justify-center
+              gap-2
+              rounded-2xl
+              bg-indigo-600
+              px-5
+              py-3.5
+              text-sm
+              font-black
+              text-white
+              shadow-sm
+              transition
+              hover:bg-indigo-700
+              active:scale-[0.98]
+              sm:w-auto
+              "
+            >
+
+              <Package size={18}/>
+
+              <span>
+                Produits
+              </span>
+
+            </Link>
+
+
+          </div>
 
 
         </div>
@@ -281,69 +319,122 @@ export default function LowStockPage() {
 
 
 
-
-        {/* RESUME STOCK */}
+        {/* =========================================================
+            RESUME STOCK
+        ========================================================= */}
 
         <div
           className="
           mb-6
           grid
-          grid-cols-2
-          gap-3
+          grid-cols-1
+          gap-4
+          sm:grid-cols-2
           "
         >
 
 
+          {/* RUPTURE */}
+
           <div
             className="
-            rounded-3xl
+            rounded-[26px]
             border
-            border-red-400/30
-            bg-red-500/10
+            border-slate-200
+            bg-white
             p-5
-            backdrop-blur-xl
+            shadow-sm
             "
           >
 
             <div
               className="
               flex
-              items-center
+              items-start
               justify-between
               "
             >
 
-              <p className="text-sm text-slate-300">
-                Rupture
-              </p>
+              <div
+                className="
+                flex
+                h-11
+                w-11
+                items-center
+                justify-center
+                rounded-2xl
+                bg-red-50
+                "
+              >
+
+                <XCircle
+                  className="text-red-500"
+                  size={22}
+                />
+
+              </div>
 
 
-              <XCircle
-                className="text-red-400"
-              />
+              <span
+                className="
+                rounded-full
+                bg-red-50
+                px-3
+                py-1.5
+                text-xs
+                font-bold
+                text-red-600
+                "
+              >
+
+                Attention
+
+              </span>
 
             </div>
 
 
             <p
               className="
-              mt-3
-              text-4xl
-              font-black
-              text-red-400
+              mt-5
+              text-xs
+              font-bold
+              uppercase
+              tracking-wider
+              text-slate-500
               "
             >
-              {outOfStock.length}
+
+              Produits en rupture
+
             </p>
 
 
             <p
               className="
-              text-xs
-              text-slate-400
+              mt-1
+              text-4xl
+              font-black
+              text-red-600
               "
             >
+
+              {outOfStock.length}
+
+            </p>
+
+
+            <p
+              className="
+              mt-1
+              text-xs
+              leading-5
+              text-slate-500
+              "
+            >
+
               Stock totalement vide
+
             </p>
 
 
@@ -353,56 +444,107 @@ export default function LowStockPage() {
 
 
 
+          {/* PRESQUE FINI */}
+
           <div
             className="
-            rounded-3xl
+            rounded-[26px]
             border
-            border-orange-400/30
-            bg-orange-500/10
+            border-slate-200
+            bg-white
             p-5
-            backdrop-blur-xl
+            shadow-sm
             "
           >
 
             <div
               className="
               flex
-              items-center
+              items-start
               justify-between
               "
             >
 
-              <p className="text-sm text-slate-300">
-                Presque fini
-              </p>
+              <div
+                className="
+                flex
+                h-11
+                w-11
+                items-center
+                justify-center
+                rounded-2xl
+                bg-indigo-50
+                "
+              >
+
+                <Boxes
+                  className="text-indigo-600"
+                  size={22}
+                />
+
+              </div>
 
 
-              <Boxes
-                className="text-orange-300"
-              />
+              <span
+                className="
+                rounded-full
+                bg-indigo-50
+                px-3
+                py-1.5
+                text-xs
+                font-bold
+                text-indigo-600
+                "
+              >
+
+                À surveiller
+
+              </span>
 
             </div>
 
 
             <p
               className="
-              mt-3
-              text-4xl
-              font-black
-              text-orange-300
+              mt-5
+              text-xs
+              font-bold
+              uppercase
+              tracking-wider
+              text-slate-500
               "
             >
-              {almostEmpty.length}
+
+              Presque fini
+
             </p>
 
 
             <p
               className="
-              text-xs
-              text-slate-400
+              mt-1
+              text-4xl
+              font-black
+              text-indigo-600
               "
             >
-              Stock inférieur à 5
+
+              {almostEmpty.length}
+
+            </p>
+
+
+            <p
+              className="
+              mt-1
+              text-xs
+              leading-5
+              text-slate-500
+              "
+            >
+
+              Entre 1 et 5 unités
+
             </p>
 
 
@@ -415,22 +557,73 @@ export default function LowStockPage() {
 
 
 
+        {/* =========================================================
+            CHARGEMENT
+        ========================================================= */}
+
         {loading ? (
 
           <div
             className="
-            flex
-            justify-center
-            py-10
-            text-slate-400
+            rounded-[26px]
+            border
+            border-slate-200
+            bg-white
+            px-6
+            py-12
+            text-center
+            shadow-sm
             "
           >
 
-            <RefreshCcw
-              className="mr-2 animate-spin"
-            />
+            <div
+              className="
+              mx-auto
+              flex
+              h-12
+              w-12
+              items-center
+              justify-center
+              rounded-2xl
+              bg-indigo-50
+              "
+            >
 
-            Chargement...
+              <RefreshCcw
+                className="
+                animate-spin
+                text-indigo-600
+                "
+                size={25}
+              />
+
+            </div>
+
+
+            <p
+              className="
+              mt-4
+              font-bold
+              text-slate-900
+              "
+            >
+
+              Chargement du stock...
+
+            </p>
+
+
+            <p
+              className="
+              mt-1
+              text-sm
+              text-slate-500
+              "
+            >
+
+              Récupération de vos produits
+
+            </p>
 
           </div>
 
@@ -438,10 +631,12 @@ export default function LowStockPage() {
         ) : (
 
 
-          <div className="space-y-8">
+          <div className="space-y-7">
 
 
-            {/* PRODUITS EN RUPTURE */}
+            {/* =====================================================
+                PRODUITS EN RUPTURE
+            ===================================================== */}
 
             {outOfStock.length > 0 && (
 
@@ -449,34 +644,68 @@ export default function LowStockPage() {
 
                 <div
                   className="
-                  mb-3
+                  mb-4
                   flex
                   items-center
-                  gap-2
+                  gap-3
                   "
                 >
 
-                  <XCircle
-                    className="text-red-400"
-                    size={20}
-                  />
-
-                  <h2
+                  <div
                     className="
-                    text-lg
-                    font-black
-                    text-red-300
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-red-50
                     "
                   >
-                    Produits en rupture
-                  </h2>
+
+                    <XCircle
+                      className="text-red-500"
+                      size={20}
+                    />
+
+                  </div>
+
+
+                  <div>
+
+                    <h2
+                      className="
+                      text-lg
+                      font-black
+                      text-slate-900
+                      "
+                    >
+
+                      Produits en rupture
+
+                    </h2>
+
+
+                    <p
+                      className="
+                      mt-0.5
+                      text-xs
+                      text-slate-500
+                      "
+                    >
+
+                      Ces produits ne sont plus disponibles.
+
+                    </p>
+
+                  </div>
 
                 </div>
 
 
 
                 <div className="space-y-4">
-
 
                   {outOfStock.map((p)=>(
 
@@ -489,7 +718,6 @@ export default function LowStockPage() {
 
                   ))}
 
-
                 </div>
 
 
@@ -501,8 +729,9 @@ export default function LowStockPage() {
 
 
 
-
-            {/* PRODUITS PRESQUE EPUISES */}
+            {/* =====================================================
+                PRODUITS PRESQUE EPUISES
+            ===================================================== */}
 
             {almostEmpty.length > 0 && (
 
@@ -510,34 +739,68 @@ export default function LowStockPage() {
 
                 <div
                   className="
-                  mb-3
+                  mb-4
                   flex
                   items-center
-                  gap-2
+                  gap-3
                   "
                 >
 
-                  <AlertTriangle
-                    className="text-orange-400"
-                    size={20}
-                  />
-
-                  <h2
+                  <div
                     className="
-                    text-lg
-                    font-black
-                    text-orange-300
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-indigo-50
                     "
                   >
-                    Produits presque épuisés
-                  </h2>
+
+                    <AlertTriangle
+                      className="text-indigo-600"
+                      size={20}
+                    />
+
+                  </div>
+
+
+                  <div>
+
+                    <h2
+                      className="
+                      text-lg
+                      font-black
+                      text-slate-900
+                      "
+                    >
+
+                      Produits presque épuisés
+
+                    </h2>
+
+
+                    <p
+                      className="
+                      mt-0.5
+                      text-xs
+                      text-slate-500
+                      "
+                    >
+
+                      Pensez à réapprovisionner ces produits.
+
+                    </p>
+
+                  </div>
 
                 </div>
 
 
 
                 <div className="space-y-4">
-
 
                   {almostEmpty.map((p)=>(
 
@@ -549,7 +812,6 @@ export default function LowStockPage() {
 
                   ))}
 
-
                 </div>
 
 
@@ -561,61 +823,111 @@ export default function LowStockPage() {
 
 
 
+            {/* =====================================================
+                STOCK NORMAL
+            ===================================================== */}
 
             {outOfStock.length === 0 &&
              almostEmpty.length === 0 && (
 
-
               <div
                 className="
-                rounded-3xl
+                rounded-[26px]
                 border
-                border-green-400/30
-                bg-green-500/10
-                p-7
+                border-slate-200
+                bg-white
+                p-8
                 text-center
+                shadow-sm
                 "
               >
 
-                <Sparkles
+                <div
                   className="
                   mx-auto
-                  mb-3
-                  text-green-400
+                  flex
+                  h-16
+                  w-16
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-green-50
                   "
-                  size={35}
-                />
+                >
+
+                  <Sparkles
+                    className="text-green-600"
+                    size={32}
+                  />
+
+                </div>
 
 
                 <p
                   className="
-                  font-bold
-                  text-green-300
+                  mt-4
+                  text-xl
+                  font-black
+                  text-slate-900
                   "
                 >
+
                   Excellent stock ✅
+
                 </p>
 
 
                 <p
                   className="
+                  mx-auto
                   mt-2
+                  max-w-sm
                   text-sm
-                  text-slate-400
+                  leading-6
+                  text-slate-500
                   "
                 >
+
                   Aucun produit en rupture ou presque épuisé.
+                  Votre stock est actuellement bien surveillé.
+
                 </p>
+
+
+                <Link
+                  href="/products"
+                  className="
+                  mt-6
+                  inline-flex
+                  items-center
+                  gap-2
+                  rounded-2xl
+                  bg-indigo-600
+                  px-5
+                  py-3
+                  text-sm
+                  font-black
+                  text-white
+                  shadow-sm
+                  transition
+                  hover:bg-indigo-700
+                  active:scale-[0.98]
+                  "
+                >
+
+                  Voir mes produits
+
+                  <ArrowRight size={17}/>
+
+                </Link>
 
 
               </div>
-
 
             )}
 
 
           </div>
-
 
         )}
 
@@ -646,61 +958,186 @@ function ProductCard({
 
     <div
       className="
-      rounded-3xl
+      overflow-hidden
+      rounded-[26px]
       border
-      border-white/10
-      bg-white/[0.04]
+      border-slate-200
+      bg-white
       p-5
-      backdrop-blur-xl
-      shadow-xl
+      shadow-sm
+      transition
+      hover:shadow-md
       "
     >
 
 
+      {/* =========================================================
+          INFORMATIONS PRODUIT
+      ========================================================= */}
+
       <div
         className="
         flex
-        items-center
+        items-start
         justify-between
+        gap-4
         "
       >
 
-        <div>
+        <div
+          className="
+          min-w-0
+          "
+        >
 
-          <h3
+          <div
             className="
-            text-lg
-            font-black
-            text-white
-            "
-          >
-            {product.name}
-          </h3>
-
-
-          <p
-            className="
-            mt-2
-            text-sm
-            text-slate-400
+            flex
+            items-center
+            gap-3
             "
           >
 
-            Stock actuel :
-
-            <span
-              className={`
-              ml-2
-              font-black
-              ${danger 
-                ? "text-red-400" 
-                : "text-orange-300"}
-              `}
+            <div
+              className="
+              flex
+              h-11
+              w-11
+              shrink-0
+              items-center
+              justify-center
+              rounded-2xl
+              bg-indigo-50
+              "
             >
-              {product.stock} {product.unit}
-            </span>
 
-          </p>
+              <Package
+                size={21}
+                className="text-indigo-600"
+              />
+
+            </div>
+
+
+            <div className="min-w-0">
+
+              <h3
+                className="
+                truncate
+                text-lg
+                font-black
+                text-slate-900
+                "
+              >
+
+                {product.name}
+
+              </h3>
+
+
+              <p
+                className="
+                mt-1
+                text-xs
+                text-slate-500
+                "
+              >
+
+                Gestion du stock
+
+              </p>
+
+            </div>
+
+          </div>
+
+
+          {/* STOCK BIEN VISIBLE */}
+
+          <div
+            className={`
+            mt-5
+            rounded-2xl
+            border
+            p-4
+            ${
+              danger
+              ? "border-red-100 bg-red-50/60"
+              : "border-indigo-100 bg-indigo-50/60"
+            }
+            `}
+          >
+
+            <p
+              className="
+              text-xs
+              font-bold
+              uppercase
+              tracking-wider
+              text-slate-500
+              "
+            >
+
+              Stock actuel
+
+            </p>
+
+
+            <div
+              className="
+              mt-1
+              flex
+              items-end
+              gap-2
+              "
+            >
+
+              <span
+                className={`
+                text-3xl
+                font-black
+                ${
+                  danger
+                  ? "text-red-600"
+                  : "text-indigo-600"
+                }
+                `}
+              >
+
+                {product.stock}
+
+              </span>
+
+
+              <span
+                className="
+                mb-1
+                text-sm
+                font-bold
+                text-slate-500
+                "
+              >
+
+                {product.unit}
+
+              </span>
+
+            </div>
+
+
+            <p
+              className="
+              mt-1
+              text-xs
+              text-slate-500
+              "
+            >
+
+              Quantité actuellement disponible
+
+            </p>
+
+          </div>
 
 
         </div>
@@ -708,17 +1145,21 @@ function ProductCard({
 
 
 
+        {/* STATUT */}
+
         <span
           className={`
+          shrink-0
           rounded-full
           px-3
-          py-1
-          text-xs
+          py-1.5
+          text-[10px]
           font-black
+          tracking-wide
           ${
             danger
-            ? "bg-red-500/20 text-red-300"
-            : "bg-orange-500/20 text-orange-300"
+            ? "bg-red-50 text-red-600 ring-1 ring-red-100"
+            : "bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100"
           }
           `}
         >
@@ -734,11 +1175,84 @@ function ProductCard({
 
 
 
+      {/* =========================================================
+          MESSAGE
+      ========================================================= */}
+
+      <div
+        className={`
+        mt-4
+        flex
+        items-start
+        gap-3
+        rounded-2xl
+        border
+        p-4
+        ${
+          danger
+          ? "border-red-100 bg-red-50/60"
+          : "border-indigo-100 bg-indigo-50/60"
+        }
+        `}
+      >
+
+        {danger ? (
+
+          <XCircle
+            size={18}
+            className="
+            mt-0.5
+            shrink-0
+            text-red-500
+            "
+          />
+
+        ) : (
+
+          <AlertTriangle
+            size={18}
+            className="
+            mt-0.5
+            shrink-0
+            text-indigo-600
+            "
+          />
+
+        )}
+
+
+        <p
+          className="
+          text-sm
+          leading-5
+          text-slate-600
+          "
+        >
+
+          {danger
+            ? "Ce produit est complètement épuisé. Réapprovisionnez-le pour pouvoir continuer à le vendre."
+            : "Ce produit possède un stock faible. Pensez à le réapprovisionner prochainement."
+          }
+
+        </p>
+
+      </div>
+
+
+
+
+
+      {/* =========================================================
+          ACTIONS
+      ========================================================= */}
+
       <div
         className="
         mt-5
-        flex
+        grid
+        grid-cols-1
         gap-3
+        sm:grid-cols-2
         "
       >
 
@@ -746,17 +1260,20 @@ function ProductCard({
         <button
           onClick={()=>onDelete(product.id)}
           className="
-          flex-1
           flex
           items-center
           justify-center
           gap-2
           rounded-2xl
           bg-red-600
-          py-3
+          px-4
+          py-3.5
           font-bold
+          text-white
+          shadow-sm
           transition
           hover:bg-red-700
+          active:scale-[0.98]
           "
         >
 
@@ -773,20 +1290,21 @@ function ProductCard({
         <Link
           href={`/products/edit/${product.id}`}
           className="
-          flex-1
           flex
           items-center
           justify-center
           gap-2
           rounded-2xl
-          border
-          border-green-400/30
-          bg-green-500/10
-          py-3
+          bg-green-50
+          px-4
+          py-3.5
           font-bold
-          text-green-300
+          text-green-700
+          ring-1
+          ring-green-200
           transition
-          hover:bg-green-500/20
+          hover:bg-green-100
+          active:scale-[0.98]
           "
         >
 

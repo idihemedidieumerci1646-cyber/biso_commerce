@@ -115,49 +115,127 @@ export default function LoginPage() {
 
   return (
 
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
+    <main
+      className="
+      min-h-screen
+      bg-[#f5f7fb]
+      px-4
+      py-8
+      text-slate-900
+      sm:px-6
+      "
+    >
 
 
-  {/* Background simple */}
-<div className="absolute inset-0 bg-[#060d1b]" />
+      <div
+        className="
+        mx-auto
+        w-full
+        max-w-md
+        "
+      >
 
 
-
-      <div className="relative z-10 w-full max-w-md">
-
+        {/* =====================================================
+            RETOUR
+        ===================================================== */}
 
         <Link
           href="/"
-          className="mb-6 flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
+          className="
+          mb-5
+          inline-flex
+          items-center
+          gap-2
+          rounded-xl
+          px-2
+          py-2
+          text-sm
+          font-semibold
+          text-slate-500
+          transition
+          hover:bg-white
+          hover:text-indigo-600
+          "
         >
+
           <ArrowLeft size={16}/>
+
           Retour
+
         </Link>
 
 
 
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-8 shadow-2xl backdrop-blur-2xl">
+        {/* =====================================================
+            CARTE PRINCIPALE
+        ===================================================== */}
+
+        <div
+          className="
+          rounded-[26px]
+          border
+          border-slate-200
+          bg-white
+          p-6
+          shadow-[0_10px_35px_rgba(15,23,42,0.06)]
+          sm:p-8
+          "
+        >
 
 
 
-          {/* HEADER */}
+          {/* =====================================================
+              HEADER
+          ===================================================== */}
 
           <div className="text-center">
 
 
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 shadow-lg shadow-orange-500/30">
+            <div
+              className="
+              mx-auto
+              mb-5
+              flex
+              h-16
+              w-16
+              items-center
+              justify-center
+              rounded-2xl
+              bg-indigo-50
+              "
+            >
 
-              <Lock className="text-black" size={30}/>
+              <Lock
+                className="text-indigo-600"
+                size={30}
+              />
 
             </div>
 
 
 
-            <div className="mb-3 flex justify-center">
+            <div className="mb-4 flex justify-center">
 
-              <span className="flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-500/10 px-4 py-2 text-xs text-orange-300">
+              <span
+                className="
+                flex
+                items-center
+                gap-2
+                rounded-full
+                border
+                border-indigo-100
+                bg-indigo-50
+                px-4
+                py-2
+                text-xs
+                font-bold
+                text-indigo-600
+                "
+              >
 
                 <Sparkles size={14}/>
+
                 Connexion sécurisée
 
               </span>
@@ -165,14 +243,29 @@ export default function LoginPage() {
             </div>
 
 
-            <h1 className="text-3xl font-black">
+            <h1
+              className="
+              text-2xl
+              font-black
+              tracking-tight
+              text-slate-900
+              sm:text-3xl
+              "
+            >
 
               Connexion
 
             </h1>
 
 
-            <p className="mt-2 text-sm text-slate-400">
+            <p
+              className="
+              mt-2
+              text-sm
+              leading-6
+              text-slate-500
+              "
+            >
 
               Accédez à votre caisse digitale
 
@@ -184,23 +277,70 @@ export default function LoginPage() {
 
 
 
-          {/* FORM */}
+          {/* =====================================================
+              FORM
+          ===================================================== */}
 
           <div className="mt-8 space-y-5">
 
 
-            {/* PHONE */}
+            {/* =================================================
+                PHONE
+            ================================================= */}
 
             <div>
 
-              <label className="mb-2 block text-xs text-slate-400">
+              <label
+                className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                uppercase
+                tracking-wide
+                text-slate-500
+                "
+              >
                 NUMÉRO DE TÉLÉPHONE
               </label>
 
 
-              <div className="flex items-center rounded-2xl border border-white/10 bg-black/30 px-4">
+              <div
+                className="
+                flex
+                items-center
+                rounded-2xl
+                border
+                border-slate-200
+                bg-slate-50
+                px-4
+                transition
+                focus-within:border-indigo-400
+                focus-within:bg-white
+                focus-within:ring-4
+                focus-within:ring-indigo-50
+                "
+              >
 
-                <Phone className="text-orange-400" size={18}/>
+                <div
+                  className="
+                  flex
+                  h-9
+                  w-9
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-indigo-50
+                  "
+                >
+
+                  <Phone
+                    className="text-indigo-600"
+                    size={18}
+                  />
+
+                </div>
 
 
                 <input
@@ -213,7 +353,16 @@ export default function LoginPage() {
 
                   placeholder="XXXXXXXXXX"
 
-                  className="w-full bg-transparent p-4 text-white outline-none placeholder:text-slate-600"
+                  className="
+                  w-full
+                  bg-transparent
+                  p-4
+                  text-sm
+                  font-medium
+                  text-slate-900
+                  outline-none
+                  placeholder:text-slate-400
+                  "
 
                 />
 
@@ -224,18 +373,63 @@ export default function LoginPage() {
 
 
 
-            {/* PIN */}
+            {/* =================================================
+                PIN
+            ================================================= */}
 
             <div>
 
-              <label className="mb-2 block text-xs text-slate-400">
+              <label
+                className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                uppercase
+                tracking-wide
+                text-slate-500
+                "
+              >
                 CODE PIN
               </label>
 
 
-              <div className="flex items-center rounded-2xl border border-white/10 bg-black/30 px-4">
+              <div
+                className="
+                flex
+                items-center
+                rounded-2xl
+                border
+                border-slate-200
+                bg-slate-50
+                px-4
+                transition
+                focus-within:border-indigo-400
+                focus-within:bg-white
+                focus-within:ring-4
+                focus-within:ring-indigo-50
+                "
+              >
 
-                <KeyRound className="text-orange-400" size={18}/>
+                <div
+                  className="
+                  flex
+                  h-9
+                  w-9
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-indigo-50
+                  "
+                >
+
+                  <KeyRound
+                    className="text-indigo-600"
+                    size={18}
+                  />
+
+                </div>
 
 
                 <input
@@ -248,7 +442,16 @@ export default function LoginPage() {
 
                   placeholder="••••"
 
-                  className="w-full bg-transparent p-4 text-white outline-none placeholder:text-slate-600"
+                  className="
+                  w-full
+                  bg-transparent
+                  p-4
+                  text-sm
+                  font-medium
+                  text-slate-900
+                  outline-none
+                  placeholder:text-slate-400
+                  "
 
                 />
 
@@ -259,7 +462,9 @@ export default function LoginPage() {
 
 
 
-            {/* BUTTON */}
+            {/* =================================================
+                BUTTON
+            ================================================= */}
 
             <button
 
@@ -267,7 +472,24 @@ export default function LoginPage() {
 
               disabled={loading}
 
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-bold text-black transition hover:scale-[1.02] disabled:opacity-50"
+              className="
+              flex
+              w-full
+              items-center
+              justify-center
+              gap-2
+              rounded-2xl
+              bg-indigo-600
+              p-4
+              font-black
+              text-white
+              shadow-[0_8px_20px_rgba(79,70,229,0.18)]
+              transition
+              hover:bg-indigo-700
+              active:scale-[0.99]
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+              "
 
             >
 
@@ -275,7 +497,10 @@ export default function LoginPage() {
                 loading ?
 
                 <>
-                  <Loader2 className="animate-spin" size={18}/>
+                  <Loader2
+                    className="animate-spin"
+                    size={18}
+                  />
                   Connexion...
                 </>
 
@@ -291,11 +516,28 @@ export default function LoginPage() {
 
 
 
+            {/* =================================================
+                RESET PASSWORD
+            ================================================= */}
+
             <button
 
               onClick={()=>setShowReset(!showReset)}
 
-              className="w-full text-center text-xs text-slate-400 underline"
+              className="
+              w-full
+              rounded-xl
+              py-2
+              text-center
+              text-xs
+              font-semibold
+              text-slate-500
+              underline
+              decoration-slate-300
+              underline-offset-4
+              transition
+              hover:text-indigo-600
+              "
 
             >
 
@@ -308,22 +550,59 @@ export default function LoginPage() {
 
             {showReset && (
 
-              <div className="rounded-2xl border border-white/10 bg-black/30 p-4 space-y-3">
+              <div
+                className="
+                space-y-3
+                rounded-2xl
+                border
+                border-slate-200
+                bg-slate-50
+                p-4
+                "
+              >
 
 
-                <input
+                <div
+                  className="
+                  flex
+                  h-9
+                  items-center
+                  rounded-xl
+                  border
+                  border-slate-200
+                  bg-white
+                  px-3
+                  "
+                >
 
-                  type="tel"
+                  <Phone
+                    size={16}
+                    className="text-slate-400"
+                  />
 
-                  value={resetPhone}
+                  <input
 
-                  onChange={(e)=>setResetPhone(e.target.value)}
+                    type="tel"
 
-                  placeholder="Numéro du compte"
+                    value={resetPhone}
 
-                  className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-white outline-none"
+                    onChange={(e)=>setResetPhone(e.target.value)}
 
-                />
+                    placeholder="Numéro du compte"
+
+                    className="
+                    w-full
+                    bg-transparent
+                    p-3
+                    text-sm
+                    text-slate-900
+                    outline-none
+                    placeholder:text-slate-400
+                    "
+
+                  />
+
+                </div>
 
 
 
@@ -331,7 +610,20 @@ export default function LoginPage() {
 
                   onClick={handleResetPassword}
 
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 p-3 font-bold transition hover:bg-blue-700"
+                  className="
+                  flex
+                  w-full
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-xl
+                  bg-green-600
+                  p-3
+                  font-bold
+                  text-white
+                  transition
+                  hover:bg-green-700
+                  "
 
                 >
 
@@ -352,9 +644,44 @@ export default function LoginPage() {
 
 
 
-          <div className="mt-7 flex items-center justify-center gap-2 text-xs text-slate-400">
+          {/* =====================================================
+              SÉCURITÉ
+          ===================================================== */}
 
-            <ShieldCheck size={15} className="text-orange-400"/>
+          <div
+            className="
+            mt-7
+            flex
+            items-center
+            justify-center
+            gap-2
+            border-t
+            border-slate-100
+            pt-6
+            text-xs
+            font-semibold
+            text-slate-500
+            "
+          >
+
+            <div
+              className="
+              flex
+              h-7
+              w-7
+              items-center
+              justify-center
+              rounded-lg
+              bg-green-50
+              "
+            >
+
+              <ShieldCheck
+                size={15}
+                className="text-green-600"
+              />
+
+            </div>
 
             Connexion protégée
 

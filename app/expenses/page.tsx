@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -338,8 +337,8 @@ export default function ExpensesPage() {
   // ======================================================
 
   return (
-    <main className="w-full max-w-full overflow-x-hidden">
-      <div className="w-full max-w-full space-y-5 overflow-x-hidden">
+    <main className="min-h-screen w-full overflow-x-hidden bg-[#f5f7fb]">
+      <div className="mx-auto w-full max-w-7xl space-y-5 overflow-x-hidden p-4 sm:p-6 lg:p-8">
 
         {/* ======================================================
             HEADER
@@ -348,13 +347,13 @@ export default function ExpensesPage() {
         <div
           className="
             w-full
-            max-w-full
             overflow-hidden
-            rounded-3xl
+            rounded-[26px]
             border
-            border-white/10
-            bg-white/5
+            border-slate-100
+            bg-white
             p-5
+            shadow-sm
             sm:p-6
           "
         >
@@ -362,14 +361,17 @@ export default function ExpensesPage() {
 
             <div
               className="
+                flex
                 shrink-0
+                items-center
+                justify-center
                 rounded-2xl
-                bg-orange-500/20
+                bg-indigo-50
                 p-3
               "
             >
               <Wallet
-                className="text-orange-400"
+                className="text-indigo-600"
                 size={30}
               />
             </div>
@@ -381,7 +383,8 @@ export default function ExpensesPage() {
                   break-words
                   text-2xl
                   font-black
-                  text-white
+                  tracking-tight
+                  text-slate-900
                   sm:text-3xl
                 "
               >
@@ -394,7 +397,7 @@ export default function ExpensesPage() {
                   break-words
                   text-sm
                   leading-6
-                  text-slate-300
+                  text-slate-500
                 "
               >
                 Suivi des sorties d'argent du commerce
@@ -406,39 +409,39 @@ export default function ExpensesPage() {
         </div>
 
         {/* ======================================================
-            TOTAUX
+            STATISTIQUES
         ====================================================== */}
 
         <div
           className="
             grid
             w-full
-            max-w-full
             grid-cols-1
             gap-5
-            overflow-hidden
             sm:grid-cols-2
           "
         >
 
-          <MoneyCard
+          <StatCard
             title="Dépenses du jour FC"
             value={formatMoney(totalFc) + " FC"}
+            description="Total enregistré aujourd'hui"
             icon={
               <Banknote
-                size={24}
-                className="text-orange-400"
+                size={23}
+                className="text-indigo-600"
               />
             }
           />
 
-          <MoneyCard
+          <StatCard
             title="Dépenses du jour USD"
             value={formatMoney(totalUsd) + " $"}
+            description="Total enregistré aujourd'hui"
             icon={
               <Banknote
-                size={24}
-                className="text-orange-400"
+                size={23}
+                className="text-indigo-600"
               />
             }
           />
@@ -446,52 +449,72 @@ export default function ExpensesPage() {
         </div>
 
         {/* ======================================================
-            AJOUT DEPENSE
+            AJOUT DÉPENSE
         ====================================================== */}
 
         <div
           className="
             w-full
-            max-w-full
             overflow-hidden
-            rounded-3xl
+            rounded-[26px]
             border
-            border-white/10
-            bg-white/5
+            border-slate-100
+            bg-white
             p-5
+            shadow-sm
             sm:p-6
           "
         >
 
           <div
             className="
-              mb-5
+              mb-6
               flex
               min-w-0
               items-center
-              gap-2
+              gap-3
             "
           >
 
-            <PlusCircle
-              size={22}
-              className="shrink-0 text-orange-400"
-            />
-
-            <h2
+            <div
               className="
-                break-words
-                text-xl
-                font-black
-                text-white
+                flex
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-indigo-50
+                p-2.5
               "
             >
-              Nouvelle dépense
-            </h2>
+              <PlusCircle
+                size={21}
+                className="text-indigo-600"
+              />
+            </div>
+
+            <div className="min-w-0">
+
+              <h2
+                className="
+                  break-words
+                  text-xl
+                  font-black
+                  text-slate-900
+                "
+              >
+                Nouvelle dépense
+              </h2>
+
+              <p className="mt-0.5 text-xs text-slate-500">
+                Enregistrez une nouvelle sortie d'argent
+              </p>
+
+            </div>
 
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
 
             {/* NOM */}
 
@@ -503,7 +526,7 @@ export default function ExpensesPage() {
                   block
                   text-xs
                   font-bold
-                  text-slate-400
+                  text-slate-600
                 "
               >
                 Nom de la dépense
@@ -518,16 +541,19 @@ export default function ExpensesPage() {
                 className="
                   block
                   w-full
-                  max-w-full
                   rounded-xl
                   border
-                  border-white/10
-                  bg-black/40
+                  border-slate-200
+                  bg-slate-50
                   p-4
-                  text-white
+                  text-slate-900
                   outline-none
+                  transition
                   placeholder:text-slate-400
-                  focus:border-orange-400
+                  focus:border-indigo-500
+                  focus:bg-white
+                  focus:ring-4
+                  focus:ring-indigo-50
                 "
               />
 
@@ -543,7 +569,7 @@ export default function ExpensesPage() {
                   block
                   text-xs
                   font-bold
-                  text-slate-400
+                  text-slate-600
                 "
               >
                 Montant de la dépense
@@ -562,16 +588,19 @@ export default function ExpensesPage() {
                 className="
                   block
                   w-full
-                  max-w-full
                   rounded-xl
                   border
-                  border-white/10
-                  bg-black/40
+                  border-slate-200
+                  bg-slate-50
                   p-4
-                  text-white
+                  text-slate-900
                   outline-none
+                  transition
                   placeholder:text-slate-400
-                  focus:border-orange-400
+                  focus:border-indigo-500
+                  focus:bg-white
+                  focus:ring-4
+                  focus:ring-indigo-50
                 "
               />
 
@@ -587,7 +616,7 @@ export default function ExpensesPage() {
                   block
                   text-xs
                   font-bold
-                  text-slate-400
+                  text-slate-600
                 "
               >
                 Devise
@@ -601,29 +630,26 @@ export default function ExpensesPage() {
                 className="
                   block
                   w-full
-                  max-w-full
                   rounded-xl
                   border
-                  border-white/10
-                  bg-[#111827]
+                  border-slate-200
+                  bg-slate-50
                   p-4
-                  text-white
+                  text-slate-900
                   outline-none
-                  focus:border-orange-400
+                  transition
+                  focus:border-indigo-500
+                  focus:bg-white
+                  focus:ring-4
+                  focus:ring-indigo-50
                 "
               >
 
-                <option
-                  value="FC"
-                  className="bg-[#111827] text-white"
-                >
+                <option value="FC">
                   🇨🇩 Franc Congolais (FC)
                 </option>
 
-                <option
-                  value="$"
-                  className="bg-[#111827] text-white"
-                >
+                <option value="$">
                   🇺🇸 Dollar ($)
                 </option>
 
@@ -640,8 +666,8 @@ export default function ExpensesPage() {
                     overflow-hidden
                     rounded-2xl
                     border
-                    border-orange-400/20
-                    bg-orange-500/10
+                    border-indigo-100
+                    bg-indigo-50
                     p-4
                   "
                 >
@@ -650,7 +676,7 @@ export default function ExpensesPage() {
                     className="
                       text-xs
                       font-bold
-                      text-slate-400
+                      text-slate-500
                     "
                   >
                     Montant
@@ -662,7 +688,7 @@ export default function ExpensesPage() {
                       break-words
                       text-2xl
                       font-black
-                      text-orange-400
+                      text-indigo-600
                     "
                   >
                     {formatMoney(
@@ -684,19 +710,17 @@ export default function ExpensesPage() {
                 flex
                 min-h-[52px]
                 w-full
-                max-w-full
                 items-center
                 justify-center
                 gap-2
                 rounded-xl
-                bg-gradient-to-r
-                from-orange-500
-                to-yellow-400
+                bg-indigo-600
                 py-4
                 font-black
-                text-black
+                text-white
+                shadow-sm
                 transition
-                hover:scale-[1.01]
+                hover:bg-indigo-700
                 active:scale-[0.99]
                 disabled:cursor-not-allowed
                 disabled:opacity-50
@@ -733,30 +757,43 @@ export default function ExpensesPage() {
         <div
           className="
             w-full
-            max-w-full
             overflow-hidden
-            rounded-3xl
+            rounded-[26px]
             border
-            border-white/10
-            bg-white/5
+            border-slate-100
+            bg-white
             p-5
+            shadow-sm
+            sm:p-6
           "
         >
 
           <div
             className="
-              mb-4
+              mb-5
               flex
               min-w-0
               items-center
-              gap-2
+              gap-3
             "
           >
 
-            <History
-              size={21}
-              className="shrink-0 text-orange-400"
-            />
+            <div
+              className="
+                flex
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-indigo-50
+                p-2.5
+              "
+            >
+              <History
+                size={21}
+                className="text-indigo-600"
+              />
+            </div>
 
             <div className="min-w-0">
 
@@ -764,7 +801,7 @@ export default function ExpensesPage() {
                 className="
                   break-words
                   font-black
-                  text-white
+                  text-slate-900
                 "
               >
                 Historique
@@ -774,7 +811,7 @@ export default function ExpensesPage() {
                 className="
                   break-words
                   text-xs
-                  text-slate-400
+                  text-slate-500
                 "
               >
                 Consultez les dépenses du commerce
@@ -807,7 +844,7 @@ export default function ExpensesPage() {
                   top-1/2
                   z-10
                   -translate-y-1/2
-                  text-orange-400
+                  text-indigo-600
                 "
               />
 
@@ -823,18 +860,19 @@ export default function ExpensesPage() {
                   block
                   min-h-[48px]
                   w-full
-                  max-w-full
-                  appearance-auto
                   rounded-xl
                   border
-                  border-white/10
-                  bg-[#111827]
+                  border-slate-200
+                  bg-slate-50
                   p-3
                   pl-10
-                  text-white
+                  text-slate-900
                   outline-none
-                  focus:border-orange-400
-                  [color-scheme:dark]
+                  transition
+                  focus:border-indigo-500
+                  focus:bg-white
+                  focus:ring-4
+                  focus:ring-indigo-50
                 "
               />
 
@@ -853,15 +891,16 @@ export default function ExpensesPage() {
                   shrink-0
                   rounded-xl
                   border
-                  border-white/10
-                  bg-black/30
+                  border-slate-200
+                  bg-white
                   px-5
                   py-3
                   text-sm
                   font-bold
-                  text-slate-300
+                  text-slate-600
                   transition
-                  hover:text-white
+                  hover:bg-slate-50
+                  hover:text-slate-900
                 "
               >
                 Effacer
@@ -883,13 +922,14 @@ export default function ExpensesPage() {
                 justify-center
                 gap-2
                 rounded-xl
-                bg-orange-500
+                bg-indigo-600
                 px-5
                 py-3
                 font-black
-                text-black
+                text-white
+                shadow-sm
                 transition
-                hover:bg-orange-400
+                hover:bg-indigo-700
               "
             >
 
@@ -914,10 +954,8 @@ export default function ExpensesPage() {
             className="
               grid
               w-full
-              max-w-full
               grid-cols-1
               gap-5
-              overflow-hidden
               md:grid-cols-2
             "
           >
@@ -945,19 +983,20 @@ export default function ExpensesPage() {
           <div
             className="
               w-full
-              max-w-full
               overflow-hidden
-              rounded-3xl
+              rounded-[26px]
               border
-              border-white/10
-              bg-white/5
+              border-slate-100
+              bg-white
               p-5
+              shadow-sm
+              sm:p-6
             "
           >
 
             <div
               className="
-                mb-4
+                mb-5
                 flex
                 min-w-0
                 items-center
@@ -971,14 +1010,26 @@ export default function ExpensesPage() {
                   flex
                   min-w-0
                   items-center
-                  gap-2
+                  gap-3
                 "
               >
 
-                <CalendarDays
-                  size={21}
-                  className="shrink-0 text-orange-400"
-                />
+                <div
+                  className="
+                    flex
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-indigo-50
+                    p-2.5
+                  "
+                >
+                  <CalendarDays
+                    size={21}
+                    className="text-indigo-600"
+                  />
+                </div>
 
                 <div className="min-w-0">
 
@@ -986,7 +1037,7 @@ export default function ExpensesPage() {
                     className="
                       break-words
                       font-black
-                      text-white
+                      text-slate-900
                     "
                   >
                     Dépenses du {searchDate}
@@ -996,7 +1047,7 @@ export default function ExpensesPage() {
                     className="
                       break-words
                       text-xs
-                      text-slate-400
+                      text-slate-500
                     "
                   >
                     Dépenses enregistrées à cette date
@@ -1010,12 +1061,12 @@ export default function ExpensesPage() {
                 className="
                   shrink-0
                   rounded-xl
-                  bg-orange-500/10
+                  bg-indigo-50
                   px-3
                   py-2
                   text-xs
                   font-black
-                  text-orange-400
+                  text-indigo-600
                 "
               >
                 {searchedExpenses.length}
@@ -1024,36 +1075,7 @@ export default function ExpensesPage() {
             </div>
 
             {searchedExpenses.length === 0 ? (
-              <div
-                className="
-                  rounded-2xl
-                  border
-                  border-white/10
-                  bg-black/20
-                  p-7
-                  text-center
-                "
-              >
-
-                <History
-                  size={32}
-                  className="
-                    mx-auto
-                    mb-3
-                    text-slate-500
-                  "
-                />
-
-                <p
-                  className="
-                    font-bold
-                    text-slate-300
-                  "
-                >
-                  Aucune dépense trouvée.
-                </p>
-
-              </div>
+              <EmptyState />
             ) : (
               <div className="min-w-0">
                 {searchedExpenses.map(
@@ -1079,13 +1101,14 @@ export default function ExpensesPage() {
           <div
             className="
               w-full
-              max-w-full
               overflow-hidden
-              rounded-3xl
+              rounded-[26px]
               border
-              border-white/10
-              bg-white/5
+              border-slate-100
+              bg-white
               p-5
+              shadow-sm
+              sm:p-6
             "
           >
 
@@ -1105,14 +1128,26 @@ export default function ExpensesPage() {
                   flex
                   min-w-0
                   items-center
-                  gap-2
+                  gap-3
                 "
               >
 
-                <History
-                  size={22}
-                  className="shrink-0 text-orange-400"
-                />
+                <div
+                  className="
+                    flex
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-indigo-50
+                    p-2.5
+                  "
+                >
+                  <History
+                    size={22}
+                    className="text-indigo-600"
+                  />
+                </div>
 
                 <div className="min-w-0">
 
@@ -1121,7 +1156,7 @@ export default function ExpensesPage() {
                       break-words
                       text-xl
                       font-black
-                      text-white
+                      text-slate-900
                     "
                   >
                     Historique complet
@@ -1131,7 +1166,7 @@ export default function ExpensesPage() {
                     className="
                       break-words
                       text-xs
-                      text-slate-400
+                      text-slate-500
                     "
                   >
                     Toutes les dépenses enregistrées
@@ -1145,12 +1180,12 @@ export default function ExpensesPage() {
                 className="
                   shrink-0
                   rounded-xl
-                  bg-orange-500/10
+                  bg-indigo-50
                   px-3
                   py-2
                   text-xs
                   font-bold
-                  text-orange-400
+                  text-indigo-600
                 "
               >
                 {displayedExpenses.length} dépense
@@ -1162,47 +1197,7 @@ export default function ExpensesPage() {
             </div>
 
             {displayedExpenses.length === 0 ? (
-              <div
-                className="
-                  rounded-2xl
-                  border
-                  border-white/10
-                  bg-black/20
-                  p-8
-                  text-center
-                "
-              >
-
-                <History
-                  size={35}
-                  className="
-                    mx-auto
-                    mb-3
-                    text-slate-500
-                  "
-                />
-
-                <p
-                  className="
-                    font-bold
-                    text-slate-300
-                  "
-                >
-                  Aucune dépense trouvée.
-                </p>
-
-                <p
-                  className="
-                    mt-1
-                    text-xs
-                    text-slate-500
-                  "
-                >
-                  Les dépenses enregistrées
-                  apparaîtront ici.
-                </p>
-
-              </div>
+              <EmptyState showDescription />
             ) : (
               <div className="min-w-0">
                 {displayedExpenses.map(
@@ -1226,29 +1221,34 @@ export default function ExpensesPage() {
 }
 
 // ======================================================
-// CARTE TOTAL
+// STAT CARD
 // ======================================================
 
-function MoneyCard({
+function StatCard({
   title,
   value,
+  description,
   icon,
 }: {
   title: string;
   value: string;
+  description: string;
   icon: React.ReactNode;
 }) {
   return (
     <div
       className="
         w-full
-        max-w-full
         overflow-hidden
-        rounded-3xl
+        rounded-[26px]
         border
-        border-white/10
-        bg-white/5
+        border-slate-100
+        bg-white
         p-5
+        shadow-sm
+        transition
+        hover:shadow-md
+        sm:p-6
       "
     >
 
@@ -1256,9 +1256,9 @@ function MoneyCard({
         className="
           flex
           min-w-0
-          items-center
+          items-start
           justify-between
-          gap-3
+          gap-4
         "
       >
 
@@ -1267,8 +1267,9 @@ function MoneyCard({
           <p
             className="
               break-words
-              font-black
-              text-white
+              text-sm
+              font-bold
+              text-slate-500
             "
           >
             {title}
@@ -1279,19 +1280,22 @@ function MoneyCard({
               mt-1
               break-words
               text-xs
-              text-slate-500
+              text-slate-400
             "
           >
-            Total enregistré aujourd'hui
+            {description}
           </p>
 
         </div>
 
         <div
           className="
+            flex
             shrink-0
+            items-center
+            justify-center
             rounded-2xl
-            bg-orange-500/10
+            bg-indigo-50
             p-3
           "
         >
@@ -1302,15 +1306,83 @@ function MoneyCard({
 
       <p
         className="
-          mt-4
+          mt-5
           break-words
           text-3xl
           font-black
-          text-white
+          tracking-tight
+          text-slate-900
         "
       >
         {value}
       </p>
+
+    </div>
+  );
+}
+
+// ======================================================
+// EMPTY STATE
+// ======================================================
+
+function EmptyState({
+  showDescription = false,
+}: {
+  showDescription?: boolean;
+}) {
+  return (
+    <div
+      className="
+        rounded-2xl
+        border
+        border-slate-100
+        bg-slate-50
+        p-8
+        text-center
+      "
+    >
+
+      <div
+        className="
+          mx-auto
+          mb-3
+          flex
+          w-fit
+          items-center
+          justify-center
+          rounded-2xl
+          bg-white
+          p-3
+          shadow-sm
+        "
+      >
+        <History
+          size={32}
+          className="text-slate-400"
+        />
+      </div>
+
+      <p
+        className="
+          font-bold
+          text-slate-700
+        "
+      >
+        Aucune dépense trouvée.
+      </p>
+
+      {showDescription && (
+        <p
+          className="
+            mt-1
+            text-xs
+            text-slate-400
+          "
+        >
+          Les dépenses enregistrées
+          apparaîtront ici.
+        </p>
+      )}
 
     </div>
   );
@@ -1340,19 +1412,20 @@ function ExpenseList({
       className="
         w-full
         min-w-0
-        max-w-full
         overflow-hidden
-        rounded-3xl
+        rounded-[26px]
         border
-        border-white/10
-        bg-white/5
+        border-slate-100
+        bg-white
         p-5
+        shadow-sm
+        sm:p-6
       "
     >
 
       <div
         className="
-          mb-4
+          mb-5
           flex
           min-w-0
           items-center
@@ -1361,27 +1434,48 @@ function ExpenseList({
         "
       >
 
-        <h2
-          className="
-            break-words
-            text-xl
-            font-black
-            text-orange-400
-          "
-        >
-          {title}
-        </h2>
+        <div className="flex min-w-0 items-center gap-3">
+
+          <div
+            className="
+              flex
+              shrink-0
+              items-center
+              justify-center
+              rounded-xl
+              bg-indigo-50
+              p-2
+            "
+          >
+            <CalendarDays
+              size={19}
+              className="text-indigo-600"
+            />
+          </div>
+
+          <h2
+            className="
+              break-words
+              text-xl
+              font-black
+              text-slate-900
+            "
+          >
+            {title}
+          </h2>
+
+        </div>
 
         <span
           className="
             shrink-0
             rounded-xl
-            bg-orange-500/10
+            bg-indigo-50
             px-3
-            py-1
+            py-1.5
             text-xs
             font-black
-            text-orange-400
+            text-indigo-600
           "
         >
           {data.length}
@@ -1394,27 +1488,38 @@ function ExpenseList({
           className="
             rounded-2xl
             border
-            border-white/10
-            bg-black/20
+            border-slate-100
+            bg-slate-50
             p-6
             text-center
           "
         >
 
-          <Wallet
-            size={30}
+          <div
             className="
               mx-auto
               mb-3
-              text-slate-500
+              flex
+              w-fit
+              items-center
+              justify-center
+              rounded-2xl
+              bg-white
+              p-3
+              shadow-sm
             "
-          />
+          >
+            <Wallet
+              size={30}
+              className="text-slate-400"
+            />
+          </div>
 
           <p
             className="
               text-sm
               font-bold
-              text-slate-300
+              text-slate-600
             "
           >
             Aucune dépense.
@@ -1443,18 +1548,18 @@ function ExpenseList({
                 setShowAll(!showAll)
               }
               className="
-                mt-3
+                mt-4
                 w-full
                 rounded-xl
                 border
-                border-orange-400/20
-                bg-orange-500/10
+                border-indigo-100
+                bg-indigo-50
                 py-3
                 text-sm
                 font-black
-                text-orange-400
+                text-indigo-600
                 transition
-                hover:bg-orange-500/20
+                hover:bg-indigo-100
               "
             >
               {showAll
@@ -1502,7 +1607,7 @@ function ExpenseRow({
         gap-3
         overflow-hidden
         border-b
-        border-white/10
+        border-slate-100
         ${
           compact
             ? "py-3"
@@ -1518,7 +1623,7 @@ function ExpenseRow({
           className="
             break-words
             font-bold
-            text-white
+            text-slate-900
           "
         >
           {expense.title}
@@ -1529,7 +1634,7 @@ function ExpenseRow({
             mt-1
             break-words
             text-xs
-            text-slate-300
+            text-slate-500
           "
         >
           {new Date(
@@ -1563,7 +1668,7 @@ function ExpenseRow({
             text-right
             text-sm
             font-black
-            text-orange-400
+            text-slate-900
             sm:max-w-none
             sm:text-base
           "
@@ -1578,19 +1683,24 @@ function ExpenseRow({
             onDelete(expense.id)
           }
           className="
+            flex
             shrink-0
+            items-center
+            justify-center
             rounded-xl
-            bg-red-600
-            p-2
+            bg-red-50
+            p-2.5
+            text-red-600
             transition
-            hover:bg-red-500
+            hover:bg-red-100
+            active:scale-95
           "
           title="Supprimer cette dépense"
           aria-label="Supprimer cette dépense"
         >
           <Trash2
             size={17}
-            className="text-white"
+            className="text-red-600"
           />
         </button>
 

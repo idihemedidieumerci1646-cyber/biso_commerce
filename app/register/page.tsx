@@ -130,25 +130,48 @@ export default function RegisterPage() {
 
   return (
 
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060d1b] px-6 text-white">
+    <main
+      className="
+      min-h-screen
+      bg-[#f5f7fb]
+      px-4
+      py-8
+      text-slate-900
+      sm:px-6
+      "
+    >
 
 
+      <div
+        className="
+        mx-auto
+        w-full
+        max-w-md
+        "
+      >
 
-      {/* BACKGROUND */}
 
-      
-<div className="absolute inset-0 bg-[#060d1b]" />
-
-
-
-
-
-      <div className="relative z-10 w-full max-w-md">
-
+        {/* =====================================================
+            RETOUR
+        ===================================================== */}
 
         <Link
           href="/"
-          className="mb-6 flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
+          className="
+          mb-5
+          inline-flex
+          items-center
+          gap-2
+          rounded-xl
+          px-2
+          py-2
+          text-sm
+          font-semibold
+          text-slate-500
+          transition
+          hover:bg-white
+          hover:text-indigo-600
+          "
         >
 
           <ArrowLeft size={16}/>
@@ -161,21 +184,49 @@ export default function RegisterPage() {
 
 
 
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-8 shadow-2xl backdrop-blur-2xl">
+        {/* =====================================================
+            CARTE PRINCIPALE
+        ===================================================== */}
+
+        <div
+          className="
+          rounded-[26px]
+          border
+          border-slate-200
+          bg-white
+          p-6
+          shadow-[0_10px_35px_rgba(15,23,42,0.06)]
+          sm:p-8
+          "
+        >
 
 
 
-
-
-          {/* HEADER */}
+          {/* =====================================================
+              HEADER
+          ===================================================== */}
 
           <div className="text-center">
 
 
+            <div
+              className="
+              mx-auto
+              mb-5
+              flex
+              h-16
+              w-16
+              items-center
+              justify-center
+              rounded-2xl
+              bg-indigo-50
+              "
+            >
 
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 shadow-xl shadow-orange-500/30">
-
-              <Store className="text-black" size={30}/>
+              <Store
+                className="text-indigo-600"
+                size={30}
+              />
 
             </div>
 
@@ -183,9 +234,24 @@ export default function RegisterPage() {
 
 
 
-            <div className="mb-3 flex justify-center">
+            <div className="mb-4 flex justify-center">
 
-              <span className="flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-500/10 px-4 py-2 text-xs text-orange-300">
+              <span
+                className="
+                flex
+                items-center
+                gap-2
+                rounded-full
+                border
+                border-green-200
+                bg-green-50
+                px-4
+                py-2
+                text-xs
+                font-bold
+                text-green-600
+                "
+              >
 
                 <Gift size={14}/>
 
@@ -200,7 +266,15 @@ export default function RegisterPage() {
 
 
 
-            <h1 className="text-3xl font-black">
+            <h1
+              className="
+              text-2xl
+              font-black
+              tracking-tight
+              text-slate-900
+              sm:text-3xl
+              "
+            >
 
               Créer un compte
 
@@ -208,7 +282,14 @@ export default function RegisterPage() {
 
 
 
-            <p className="mt-2 text-sm text-slate-400">
+            <p
+              className="
+              mt-2
+              text-sm
+              leading-6
+              text-slate-500
+              "
+            >
 
               Lancez votre commerce digital en quelques secondes
 
@@ -223,8 +304,9 @@ export default function RegisterPage() {
 
 
 
-          {/* FORM */}
-
+          {/* =====================================================
+              FORM
+          ===================================================== */}
 
           <div className="mt-8 space-y-5">
 
@@ -232,40 +314,91 @@ export default function RegisterPage() {
 
 
 
-            {/* BUSINESS */}
-
+            {/* =================================================
+                BUSINESS
+            ================================================= */}
 
             <div>
 
 
-              <label className="mb-2 block text-xs text-slate-400">
+              <label
+                className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                uppercase
+                tracking-wide
+                text-slate-500
+                "
+              >
 
-                NOM DU COMMERCE
+                NOM COMPLET
+
 
               </label>
 
 
 
-              <div className="flex items-center rounded-2xl border border-white/10 bg-black/30 px-4">
+              <div
+                className="
+                flex
+                items-center
+                rounded-2xl
+                border
+                border-slate-200
+                bg-slate-50
+                px-4
+                transition
+                focus-within:border-indigo-400
+                focus-within:bg-white
+                focus-within:ring-4
+                focus-within:ring-indigo-50
+                "
+              >
 
 
-                <Store
-                  size={18}
-                  className="text-orange-400"
-                />
+                <div
+                  className="
+                  flex
+                  h-9
+                  w-9
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-indigo-50
+                  "
+                >
+
+                  <Store
+                    size={18}
+                    className="text-indigo-600"
+                  />
+
+                </div>
 
 
                 <input
 
                   type="text"
 
-                  placeholder="Ex: Boutique Amani"
+                  placeholder="Ex: Dieumerci idi"
 
                   value={businessName}
 
                   onChange={(e)=>setBusinessName(e.target.value)}
 
-                  className="w-full bg-transparent p-4 text-white outline-none placeholder:text-slate-600"
+                  className="
+                  w-full
+                  bg-transparent
+                  p-4
+                  text-sm
+                  font-medium
+                  text-slate-900
+                  outline-none
+                  placeholder:text-slate-400
+                  "
 
                 />
 
@@ -281,14 +414,26 @@ export default function RegisterPage() {
 
 
 
-            {/* PHONE */}
 
 
+            {/* =================================================
+                PHONE
+            ================================================= */}
 
             <div>
 
 
-              <label className="mb-2 block text-xs text-slate-400">
+              <label
+                className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                uppercase
+                tracking-wide
+                text-slate-500
+                "
+              >
 
                 TÉLÉPHONE
 
@@ -296,13 +441,43 @@ export default function RegisterPage() {
 
 
 
-              <div className="flex items-center rounded-2xl border border-white/10 bg-black/30 px-4">
+              <div
+                className="
+                flex
+                items-center
+                rounded-2xl
+                border
+                border-slate-200
+                bg-slate-50
+                px-4
+                transition
+                focus-within:border-indigo-400
+                focus-within:bg-white
+                focus-within:ring-4
+                focus-within:ring-indigo-50
+                "
+              >
 
 
-                <Phone
-                  size={18}
-                  className="text-orange-400"
-                />
+                <div
+                  className="
+                  flex
+                  h-9
+                  w-9
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-indigo-50
+                  "
+                >
+
+                  <Phone
+                    size={18}
+                    className="text-indigo-600"
+                  />
+
+                </div>
 
 
                 <input
@@ -315,7 +490,16 @@ export default function RegisterPage() {
 
                   onChange={(e)=>setPhone(e.target.value)}
 
-                  className="w-full bg-transparent p-4 text-white outline-none placeholder:text-slate-600"
+                  className="
+                  w-full
+                  bg-transparent
+                  p-4
+                  text-sm
+                  font-medium
+                  text-slate-900
+                  outline-none
+                  placeholder:text-slate-400
+                  "
 
                 />
 
@@ -331,14 +515,26 @@ export default function RegisterPage() {
 
 
 
-            {/* PIN */}
 
 
+            {/* =================================================
+                PIN
+            ================================================= */}
 
             <div>
 
 
-              <label className="mb-2 block text-xs text-slate-400">
+              <label
+                className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                uppercase
+                tracking-wide
+                text-slate-500
+                "
+              >
 
                 CODE PIN
 
@@ -346,13 +542,43 @@ export default function RegisterPage() {
 
 
 
-              <div className="flex items-center rounded-2xl border border-white/10 bg-black/30 px-4">
+              <div
+                className="
+                flex
+                items-center
+                rounded-2xl
+                border
+                border-slate-200
+                bg-slate-50
+                px-4
+                transition
+                focus-within:border-indigo-400
+                focus-within:bg-white
+                focus-within:ring-4
+                focus-within:ring-indigo-50
+                "
+              >
 
 
-                <Lock
-                  size={18}
-                  className="text-orange-400"
-                />
+                <div
+                  className="
+                  flex
+                  h-9
+                  w-9
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-indigo-50
+                  "
+                >
+
+                  <Lock
+                    size={18}
+                    className="text-indigo-600"
+                  />
+
+                </div>
 
 
 
@@ -366,7 +592,16 @@ export default function RegisterPage() {
 
                   onChange={(e)=>setPin(e.target.value)}
 
-                  className="w-full bg-transparent p-4 text-white outline-none placeholder:text-slate-600"
+                  className="
+                  w-full
+                  bg-transparent
+                  p-4
+                  text-sm
+                  font-medium
+                  text-slate-900
+                  outline-none
+                  placeholder:text-slate-400
+                  "
 
                 />
 
@@ -379,7 +614,19 @@ export default function RegisterPage() {
 
                   onClick={()=>setShowPin(!showPin)}
 
-                  className="text-slate-400 hover:text-white"
+                  className="
+                  flex
+                  h-9
+                  w-9
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  text-slate-400
+                  transition
+                  hover:bg-indigo-50
+                  hover:text-indigo-600
+                  "
 
                 >
 
@@ -407,7 +654,11 @@ export default function RegisterPage() {
 
 
 
-            {/* BUTTON */}
+
+
+            {/* =================================================
+                BUTTON
+            ================================================= */}
 
 
 
@@ -417,7 +668,24 @@ export default function RegisterPage() {
 
               disabled={loading}
 
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-bold text-black transition hover:scale-[1.02] disabled:opacity-50"
+              className="
+              flex
+              w-full
+              items-center
+              justify-center
+              gap-2
+              rounded-2xl
+              bg-indigo-600
+              p-4
+              font-black
+              text-white
+              shadow-[0_8px_20px_rgba(79,70,229,0.18)]
+              transition
+              hover:bg-indigo-700
+              active:scale-[0.99]
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+              "
 
             >
 
@@ -432,6 +700,7 @@ export default function RegisterPage() {
 
                   <Loader2
                     className="animate-spin"
+                    size={19}
                   />
 
                   Création...
@@ -465,15 +734,56 @@ export default function RegisterPage() {
 
 
 
-          <div className="mt-7 space-y-3 border-t border-white/10 pt-6 text-sm text-slate-300">
 
 
-            <div className="flex items-center justify-center gap-2 text-xs">
+          {/* =====================================================
+              INFORMATIONS ESSAI
+          ===================================================== */}
 
-              <ShieldCheck
-                size={15}
-                className="text-orange-400"
-              />
+
+          <div
+            className="
+            mt-7
+            space-y-3
+            border-t
+            border-slate-100
+            pt-6
+            "
+          >
+
+
+            <div
+              className="
+              flex
+              items-center
+              justify-center
+              gap-2
+              text-center
+              text-xs
+              font-semibold
+              text-slate-600
+              "
+            >
+
+              <div
+                className="
+                flex
+                h-7
+                w-7
+                shrink-0
+                items-center
+                justify-center
+                rounded-lg
+                bg-green-50
+                "
+              >
+
+                <ShieldCheck
+                  size={15}
+                  className="text-green-600"
+                />
+
+              </div>
 
               Aucun paiement nécessaire pendant l'essai
 
@@ -481,7 +791,13 @@ export default function RegisterPage() {
 
 
 
-            <p className="text-center text-xs text-slate-500">
+            <p
+              className="
+              text-center
+              text-xs
+              text-slate-400
+              "
+            >
 
               30 jours gratuits • Sans carte bancaire
 

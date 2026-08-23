@@ -4,35 +4,53 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 import {
-  Search,
-  Plus,
+  AlertCircle,
+  Banknote,
+  CalendarDays,
+  Check,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Clock,
   CreditCard,
-  Sparkles,
-  UserPlus,
+  Eye,
+  History,
+  Loader2,
+  Phone,
+  Plus,
+  RefreshCw,
+  Search,
   Trash2,
+  User,
+  UserPlus,
   Wallet,
   X,
-  AlertCircle,
-  Loader2,
-  RefreshCw,
-  Phone,
-  Banknote,
-  Users,
-  CircleDollarSign,
 } from "lucide-react";
 
 /* =========================================================
    TYPES
 ========================================================= */
 
+type Currency = "FC" | "USD";
+
 type Debt = {
   id: string;
+  user_id: string;
   client_name: string;
   phone: string;
   total_amount: number;
   paid_amount: number;
-  currency: "FC" | "USD";
+  currency: Currency;
+  created_at: string;
+};
+
+type DebtPayment = {
+  id: string;
+  debt_id: string;
+  user_id: string;
+  amount: number;
+  currency: Currency;
+  paid_at: string;
   created_at: string;
 };
 
@@ -42,62 +60,148 @@ type Notice = {
 } | null;
 
 /* =========================================================
+   HELPERS
+========================================================= */
+
+const formatMoney = (value: number) => {
+  return Math.round(Number(value) || 0).toLocaleString("fr-FR");
+};
+
+const formatDate = (value: string) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+};
+
+const formatTime = (value: string) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
+const getRemaining = (debt: Debt) => {
+  return Math.max(
+    0,
+    Number(debt.total_amount || 0) -
+      Number(debt.paid_amount || 0)
+  );
+};
+
+const getProgress = (debt: Debt) => {
+  const total = Number(debt.total_amount || 0);
+  const paid = Number(debt.paid_amount || 0);
+
+  if (total <= 0) return 0;
+
+  return Math.min(
+    100,
+    Math.round((paid / total) * 100)
+  );
+};
+
+/* =========================================================
    STYLES
 ========================================================= */
 
-const inputStyle = `
+const inputClass = `
   w-full
   min-h-[52px]
   rounded-2xl
   border
-  border-white/10
-  bg-[#0b1628]
+  border-slate-200
+  bg-white
   px-4
   py-3
+  text-[15px]
+  font-medium
+  text-slate-800
   outline-none
-  text-white
-  placeholder:text-slate-500
-  focus:border-orange-400
-  focus:ring-2
-  focus:ring-orange-400/10
-  transition
+  placeholder:text-slate-400
+  focus:border-indigo-400
+  focus:ring-4
+  focus:ring-indigo-500/10
+  transition-all
 `;
 
-/* =========================================================
-   OUTILS
-========================================================= */
-
-const formatMoney = (value: number) => {
-  return Math.round(Number(value || 0)).toLocaleString("fr-FR");
-};
+const cardClass = `
+  rounded-[26px]
+  border
+  border-slate-200/80
+  bg-white
+  shadow-[0_10px_35px_rgba(15,23,42,0.05)]
+`;
 
 /* =========================================================
    PAGE
 ========================================================= */
 
 export default function DebtsPage() {
+  /* ---------------------------------------------------------
+     DETTES
+  --------------------------------------------------------- */
+
   const [debts, setDebts] = useState<Debt[]>([]);
+
+  /* ---------------------------------------------------------
+     FORMULAIRE NOUVELLE DETTE
+  --------------------------------------------------------- */
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
-
   const [currency, setCurrency] =
-    useState<"FC" | "USD">("FC");
+    useState<Currency>("FC");
+
+  /* ---------------------------------------------------------
+     RECHERCHE / PAIEMENT
+  --------------------------------------------------------- */
 
   const [search, setSearch] = useState("");
-
   const [selectedDebt, setSelectedDebt] =
-    useState("");
+    useState<Debt | null>(null);
 
   const [paymentAmount, setPaymentAmount] =
     useState("");
 
+  /* ---------------------------------------------------------
+     HISTORIQUE
+  --------------------------------------------------------- */
+
+  const [payments, setPayments] =
+    useState<DebtPayment[]>([]);
+
+  /* ---------------------------------------------------------
+     AFFICHAGE
+  --------------------------------------------------------- */
+
   const [showAll, setShowAll] =
     useState(false);
 
-  const [showGuide, setShowGuide] =
+  const [showNewDebt, setShowNewDebt] =
     useState(false);
+
+  /* ---------------------------------------------------------
+     CHARGEMENT
+  --------------------------------------------------------- */
 
   const [loading, setLoading] =
     useState(true);
@@ -108,16 +212,18 @@ export default function DebtsPage() {
   const [payingDebt, setPayingDebt] =
     useState(false);
 
+  const [loadingPayments, setLoadingPayments] =
+    useState(false);
+
+  const [deletingDebt, setDeletingDebt] =
+    useState(false);
+
+  /* ---------------------------------------------------------
+     NOTIFICATION
+  --------------------------------------------------------- */
+
   const [notice, setNotice] =
     useState<Notice>(null);
-
-  /* =========================================================
-     CHARGEMENT INITIAL
-  ========================================================= */
-
-  useEffect(() => {
-    loadDebts();
-  }, []);
 
   /* =========================================================
      NOTIFICATION AUTOMATIQUE
@@ -126,11 +232,13 @@ export default function DebtsPage() {
   useEffect(() => {
     if (!notice) return;
 
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setNotice(null);
-    }, 5000);
+    }, 4500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [notice]);
 
   /* =========================================================
@@ -139,6 +247,15 @@ export default function DebtsPage() {
 
   const getUser = async () => {
     try {
+      const savedUserId =
+        localStorage.getItem("user_id");
+
+      if (savedUserId) {
+        return {
+          id: savedUserId,
+        };
+      }
+
       const savedPhone =
         localStorage.getItem("phone");
 
@@ -146,18 +263,20 @@ export default function DebtsPage() {
         setNotice({
           type: "error",
           message:
-            "Utilisateur non connecté. Veuillez vous reconnecter.",
+            "Utilisateur non connecté.",
         });
 
         return null;
       }
 
-      const { data: user, error } =
-        await supabase
-          .from("users")
-          .select("id")
-          .eq("phone", savedPhone)
-          .single();
+      const {
+        data: user,
+        error,
+      } = await supabase
+        .from("users")
+        .select("id")
+        .eq("phone", savedPhone)
+        .single();
 
       if (error || !user) {
         console.error(
@@ -173,6 +292,11 @@ export default function DebtsPage() {
 
         return null;
       }
+
+      localStorage.setItem(
+        "user_id",
+        user.id
+      );
 
       return user;
     } catch (error) {
@@ -202,7 +326,6 @@ export default function DebtsPage() {
       const user = await getUser();
 
       if (!user) {
-        setLoading(false);
         return;
       }
 
@@ -237,14 +360,14 @@ export default function DebtsPage() {
       );
     } catch (error) {
       console.error(
-        "Erreur générale :",
+        "Erreur générale chargement :",
         error
       );
 
       setNotice({
         type: "error",
         message:
-          "Une erreur est survenue lors du chargement.",
+          "Une erreur est survenue pendant le chargement.",
       });
     } finally {
       setLoading(false);
@@ -252,13 +375,26 @@ export default function DebtsPage() {
   };
 
   /* =========================================================
+     CHARGEMENT INITIAL
+  ========================================================= */
+
+  useEffect(() => {
+    loadDebts();
+  }, []);
+
+  /* =========================================================
      AJOUTER UNE DETTE
   ========================================================= */
 
   const addDebt = async () => {
-    const cleanName = name.trim();
-    const cleanPhone = phone.trim();
-    const numericAmount = Number(amount);
+    const cleanName =
+      name.trim();
+
+    const cleanPhone =
+      phone.trim();
+
+    const numericAmount =
+      Number(amount);
 
     if (
       !cleanName ||
@@ -268,7 +404,7 @@ export default function DebtsPage() {
       setNotice({
         type: "info",
         message:
-          "Veuillez remplir toutes les informations.",
+          "Remplissez le nom, le téléphone et le montant.",
       });
 
       return;
@@ -281,7 +417,7 @@ export default function DebtsPage() {
       setNotice({
         type: "error",
         message:
-          "Veuillez saisir un montant valide.",
+          "Le montant doit être supérieur à 0.",
       });
 
       return;
@@ -320,48 +456,37 @@ export default function DebtsPage() {
         setNotice({
           type: "error",
           message:
-            `Impossible d'enregistrer la dette : ${error.message}`,
+            `Impossible d'enregistrer : ${error.message}`,
         });
 
         return;
       }
 
-      /* -----------------------------------------
-         NETTOYAGE DU FORMULAIRE
-      ----------------------------------------- */
-
       setName("");
       setPhone("");
       setAmount("");
       setCurrency("FC");
-
-      /* -----------------------------------------
-         RECHARGEMENT
-      ----------------------------------------- */
+      setShowNewDebt(false);
 
       await loadDebts();
-
-      /* -----------------------------------------
-         SIGNAL DE SUCCÈS
-      ----------------------------------------- */
 
       setNotice({
         type: "success",
         message:
           `Dette de ${formatMoney(
             numericAmount
-          )} ${currency} enregistrée avec succès pour ${cleanName}.`,
+          )} ${currency} enregistrée.`,
       });
     } catch (error) {
       console.error(
-        "Erreur générale ajout dette :",
+        "Erreur ajout dette :",
         error
       );
 
       setNotice({
         type: "error",
         message:
-          "Une erreur est survenue pendant l'enregistrement.",
+          "Impossible d'enregistrer la dette.",
       });
     } finally {
       setSavingDebt(false);
@@ -369,33 +494,103 @@ export default function DebtsPage() {
   };
 
   /* =========================================================
-     RÉCUPÉRER UNE DETTE
+     CHARGER L'HISTORIQUE DES PAIEMENTS
   ========================================================= */
 
-  const payDebt = async () => {
-    if (
-      !selectedDebt ||
-      !paymentAmount
-    ) {
-      setNotice({
-        type: "info",
-        message:
-          "Sélectionnez une dette et indiquez le montant reçu.",
-      });
+  const loadPayments = async (
+    debtId: string
+  ) => {
+    setLoadingPayments(true);
 
-      return;
-    }
+    try {
+      const user = await getUser();
 
-    const debt =
-      debts.find(
-        (d) => d.id === selectedDebt
+      if (!user) {
+        return;
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("debt_payments")
+        .select("*")
+        .eq("debt_id", debtId)
+        .eq("user_id", user.id)
+        .order("paid_at", {
+          ascending: false,
+        });
+
+      if (error) {
+        console.error(
+          "Erreur historique paiements :",
+          error
+        );
+
+        setNotice({
+          type: "error",
+          message:
+            "Impossible de charger l'historique.",
+        });
+
+        return;
+      }
+
+      setPayments(
+        (data || []) as DebtPayment[]
+      );
+    } catch (error) {
+      console.error(
+        "Erreur historique :",
+        error
       );
 
-    if (!debt) {
       setNotice({
         type: "error",
         message:
-          "Dette introuvable.",
+          "Impossible de charger l'historique.",
+      });
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  /* =========================================================
+     OUVRIR UNE DETTE
+  ========================================================= */
+
+  const openDebt = async (
+    debt: Debt
+  ) => {
+    setSelectedDebt(debt);
+    setPaymentAmount("");
+    setPayments([]);
+
+    await loadPayments(debt.id);
+  };
+
+  /* =========================================================
+     FERMER DÉTAILS
+  ========================================================= */
+
+  const closeDebt = () => {
+    if (payingDebt) return;
+
+    setSelectedDebt(null);
+    setPaymentAmount("");
+    setPayments([]);
+  };
+
+  /* =========================================================
+     ENREGISTRER UN PAIEMENT
+  ========================================================= */
+
+  const payDebt = async () => {
+    if (!selectedDebt) {
+      setNotice({
+        type: "info",
+        message:
+          "Sélectionnez d'abord une dette.",
       });
 
       return;
@@ -411,21 +606,32 @@ export default function DebtsPage() {
       setNotice({
         type: "error",
         message:
-          "Veuillez saisir un montant valide.",
+          "Saisissez un montant valide.",
       });
 
       return;
     }
 
     const remaining =
-      debt.total_amount -
-      debt.paid_amount;
+      getRemaining(selectedDebt);
+
+    if (remaining <= 0) {
+      setNotice({
+        type: "info",
+        message:
+          "Cette dette est déjà entièrement payée.",
+      });
+
+      return;
+    }
 
     if (value > remaining) {
       setNotice({
         type: "error",
         message:
-          "Le montant reçu dépasse le reste à payer.",
+          `Le paiement ne peut pas dépasser ${formatMoney(
+            remaining
+          )} ${selectedDebt.currency}.`,
       });
 
       return;
@@ -434,69 +640,140 @@ export default function DebtsPage() {
     setPayingDebt(true);
 
     try {
-      const newPaid =
-        debt.paid_amount + value;
+      const user = await getUser();
 
-      if (
-        newPaid >=
-        debt.total_amount
-      ) {
-        const {
-          error,
-        } = await supabase
-          .from("debts")
+      if (!user) {
+        return;
+      }
+
+      const {
+        data: payment,
+        error: paymentError,
+      } = await supabase
+        .from("debt_payments")
+        .insert({
+          debt_id: selectedDebt.id,
+          user_id: user.id,
+          amount: value,
+          currency:
+            selectedDebt.currency,
+        })
+        .select()
+        .single();
+
+      if (paymentError || !payment) {
+        console.error(
+          "Erreur enregistrement paiement :",
+          paymentError
+        );
+
+        setNotice({
+          type: "error",
+          message:
+            `Paiement non enregistré : ${
+              paymentError?.message ||
+              "erreur inconnue"
+            }`,
+        });
+
+        return;
+      }
+
+      const newPaid =
+        Number(selectedDebt.paid_amount || 0) +
+        value;
+
+      const total =
+        Number(selectedDebt.total_amount || 0);
+
+      const finalPaid =
+        Math.min(newPaid, total);
+
+      const {
+        data: updatedDebt,
+        error: updateError,
+      } = await supabase
+        .from("debts")
+        .update({
+          paid_amount: finalPaid,
+        })
+        .eq(
+          "id",
+          selectedDebt.id
+        )
+        .eq(
+          "user_id",
+          user.id
+        )
+        .select("*")
+        .single();
+
+      if (updateError || !updatedDebt) {
+        await supabase
+          .from("debt_payments")
           .delete()
           .eq(
             "id",
-            selectedDebt
-          );
-
-        if (error) {
-          throw error;
-        }
-
-        setNotice({
-          type: "success",
-          message:
-            `Dette de ${debt.client_name} entièrement récupérée. Dette clôturée avec succès.`,
-        });
-      } else {
-        const {
-          error,
-        } = await supabase
-          .from("debts")
-          .update({
-            paid_amount: newPaid,
-          })
+            payment.id
+          )
           .eq(
-            "id",
-            selectedDebt
+            "user_id",
+            user.id
           );
 
-        if (error) {
-          throw error;
-        }
-
-        const newRemaining =
-          debt.total_amount -
-          newPaid;
+        console.error(
+          "Erreur mise à jour dette :",
+          updateError
+        );
 
         setNotice({
-          type: "success",
+          type: "error",
           message:
-            `Paiement de ${formatMoney(
-              value
-            )} ${debt.currency} enregistré. Reste : ${formatMoney(
-              newRemaining
-            )} ${debt.currency}.`,
+            "Le paiement n'a pas pu être finalisé.",
         });
+
+        return;
       }
 
-      setPaymentAmount("");
-      setSelectedDebt("");
-      setSearch("");
+      const newRemaining =
+        Math.max(
+          0,
+          total - finalPaid
+        );
 
-      await loadDebts();
+      const updated =
+        updatedDebt as Debt;
+
+      setDebts((current) =>
+        current.map((item) =>
+          item.id === updated.id
+            ? updated
+            : item
+        )
+      );
+
+      setSelectedDebt(updated);
+      setPaymentAmount("");
+
+      await loadPayments(
+        updated.id
+      );
+
+      if (newRemaining === 0) {
+        setNotice({
+          type: "success",
+          message:
+            `Dette de ${updated.client_name} entièrement payée.`,
+        });
+      } else {
+        setNotice({
+          type: "success",
+          message:
+            `Paiement enregistré. Reste : ${formatMoney(
+              newRemaining
+            )} ${updated.currency}.`,
+        });
+      }
     } catch (error) {
       console.error(
         "Erreur paiement :",
@@ -518,29 +795,39 @@ export default function DebtsPage() {
   ========================================================= */
 
   const deleteDebt = async (
-    id: string
+    debt: Debt
   ) => {
-    const debt =
-      debts.find(
-        (d) => d.id === id
-      );
-
-    if (!debt) return;
-
     const confirmed =
       window.confirm(
-        `Voulez-vous vraiment supprimer la dette de ${debt.client_name} ? Cette action est irréversible.`
+        `Voulez-vous vraiment supprimer la dette de ${debt.client_name} ?\n\nCette action supprimera également son historique de paiements et est irréversible.`
       );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingDebt(true);
 
     try {
+      const user = await getUser();
+
+      if (!user) {
+        return;
+      }
+
       const {
         error,
       } = await supabase
         .from("debts")
         .delete()
-        .eq("id", id);
+        .eq(
+          "id",
+          debt.id
+        )
+        .eq(
+          "user_id",
+          user.id
+        );
 
       if (error) {
         console.error(
@@ -557,24 +844,24 @@ export default function DebtsPage() {
         return;
       }
 
-      setDebts(
-        (current) =>
-          current.filter(
-            (d) => d.id !== id
-          )
+      setDebts((current) =>
+        current.filter(
+          (item) =>
+            item.id !== debt.id
+        )
       );
 
       if (
-        selectedDebt === id
+        selectedDebt?.id ===
+        debt.id
       ) {
-        setSelectedDebt("");
-        setSearch("");
+        closeDebt();
       }
 
       setNotice({
         type: "success",
         message:
-          `La dette de ${debt.client_name} a été supprimée.`,
+          `Dette de ${debt.client_name} supprimée.`,
       });
     } catch (error) {
       console.error(
@@ -585,8 +872,10 @@ export default function DebtsPage() {
       setNotice({
         type: "error",
         message:
-          "Une erreur est survenue lors de la suppression.",
+          "Une erreur est survenue.",
       });
+    } finally {
+      setDeletingDebt(false);
     }
   };
 
@@ -602,78 +891,19 @@ export default function DebtsPage() {
           .toLowerCase();
 
       if (!query) {
-        return [];
+        return debts;
       }
 
       return debts.filter(
-        (d) =>
-          d.client_name
+        (debt) =>
+          debt.client_name
             .toLowerCase()
             .includes(query) ||
-          (d.phone || "")
+          debt.phone
             .toLowerCase()
             .includes(query)
       );
     }, [debts, search]);
-
-  /* =========================================================
-     STATISTIQUES
-  ========================================================= */
-
-  const totalFc =
-    debts
-      .filter(
-        (d) =>
-          d.currency === "FC"
-      )
-      .reduce(
-        (sum, d) =>
-          sum +
-          (d.total_amount -
-            d.paid_amount),
-        0
-      );
-
-  const totalUsd =
-    debts
-      .filter(
-        (d) =>
-          d.currency === "USD"
-      )
-      .reduce(
-        (sum, d) =>
-          sum +
-          (d.total_amount -
-            d.paid_amount),
-        0
-      );
-
-  const totalClients =
-    debts.length;
-
-  const totalPaidFc =
-    debts
-      .filter(
-        (d) =>
-          d.currency === "FC"
-      )
-      .reduce(
-        (sum, d) =>
-          sum + d.paid_amount,
-        0
-      );
-
-  const totalPaidUsd =
-    debts
-      .filter(
-        (d) =>
-          d.currency === "USD"
-      )
-      .reduce(
-        (sum, d) =>
-          sum + d.paid_amount,
-        0
-      );
 
   /* =========================================================
      DETTES VISIBLES
@@ -681,37 +911,85 @@ export default function DebtsPage() {
 
   const visibleDebts =
     showAll
-      ? debts
-      : debts.slice(0, 5);
+      ? filteredDebts
+      : filteredDebts.slice(0, 5);
 
   /* =========================================================
-     RENDU
+     STATISTIQUES
+  ========================================================= */
+
+  const totalRemainingFc =
+    debts
+      .filter(
+        (debt) =>
+          debt.currency === "FC"
+      )
+      .reduce(
+        (sum, debt) =>
+          sum + getRemaining(debt),
+        0
+      );
+
+  const totalRemainingUsd =
+    debts
+      .filter(
+        (debt) =>
+          debt.currency === "USD"
+      )
+      .reduce(
+        (sum, debt) =>
+          sum + getRemaining(debt),
+        0
+      );
+
+  const totalPaidFc =
+    debts
+      .filter(
+        (debt) =>
+          debt.currency === "FC"
+      )
+      .reduce(
+        (sum, debt) =>
+          sum +
+          Number(
+            debt.paid_amount || 0
+          ),
+        0
+      );
+
+  const totalPaidUsd =
+    debts
+      .filter(
+        (debt) =>
+          debt.currency === "USD"
+      )
+      .reduce(
+        (sum, debt) =>
+          sum +
+          Number(
+            debt.paid_amount || 0
+          ),
+        0
+      );
+
+  const unpaidCount =
+    debts.filter(
+      (debt) =>
+        getRemaining(debt) > 0
+    ).length;
+
+  /* =========================================================
+     RENDER
   ========================================================= */
 
   return (
-    <main
-      className="
-        min-h-screen
-        bg-[#06101f]
-        text-white
-        px-3
-        py-5
-        pb-24
-        sm:px-5
-        sm:py-7
-      "
-    >
-      <div
-        className="
-          mx-auto
-          w-full
-          max-w-6xl
-          space-y-6
-        "
-      >
-        {/* =================================================
+    <main className="min-h-screen bg-[#f5f7fb] px-3 py-4 pb-24 text-slate-900 sm:px-5 sm:py-7">
+
+      <div className="mx-auto w-full max-w-6xl space-y-5">
+
+        {/* =====================================================
             NOTIFICATION
-        ================================================= */}
+        ===================================================== */}
 
         {notice && (
           <div
@@ -728,35 +1006,44 @@ export default function DebtsPage() {
               gap-3
               rounded-2xl
               border
+              bg-white
               p-4
               shadow-2xl
-              backdrop-blur-xl
               ${
-                notice.type ===
-                "success"
-                  ? "border-green-400/30 bg-green-500/15 text-green-300"
-                  : notice.type ===
-                    "error"
-                  ? "border-red-400/30 bg-red-500/15 text-red-300"
-                  : "border-orange-400/30 bg-orange-500/15 text-orange-300"
+                notice.type === "success"
+                  ? "border-emerald-200 text-emerald-700"
+                  : notice.type === "error"
+                  ? "border-red-200 text-red-700"
+                  : "border-indigo-200 text-indigo-700"
               }
             `}
-            role="alert"
           >
-            {notice.type ===
-            "success" ? (
-              <CheckCircle
-                size={21}
-                className="mt-0.5 shrink-0"
-              />
-            ) : (
-              <AlertCircle
-                size={21}
-                className="mt-0.5 shrink-0"
-              />
-            )}
+            <div
+              className={`
+                flex
+                h-9
+                w-9
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                ${
+                  notice.type === "success"
+                    ? "bg-emerald-50"
+                    : notice.type === "error"
+                    ? "bg-red-50"
+                    : "bg-indigo-50"
+                }
+              `}
+            >
+              {notice.type === "success" ? (
+                <CheckCircle size={19} />
+              ) : (
+                <AlertCircle size={19} />
+              )}
+            </div>
 
-            <p className="flex-1 text-sm font-black leading-5">
+            <p className="flex-1 pt-1 text-sm font-bold leading-5">
               {notice.message}
             </p>
 
@@ -765,119 +1052,71 @@ export default function DebtsPage() {
               onClick={() =>
                 setNotice(null)
               }
-              className="shrink-0 rounded-lg p-1 transition hover:bg-white/10"
+              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
               aria-label="Fermer"
             >
-              <X size={17} />
+              <X size={16} />
             </button>
           </div>
         )}
 
-        {/* =================================================
+        {/* =====================================================
             HEADER
-        ================================================= */}
+        ===================================================== */}
 
         <section
-          className="
-            relative
-            overflow-hidden
-            rounded-[28px]
-            border
-            border-white/10
-            bg-white/[0.045]
-            p-5
-            shadow-2xl
-            backdrop-blur-xl
-            sm:p-7
-          "
+          className={`${cardClass} overflow-hidden p-5 sm:p-7`}
         >
-          <div
-            className="
-              absolute
-              -right-20
-              -top-20
-              h-48
-              w-48
-              rounded-full
-              bg-orange-500/10
-              blur-3xl
-            "
-          />
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
 
-          <div
-            className="
-              relative
-              flex
-              flex-col
-              gap-5
-              sm:flex-row
-              sm:items-center
-              sm:justify-between
-            "
-          >
-            <div className="flex items-center gap-4">
-              <div
-                className="
-                  flex
-                  h-14
-                  w-14
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  bg-gradient-to-br
-                  from-orange-500/20
-                  to-yellow-400/10
-                  text-orange-400
-                  shadow-lg
-                  shadow-orange-500/10
-                "
-              >
-                <Wallet size={27} />
+            <div className="flex min-w-0 items-center gap-4">
+
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
+                <Wallet size={26} />
               </div>
 
-              <div>
-                <h1
-                  className="
-                    text-2xl
-                    font-black
-                    tracking-tight
-                    text-white
-                    sm:text-3xl
-                  "
-                >
-                  Dettes clients
-                </h1>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                    Dettes
+                  </h1>
 
-                <p className="mt-1 text-sm text-slate-400">
-                  Gérez les crédits et récupérez votre argent.
+                  <span className="hidden rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-600 sm:inline-flex">
+                    GESTION
+                  </span>
+                </div>
+
+                <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">
+                  Suivez facilement les crédits de vos clients.
                 </p>
               </div>
+
             </div>
 
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
+
               <button
                 type="button"
                 onClick={loadDebts}
                 disabled={loading}
                 className="
-                  inline-flex
+                  flex
                   min-h-[46px]
-                  flex-1
                   items-center
                   justify-center
                   gap-2
                   rounded-xl
                   border
-                  border-white/10
-                  bg-black/30
-                  px-4
-                  font-bold
-                  text-slate-300
+                  border-slate-200
+                  bg-slate-50
+                  px-3
+                  text-xs
+                  font-black
+                  text-slate-600
                   transition
-                  hover:bg-white/5
+                  hover:bg-slate-100
                   disabled:opacity-50
-                  sm:flex-none
+                  sm:px-4
                 "
               >
                 <RefreshCw
@@ -888,129 +1127,86 @@ export default function DebtsPage() {
                       : ""
                   }
                 />
-
                 Actualiser
               </button>
 
               <button
                 type="button"
                 onClick={() =>
-                  setShowGuide(
-                    !showGuide
+                  setShowNewDebt(
+                    !showNewDebt
                   )
                 }
                 className="
-                  inline-flex
+                  flex
                   min-h-[46px]
-                  flex-1
                   items-center
                   justify-center
                   gap-2
                   rounded-xl
-                  border
-                  border-orange-400/20
-                  bg-orange-500/10
-                  px-4
+                  bg-indigo-600
+                  px-3
+                  text-xs
                   font-black
-                  text-orange-300
+                  text-white
+                  shadow-lg
+                  shadow-indigo-600/20
                   transition
-                  hover:bg-orange-500/20
-                  sm:flex-none
+                  hover:bg-indigo-700
+                  sm:px-4
                 "
               >
-                <Sparkles size={17} />
-                Guide
+                <Plus size={17} />
+                Nouvelle dette
               </button>
+
             </div>
+
           </div>
-
-          {/* GUIDE */}
-
-          {showGuide && (
-            <div
-              className="
-                relative
-                mt-5
-                rounded-2xl
-                border
-                border-white/10
-                bg-black/20
-                p-5
-              "
-            >
-              <div className="space-y-3 text-sm leading-6 text-slate-300">
-                <p>
-                  👤 Ajoutez le nom et le numéro du client.
-                </p>
-
-                <p>
-                  💰 Choisissez la monnaie réelle de la dette : FC ou USD.
-                </p>
-
-                <p>
-                  💳 Lorsqu'un client paie, utilisez la section « Récupérer une dette ».
-                </p>
-
-                <p>
-                  📊 La barre de progression indique le montant déjà récupéré.
-                </p>
-              </div>
-            </div>
-          )}
         </section>
 
-        {/* =================================================
+        {/* =====================================================
             STATISTIQUES
-        ================================================= */}
+        ===================================================== */}
 
-        <section
-          className="
-            grid
-            grid-cols-2
-            gap-3
-            md:grid-cols-4
-          "
-        >
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+
           <StatCard
             icon={
-              <Banknote size={19} />
+              <Banknote size={18} />
             }
-            title="Dette FC"
+            title="Reste FC"
             value={`${formatMoney(
-              totalFc
+              totalRemainingFc
             )} FC`}
-            tone="orange"
+            tone="indigo"
           />
 
           <StatCard
             icon={
-              <CircleDollarSign
-                size={19}
-              />
+              <CreditCard size={18} />
             }
-            title="Dette USD"
+            title="Reste USD"
             value={`${formatMoney(
-              totalUsd
+              totalRemainingUsd
             )} $`}
-            tone="green"
+            tone="emerald"
           />
 
           <StatCard
             icon={
-              <Users size={19} />
+              <User size={18} />
             }
-            title="Clients"
+            title="Dettes"
             value={String(
-              totalClients
+              unpaidCount
             )}
             tone="blue"
           />
 
           <StatCard
             icon={
-              <CheckCircle
-                size={19}
-              />
+              <Check size={18} />
             }
             title="Récupéré"
             value={`${formatMoney(
@@ -1018,157 +1214,148 @@ export default function DebtsPage() {
             )} FC`}
             subtitle={`${formatMoney(
               totalPaidUsd
-            )} $`}
-            tone="purple"
+            )} USD`}
+            tone="violet"
           />
+
         </section>
 
-        {/* =================================================
-            FORMULAIRES
-        ================================================= */}
+        {/* =====================================================
+            NOUVELLE DETTE
+        ===================================================== */}
 
-        <section
-          className="
-            grid
-            gap-5
-            md:grid-cols-2
-          "
-        >
-          {/* =================================================
-              NOUVELLE DETTE
-          ================================================= */}
-
-          <div
-            className="
-              overflow-hidden
-              rounded-[28px]
-              border
-              border-white/10
-              bg-white/[0.045]
-              p-5
-              shadow-xl
-              sm:p-6
-            "
+        {showNewDebt && (
+          <section
+            className={`${cardClass} overflow-hidden p-5 sm:p-7`}
           >
-            <div className="mb-5 flex items-center gap-3">
-              <div
-                className="
-                  flex
-                  h-11
-                  w-11
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-orange-500/10
-                  text-orange-400
-                "
+
+            <div className="mb-6 flex items-center justify-between">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                  <UserPlus size={20} />
+                </div>
+
+                <div>
+                  <h2 className="font-black text-slate-900">
+                    Nouvelle dette
+                  </h2>
+
+                  <p className="text-xs font-medium text-slate-500">
+                    Ajoutez les informations du client.
+                  </p>
+                </div>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowNewDebt(false)
+                }
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
               >
-                <UserPlus size={20} />
-              </div>
+                <X size={18} />
+              </button>
 
-              <div>
-                <h2 className="text-xl font-black">
-                  Nouvelle dette
-                </h2>
-
-                <p className="text-xs text-slate-500">
-                  Enregistrer un crédit client
-                </p>
-              </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+
               <div>
-                <label className="mb-2 block text-xs font-bold text-slate-400">
+                <label className="mb-2 block text-xs font-black text-slate-600">
                   Nom du client
                 </label>
 
                 <input
                   type="text"
-                  placeholder="Ex : Jean Mukendi"
                   value={name}
                   onChange={(e) =>
                     setName(
                       e.target.value
                     )
                   }
-                  className={inputStyle}
+                  placeholder="Ex : Jean"
+                  className={inputClass}
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-bold text-slate-400">
-                  Numéro de téléphone
+                <label className="mb-2 block text-xs font-black text-slate-600">
+                  Téléphone
                 </label>
 
                 <div className="relative">
+
                   <Phone
-                    size={17}
+                    size={16}
                     className="
                       pointer-events-none
                       absolute
                       left-4
                       top-1/2
                       -translate-y-1/2
-                      text-slate-500
+                      text-slate-400
                     "
                   />
 
                   <input
                     type="tel"
-                    placeholder="Ex : 0812345678"
                     value={phone}
                     onChange={(e) =>
                       setPhone(
                         e.target.value
                       )
                     }
-                    className={`${inputStyle} pl-11`}
+                    placeholder="0812345678"
+                    className={`${inputClass} pl-11`}
                   />
+
                 </div>
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-bold text-slate-400">
-                  Montant de la dette
+                <label className="mb-2 block text-xs font-black text-slate-600">
+                  Montant
                 </label>
 
                 <input
                   type="number"
                   min="0"
-                  placeholder="Ex : 50000"
                   value={amount}
                   onChange={(e) =>
                     setAmount(
                       e.target.value
                     )
                   }
-                  className={inputStyle}
+                  placeholder="Ex : 50000"
+                  className={inputClass}
                 />
               </div>
 
               <div>
-                <p className="mb-2 text-xs font-bold text-slate-400">
-                  Choisir la monnaie
-                </p>
+                <label className="mb-2 block text-xs font-black text-slate-600">
+                  Monnaie
+                </label>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
+
                   <button
                     type="button"
                     onClick={() =>
                       setCurrency("FC")
                     }
                     className={`
-                      min-h-[50px]
-                      rounded-xl
+                      min-h-[52px]
+                      rounded-2xl
                       border
                       font-black
                       transition
                       ${
-                        currency ===
-                        "FC"
-                          ? "border-orange-400 bg-orange-500 text-black shadow-lg shadow-orange-500/10"
-                          : "border-white/10 bg-black/30 text-slate-300 hover:bg-white/5"
+                        currency === "FC"
+                          ? "border-indigo-600 bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+                          : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"
                       }
                     `}
                   >
@@ -1178,434 +1365,137 @@ export default function DebtsPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      setCurrency(
-                        "USD"
-                      )
+                      setCurrency("USD")
                     }
                     className={`
-                      min-h-[50px]
-                      rounded-xl
+                      min-h-[52px]
+                      rounded-2xl
                       border
                       font-black
                       transition
                       ${
-                        currency ===
-                        "USD"
-                          ? "border-green-400 bg-green-500 text-black shadow-lg shadow-green-500/10"
-                          : "border-white/10 bg-black/30 text-slate-300 hover:bg-white/5"
+                        currency === "USD"
+                          ? "border-emerald-600 bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+                          : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"
                       }
                     `}
                   >
                     💵 USD
                   </button>
+
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={addDebt}
-                disabled={savingDebt}
-                className="
-                  mt-2
-                  flex
-                  min-h-[54px]
-                  w-full
-                  items-center
-                  justify-center
-                  gap-2
-                  rounded-xl
-                  bg-gradient-to-r
-                  from-orange-500
-                  to-yellow-400
-                  font-black
-                  text-black
-                  shadow-lg
-                  shadow-orange-500/10
-                  transition
-                  hover:brightness-110
-                  active:scale-[0.99]
-                  disabled:cursor-not-allowed
-                  disabled:opacity-60
-                "
-              >
-                {savingDebt ? (
-                  <>
-                    <Loader2
-                      size={19}
-                      className="animate-spin"
-                    />
-
-                    Enregistrement...
-                  </>
-                ) : (
-                  <>
-                    <Plus size={19} />
-
-                    Enregistrer la dette
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* =================================================
-              RÉCUPÉRATION
-          ================================================= */}
-
-          <div
-            className="
-              overflow-hidden
-              rounded-[28px]
-              border
-              border-white/10
-              bg-white/[0.045]
-              p-5
-              shadow-xl
-              sm:p-6
-            "
-          >
-            <div className="mb-5 flex items-center gap-3">
-              <div
-                className="
-                  flex
-                  h-11
-                  w-11
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-green-500/10
-                  text-green-400
-                "
-              >
-                <CreditCard size={20} />
-              </div>
-
-              <div>
-                <h2 className="text-xl font-black">
-                  Récupérer une dette
-                </h2>
-
-                <p className="text-xs text-slate-500">
-                  Enregistrer un paiement client
-                </p>
-              </div>
-            </div>
-
-            <div className="relative">
-              <Search
-                size={19}
-                className="
-                  pointer-events-none
-                  absolute
-                  left-4
-                  top-1/2
-                  z-10
-                  -translate-y-1/2
-                  text-slate-400
-                "
-              />
-
-              <input
-                type="text"
-                placeholder="Chercher nom ou téléphone"
-                value={search}
-                onChange={(e) => {
-                  setSearch(
-                    e.target.value
-                  );
-                  setSelectedDebt("");
-                }}
-                className="
-                  min-h-[52px]
-                  w-full
-                  rounded-2xl
-                  border
-                  border-orange-400/40
-                  bg-[#111c2e]
-                  pl-11
-                  pr-4
-                  text-[16px]
-                  text-white
-                  outline-none
-                  placeholder:text-slate-500
-                  focus:border-orange-400
-                  focus:ring-2
-                  focus:ring-orange-400/10
-                "
-              />
-            </div>
-
-            {/* RÉSULTATS */}
-
-            {search &&
-              !selectedDebt && (
-                <div
-                  className="
-                    mt-3
-                    max-h-60
-                    overflow-y-auto
-                    rounded-2xl
-                    border
-                    border-white/10
-                    bg-[#0a1424]
-                    shadow-2xl
-                  "
-                >
-                  {filteredDebts.length ===
-                  0 ? (
-                    <div className="p-5 text-center text-sm text-slate-500">
-                      Aucun client trouvé.
-                    </div>
-                  ) : (
-                    filteredDebts.map(
-                      (d) => (
-                        <button
-                          key={d.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedDebt(
-                              d.id
-                            );
-                            setSearch(
-                              d.client_name
-                            );
-                          }}
-                          className="
-                            flex
-                            w-full
-                            items-center
-                            justify-between
-                            gap-3
-                            border-b
-                            border-white/5
-                            p-4
-                            text-left
-                            transition
-                            last:border-0
-                            hover:bg-white/5
-                          "
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-black text-white">
-                              {d.client_name}
-                            </p>
-
-                            <p className="mt-1 text-xs text-slate-500">
-                              {d.phone}
-                            </p>
-                          </div>
-
-                          <span className="shrink-0 rounded-lg bg-orange-500/10 px-2 py-1 text-xs font-black text-orange-400">
-                            {formatMoney(
-                              d.total_amount -
-                                d.paid_amount
-                            )}{" "}
-                            {d.currency}
-                          </span>
-                        </button>
-                      )
-                    )
-                  )}
-                </div>
-              )}
-
-            {/* DETTE SÉLECTIONNÉE */}
-
-            {selectedDebt && (
-              <div
-                className="
-                  mt-4
-                  rounded-2xl
-                  border
-                  border-orange-400/20
-                  bg-orange-500/10
-                  p-4
-                "
-              >
-                {(() => {
-                  const d =
-                    debts.find(
-                      (x) =>
-                        x.id ===
-                        selectedDebt
-                    );
-
-                  if (!d)
-                    return null;
-
-                  const reste =
-                    d.total_amount -
-                    d.paid_amount;
-
-                  return (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm text-slate-400">
-                          Client
-                        </span>
-
-                        <span className="font-black text-white">
-                          {d.client_name}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm text-slate-400">
-                          Téléphone
-                        </span>
-
-                        <span className="text-sm font-bold text-white">
-                          {d.phone}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
-                        <span className="text-sm text-slate-400">
-                          Reste à payer
-                        </span>
-
-                        <span className="text-lg font-black text-orange-400">
-                          {formatMoney(
-                            reste
-                          )}{" "}
-                          {d.currency}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            <div className="mt-4">
-              <label className="mb-2 block text-xs font-bold text-slate-400">
-                Montant reçu
-              </label>
-
-              <input
-                type="number"
-                min="0"
-                placeholder="Montant payé par le client"
-                value={paymentAmount}
-                onChange={(e) =>
-                  setPaymentAmount(
-                    e.target.value
-                  )
-                }
-                className={inputStyle}
-              />
             </div>
 
             <button
               type="button"
-              onClick={payDebt}
-              disabled={payingDebt}
+              onClick={addDebt}
+              disabled={savingDebt}
               className="
-                mt-4
+                mt-5
                 flex
                 min-h-[54px]
                 w-full
                 items-center
                 justify-center
                 gap-2
-                rounded-xl
-                bg-green-500
+                rounded-2xl
+                bg-indigo-600
                 font-black
-                text-black
+                text-white
                 shadow-lg
-                shadow-green-500/10
+                shadow-indigo-600/20
                 transition
-                hover:bg-green-400
-                disabled:cursor-not-allowed
+                hover:bg-indigo-700
                 disabled:opacity-60
               "
             >
-              {payingDebt ? (
+              {savingDebt ? (
                 <>
                   <Loader2
-                    size={19}
+                    size={18}
                     className="animate-spin"
                   />
-
                   Enregistrement...
                 </>
               ) : (
                 <>
-                  <CheckCircle
-                    size={19}
-                  />
-
-                  Valider le paiement
+                  <Plus size={18} />
+                  Enregistrer la dette
                 </>
               )}
             </button>
+
+          
+
+          </section>
+        )}
+
+        {/* =====================================================
+            RECHERCHE
+        ===================================================== */}
+
+        <section
+          className={`${cardClass} p-4`}
+        >
+          <div className="relative">
+
+            <Search
+              size={18}
+              className="
+                pointer-events-none
+                absolute
+                left-4
+                top-1/2
+                -translate-y-1/2
+                text-slate-400
+              "
+            />
+
+            <input
+              type="text"
+              value={search}
+              onChange={(e) =>
+                setSearch(
+                  e.target.value
+                )
+              }
+              placeholder="Chercher nom ou téléphone"
+              className={`
+                ${inputClass}
+                bg-slate-50
+                pl-11
+              `}
+            />
+
           </div>
         </section>
 
-        {/* =================================================
-            LISTE DES DETTES
-        ================================================= */}
+        {/* =====================================================
+            LISTE
+        ===================================================== */}
 
         <section
-          className="
-            overflow-hidden
-            rounded-[28px]
-            border
-            border-white/10
-            bg-white/[0.045]
-            p-5
-            shadow-xl
-            sm:p-6
-          "
+          className={`${cardClass} overflow-hidden p-5 sm:p-7`}
         >
-          <div
-            className="
-              mb-5
-              flex
-              flex-col
-              gap-3
-              sm:flex-row
-              sm:items-center
-              sm:justify-between
-            "
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className="
-                  flex
-                  h-11
-                  w-11
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-orange-500/10
-                  text-orange-400
-                "
-              >
-                <Wallet size={20} />
-              </div>
 
-              <div>
-                <h2 className="text-xl font-black">
-                  Toutes les dettes
-                </h2>
+          <div className="mb-5 flex items-center justify-between gap-3">
 
-                <p className="text-xs text-slate-500">
-                  {debts.length} dette
-                  {debts.length >
-                  1
-                    ? "s"
-                    : ""}{" "}
-                  enregistrée
-                  {debts.length >
-                  1
-                    ? "s"
-                    : ""}
-                </p>
-              </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-900">
+                Dettes clients
+              </h2>
+
+              <p className="mt-1 text-xs font-medium text-slate-500">
+                {filteredDebts.length} enregistrée
+                {filteredDebts.length !== 1
+                  ? "s"
+                  : ""}
+              </p>
             </div>
 
-            {debts.length > 5 && (
+            {filteredDebts.length > 5 && (
               <button
                 type="button"
                 onClick={() =>
@@ -1614,312 +1504,906 @@ export default function DebtsPage() {
                   )
                 }
                 className="
+                  flex
+                  items-center
+                  gap-1
                   rounded-xl
                   border
-                  border-orange-400/20
-                  bg-orange-500/10
-                  px-4
-                  py-2.5
-                  text-sm
+                  border-indigo-100
+                  bg-indigo-50
+                  px-3
+                  py-2
+                  text-xs
                   font-black
-                  text-orange-300
+                  text-indigo-600
                   transition
-                  hover:bg-orange-500/20
+                  hover:bg-indigo-100
                 "
               >
-                {showAll
-                  ? "Réduire"
-                  : `Voir tout (${debts.length})`}
+                {showAll ? (
+                  <>
+                    <ChevronUp size={15} />
+                    Réduire
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown size={15} />
+                    Voir tout
+                  </>
+                )}
               </button>
             )}
+
           </div>
 
-          {/* CHARGEMENT */}
-
           {loading ? (
-            <div
-              className="
-                flex
-                flex-col
-                items-center
-                justify-center
-                rounded-2xl
-                border
-                border-white/10
-                bg-black/20
-                p-12
-              "
-            >
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-12">
               <Loader2
                 size={28}
-                className="animate-spin text-orange-400"
+                className="animate-spin text-indigo-600"
               />
 
-              <p className="mt-4 text-sm font-bold text-slate-500">
-                Chargement des dettes...
+              <p className="mt-3 text-xs font-bold text-slate-400">
+                Chargement...
               </p>
             </div>
-          ) : visibleDebts.length ===
-            0 ? (
-            <div
-              className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-black/20
-                p-10
-                text-center
-              "
-            >
-              <div
-                className="
-                  mx-auto
-                  flex
-                  h-14
-                  w-14
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  bg-white/5
-                  text-slate-500
-                "
-              >
-                <Wallet size={25} />
+          ) : visibleDebts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
+                <Wallet size={24} />
               </div>
 
-              <p className="mt-4 font-black text-white">
-                Aucune dette enregistrée
+              <p className="mt-4 font-black text-slate-800">
+                Aucune dette
               </p>
 
-              <p className="mt-2 text-xs text-slate-500">
-                Les nouvelles dettes apparaîtront ici.
+              <p className="mt-1 text-xs font-medium text-slate-400">
+                Les dettes enregistrées apparaîtront ici.
               </p>
+
             </div>
           ) : (
-            <div className="space-y-4">
-              {visibleDebts.map(
-                (d) => {
-                  const reste =
-                    d.total_amount -
-                    d.paid_amount;
+            <div className="space-y-3">
 
-                  const percent =
-                    d.total_amount >
-                    0
-                      ? Math.min(
-                          100,
-                          Math.round(
-                            (d.paid_amount /
-                              d.total_amount) *
-                              100
-                          )
-                        )
-                      : 0;
+              {visibleDebts.map(
+                (debt) => {
+                  const remaining =
+                    getRemaining(debt);
+
+                  const progress =
+                    getProgress(debt);
+
+                  const paid =
+                    remaining <= 0;
 
                   return (
                     <article
-                      key={d.id}
+                      key={debt.id}
                       className="
-                        overflow-hidden
                         rounded-2xl
                         border
-                        border-white/10
-                        bg-black/20
+                        border-slate-200
+                        bg-white
                         p-4
-                        transition
-                        hover:border-white/20
-                        hover:bg-black/30
-                        sm:p-5
+                        transition-all
+                        hover:-translate-y-[1px]
+                        hover:border-indigo-200
+                        hover:shadow-lg
+                        hover:shadow-slate-200/60
                       "
                     >
-                      <div
-                        className="
-                          flex
-                          items-start
-                          justify-between
-                          gap-4
-                        "
-                      >
+
+                      {/* CLIENT */}
+
+                      <div className="flex items-start justify-between gap-3">
+
                         <div className="flex min-w-0 items-center gap-3">
-                          <div
-                            className="
-                              flex
-                              h-11
-                              w-11
-                              shrink-0
-                              items-center
-                              justify-center
-                              rounded-xl
-                              bg-orange-500/10
-                              text-orange-400
-                            "
-                          >
-                            <Users
-                              size={19}
-                            />
-                          </div>
 
-                          <div className="min-w-0">
-                            <h3 className="truncate font-black text-white">
-                              {
-                                d.client_name
-                              }
-                            </h3>
-
-                            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                              <Phone
-                                size={
-                                  12
-                                }
-                              />
-
-                              {d.phone}
-                            </p>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            deleteDebt(
-                              d.id
-                            )
-                          }
-                          className="
+                          <div className={`
                             flex
-                            h-9
-                            w-9
+                            h-11
+                            w-11
                             shrink-0
                             items-center
                             justify-center
-                            rounded-xl
-                            border
-                            border-red-400/20
-                            bg-red-500/10
-                            text-red-400
-                            transition
-                            hover:bg-red-500/20
-                          "
-                          title="Supprimer cette dette"
-                          aria-label="Supprimer cette dette"
+                            rounded-2xl
+                            ${
+                              paid
+                                ? "bg-emerald-50 text-emerald-600"
+                                : "bg-indigo-50 text-indigo-600"
+                            }
+                          `}>
+                            {paid ? (
+                              <Check
+                                size={19}
+                              />
+                            ) : (
+                              <User
+                                size={19}
+                              />
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+
+                            <h3 className="truncate font-black text-slate-900">
+                              {debt.client_name}
+                            </h3>
+
+                            <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                              <Phone size={11} />
+                              {debt.phone}
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                        <span
+                          className={`
+                            shrink-0
+                            rounded-full
+                            px-2.5
+                            py-1.5
+                            text-[9px]
+                            font-black
+                            ${
+                              paid
+                                ? "bg-emerald-50 text-emerald-600"
+                                : "bg-amber-50 text-amber-600"
+                            }
+                          `}
                         >
-                          <Trash2
-                            size={16}
-                          />
-                        </button>
+                          {paid
+                            ? "PAYÉE"
+                            : "EN COURS"}
+                        </span>
+
                       </div>
 
                       {/* MONTANTS */}
 
-                      <div
-                        className="
-                          mt-4
-                          grid
-                          grid-cols-2
-                          gap-3
-                        "
-                      >
-                        <div
-                          className="
-                            rounded-xl
-                            border
-                            border-white/5
-                            bg-white/[0.03]
-                            p-3
-                          "
-                        >
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                            Dette totale
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+
+                          <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                            Total
                           </p>
 
-                          <p className="mt-1 font-black text-white">
+                          <p className="mt-1 text-sm font-black text-slate-900">
                             {formatMoney(
-                              d.total_amount
+                              debt.total_amount
                             )}{" "}
-                            {d.currency}
+                            {debt.currency}
                           </p>
+
                         </div>
 
-                        <div
-                          className="
-                            rounded-xl
-                            border
-                            border-orange-400/10
-                            bg-orange-500/[0.04]
-                            p-3
-                          "
-                        >
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                            Reste
+                        <div className={`
+                          rounded-2xl
+                          border
+                          p-3
+                          ${
+                            paid
+                              ? "border-emerald-100 bg-emerald-50/60"
+                              : "border-amber-100 bg-amber-50/60"
+                          }
+                        `}>
+
+                          <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                            {paid
+                              ? "Reste"
+                              : "À payer"}
                           </p>
 
-                          <p className="mt-1 font-black text-orange-400">
+                          <p className={`
+                            mt-1
+                            text-sm
+                            font-black
+                            ${
+                              paid
+                                ? "text-emerald-600"
+                                : "text-amber-600"
+                            }
+                          `}>
                             {formatMoney(
-                              reste
+                              remaining
                             )}{" "}
-                            {d.currency}
+                            {debt.currency}
                           </p>
+
                         </div>
+
                       </div>
 
                       {/* PROGRESSION */}
 
-                      <div className="mt-5">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <span className="text-xs font-bold text-slate-500">
-                            Progression
+                      <div className="mt-4">
+
+                        <div className="mb-1.5 flex justify-between">
+
+                          <span className="text-[10px] font-medium text-slate-400">
+                            Progression du paiement
                           </span>
 
-                          <span className="text-xs font-black text-green-400">
-                            {percent}%
+                          <span className="text-[10px] font-black text-emerald-600">
+                            {progress}%
                           </span>
+
                         </div>
 
-                        <div
-                          className="
-                            h-3
-                            overflow-hidden
-                            rounded-full
-                            bg-black/60
-                          "
-                        >
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+
                           <div
                             className="
                               h-full
                               rounded-full
                               bg-gradient-to-r
-                              from-green-400
-                              to-orange-400
+                              from-indigo-500
+                              to-emerald-500
                               transition-all
                             "
                             style={{
-                              width: `${percent}%`,
+                              width: `${progress}%`,
                             }}
                           />
+
                         </div>
 
-                        <div className="mt-2 flex justify-between text-[11px]">
-                          <span className="text-slate-500">
-                            Récupéré :{" "}
-                            {formatMoney(
-                              d.paid_amount
-                            )}{" "}
-                            {d.currency}
-                          </span>
-
-                          <span className="font-bold text-green-400">
-                            {percent}% récupéré
-                          </span>
-                        </div>
                       </div>
+
+                      {/* DATE */}
+
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-medium text-slate-400">
+
+                        <span className="flex items-center gap-1">
+                          <CalendarDays size={11} />
+                          {formatDate(
+                            debt.created_at
+                          )}
+                        </span>
+
+                        <span className="flex items-center gap-1">
+                          <Clock size={11} />
+                          {formatTime(
+                            debt.created_at
+                          )}
+                        </span>
+
+                      </div>
+
+                      {/* ACTIONS */}
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openDebt(
+                              debt
+                            )
+                          }
+                          className="
+                            flex
+                            min-h-[45px]
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-white
+                            text-xs
+                            font-black
+                            text-slate-700
+                            transition
+                            hover:border-indigo-200
+                            hover:bg-indigo-50
+                            hover:text-indigo-600
+                          "
+                        >
+                          <Eye size={16} />
+                          Voir
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openDebt(
+                              debt
+                            )
+                          }
+                          disabled={paid}
+                          className={`
+                            flex
+                            min-h-[45px]
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            text-xs
+                            font-black
+                            transition
+                            ${
+                              paid
+                                ? "cursor-not-allowed bg-slate-100 text-slate-300"
+                                : "bg-emerald-600 text-white shadow-md shadow-emerald-600/15 hover:bg-emerald-700"
+                            }
+                          `}
+                        >
+                          <CreditCard
+                            size={16}
+                          />
+                          Payer
+                        </button>
+
+                      </div>
+
                     </article>
                   );
                 }
               )}
+
             </div>
           )}
+
         </section>
+
       </div>
+
+      {/* =======================================================
+          MODAL DÉTAILS DETTE
+      ======================================================= */}
+
+      {selectedDebt && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-[1000]
+            flex
+            items-end
+            justify-center
+            bg-slate-950/50
+            p-0
+            backdrop-blur-sm
+            sm:items-center
+            sm:p-4
+          "
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              closeDebt();
+            }
+          }}
+        >
+
+          <div
+            className="
+              max-h-[92vh]
+              w-full
+              max-w-xl
+              overflow-y-auto
+              rounded-t-[30px]
+              border
+              border-slate-200
+              bg-white
+              p-5
+              shadow-2xl
+              sm:rounded-[30px]
+              sm:p-7
+            "
+          >
+
+            {/* HEADER MODAL */}
+
+            <div className="flex items-start justify-between gap-3">
+
+              <div className="flex min-w-0 items-center gap-3">
+
+                <div className={`
+                  flex
+                  h-12
+                  w-12
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  ${
+                    getRemaining(
+                      selectedDebt
+                    ) <= 0
+                      ? "bg-emerald-50 text-emerald-600"
+                      : "bg-indigo-50 text-indigo-600"
+                  }
+                `}>
+                  <Wallet size={21} />
+                </div>
+
+                <div className="min-w-0">
+
+                  <h2 className="truncate text-lg font-black text-slate-900">
+                    {selectedDebt.client_name}
+                  </h2>
+
+                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-slate-400">
+                    <Phone size={12} />
+                    {selectedDebt.phone}
+                  </p>
+
+                </div>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={closeDebt}
+                disabled={payingDebt}
+                className="
+                  flex
+                  h-9
+                  w-9
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-slate-100
+                  text-slate-400
+                  transition
+                  hover:bg-slate-200
+                  hover:text-slate-700
+                "
+              >
+                <X size={18} />
+              </button>
+
+            </div>
+
+            {/* =================================================
+                RÉSUMÉ
+            ================================================= */}
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+
+                <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                  Dette
+                </p>
+
+                <p className="mt-1 text-sm font-black text-slate-900">
+                  {formatMoney(
+                    selectedDebt.total_amount
+                  )}{" "}
+                  {selectedDebt.currency}
+                </p>
+
+              </div>
+
+              <div className={`
+                rounded-2xl
+                border
+                p-4
+                ${
+                  getRemaining(
+                    selectedDebt
+                  ) <= 0
+                    ? "border-emerald-100 bg-emerald-50"
+                    : "border-amber-100 bg-amber-50"
+                }
+              `}>
+
+                <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                  Reste
+                </p>
+
+                <p className={`
+                  mt-1
+                  text-sm
+                  font-black
+                  ${
+                    getRemaining(
+                      selectedDebt
+                    ) <= 0
+                      ? "text-emerald-600"
+                      : "text-amber-600"
+                  }
+                `}>
+                  {formatMoney(
+                    getRemaining(
+                      selectedDebt
+                    )
+                  )}{" "}
+                  {selectedDebt.currency}
+                </p>
+
+              </div>
+
+            </div>
+
+            {/* =================================================
+                DATE CRÉATION
+            ================================================= */}
+
+            <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
+
+              <div className="flex items-center gap-2">
+
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                  <CalendarDays size={16} />
+                </div>
+
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                    Créée le
+                  </p>
+
+                  <p className="text-xs font-bold text-slate-800">
+                    {formatDate(
+                      selectedDebt.created_at
+                    )}
+                  </p>
+                </div>
+
+              </div>
+
+              <div className="flex items-center gap-2">
+
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                  <Clock size={16} />
+                </div>
+
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                    Heure
+                  </p>
+
+                  <p className="text-xs font-bold text-slate-800">
+                    {formatTime(
+                      selectedDebt.created_at
+                    )}
+                  </p>
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* =================================================
+                PAIEMENT
+            ================================================= */}
+
+            {getRemaining(
+              selectedDebt
+            ) > 0 ? (
+              <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+
+                <div className="mb-3">
+
+                  <div className="flex items-center gap-2">
+
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                      <CreditCard size={17} />
+                    </div>
+
+                    <div>
+                      <h3 className="font-black text-slate-900">
+                        Enregistrer un paiement
+                      </h3>
+
+                      <p className="mt-1 text-[11px] font-medium text-slate-400">
+                        Le paiement sera daté automatiquement.
+                      </p>
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <div className="relative">
+
+                  <input
+                    type="number"
+                    min="0"
+                    max={getRemaining(
+                      selectedDebt
+                    )}
+                    value={paymentAmount}
+                    onChange={(e) =>
+                      setPaymentAmount(
+                        e.target.value
+                      )
+                    }
+                    placeholder={`Reste : ${formatMoney(
+                      getRemaining(
+                        selectedDebt
+                      )
+                    )}`}
+                    className={inputClass}
+                  />
+
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
+                    {selectedDebt.currency}
+                  </span>
+
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPaymentAmount(
+                        String(
+                          getRemaining(
+                            selectedDebt
+                          )
+                        )
+                      )
+                    }
+                    className="
+                      min-h-[44px]
+                      rounded-xl
+                      border
+                      border-slate-200
+                      bg-white
+                      text-xs
+                      font-black
+                      text-slate-600
+                      transition
+                      hover:bg-slate-50
+                    "
+                  >
+                    Tout payer
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={payDebt}
+                    disabled={payingDebt}
+                    className="
+                      flex
+                      min-h-[44px]
+                      items-center
+                      justify-center
+                      gap-2
+                      rounded-xl
+                      bg-emerald-600
+                      text-xs
+                      font-black
+                      text-white
+                      shadow-md
+                      shadow-emerald-600/15
+                      transition
+                      hover:bg-emerald-700
+                      disabled:opacity-60
+                    "
+                  >
+                    {payingDebt ? (
+                      <>
+                        <Loader2
+                          size={15}
+                          className="animate-spin"
+                        />
+                        Enregistrement
+                      </>
+                    ) : (
+                      <>
+                        <Check
+                          size={16}
+                        />
+                        Enregistrer
+                      </>
+                    )}
+                  </button>
+
+                </div>
+
+              </div>
+            ) : (
+              <div className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                  <CheckCircle size={19} />
+                </div>
+
+                <div>
+                  <p className="text-sm font-black text-emerald-700">
+                    Dette entièrement payée
+                  </p>
+
+                  <p className="mt-1 text-[11px] font-medium text-slate-400">
+                    Tous les paiements restent conservés dans l'historique.
+                  </p>
+                </div>
+
+              </div>
+            )}
+
+            {/* =================================================
+                HISTORIQUE
+            ================================================= */}
+
+            <div className="mt-6">
+
+              <div className="mb-3 flex items-center gap-2">
+
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                  <History size={18} />
+                </div>
+
+                <div>
+                  <h3 className="font-black text-slate-900">
+                    Historique
+                  </h3>
+
+                  <p className="text-[10px] font-medium text-slate-400">
+                    Paiements reçus
+                  </p>
+                </div>
+
+              </div>
+
+              {loadingPayments ? (
+                <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-8">
+                  <Loader2
+                    size={22}
+                    className="animate-spin text-indigo-600"
+                  />
+                </div>
+              ) : payments.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center">
+
+                  <History
+                    size={22}
+                    className="mx-auto text-slate-300"
+                  />
+
+                  <p className="mt-2 text-xs font-bold text-slate-400">
+                    Aucun paiement enregistré.
+                  </p>
+
+                </div>
+              ) : (
+                <div className="space-y-2">
+
+                  {payments.map(
+                    (payment) => (
+                      <div
+                        key={
+                          payment.id
+                        }
+                        className="
+                          rounded-2xl
+                          border
+                          border-slate-200
+                          bg-white
+                          p-3
+                          transition
+                          hover:bg-slate-50
+                        "
+                      >
+
+                        <div className="flex items-center justify-between gap-3">
+
+                          <div className="flex min-w-0 items-center gap-3">
+
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                              <Check
+                                size={16}
+                              />
+                            </div>
+
+                            <div className="min-w-0">
+
+                              <p className="text-xs font-black text-slate-900">
+                                {formatMoney(
+                                  payment.amount
+                                )}{" "}
+                                {payment.currency}
+                              </p>
+
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-medium text-slate-400">
+
+                                <span className="flex items-center gap-1">
+                                  <CalendarDays
+                                    size={10}
+                                  />
+                                  {formatDate(
+                                    payment.paid_at
+                                  )}
+                                </span>
+
+                                <span className="flex items-center gap-1">
+                                  <Clock
+                                    size={10}
+                                  />
+                                  {formatTime(
+                                    payment.paid_at
+                                  )}
+                                </span>
+
+                              </div>
+
+                            </div>
+
+                          </div>
+
+                          <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-600">
+                            PAYÉ
+                          </span>
+
+                        </div>
+
+                      </div>
+                    )
+                  )}
+
+                </div>
+              )}
+
+            </div>
+
+            {/* =================================================
+                SUPPRIMER
+            ================================================= */}
+
+            <button
+              type="button"
+              onClick={() =>
+                deleteDebt(
+                  selectedDebt
+                )
+              }
+              disabled={
+                deletingDebt ||
+                payingDebt
+              }
+              className="
+                mt-5
+                flex
+                min-h-[44px]
+                w-full
+                items-center
+                justify-center
+                gap-2
+                rounded-xl
+                border
+                border-red-100
+                bg-red-50
+                text-xs
+                font-black
+                text-red-600
+                transition
+                hover:bg-red-100
+                disabled:opacity-50
+              "
+            >
+              {deletingDebt ? (
+                <>
+                  <Loader2
+                    size={15}
+                    className="animate-spin"
+                  />
+                  Suppression...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={15} />
+                  Supprimer cette dette
+                </>
+              )}
+            </button>
+
+          </div>
+
+        </div>
+      )}
+
     </main>
   );
 }
@@ -1940,19 +2424,19 @@ function StatCard({
   subtitle?: string;
   icon: React.ReactNode;
   tone:
-    | "orange"
-    | "green"
+    | "indigo"
+    | "emerald"
     | "blue"
-    | "purple";
+    | "violet";
 }) {
   const toneClass =
-    tone === "orange"
-      ? "bg-orange-500/10 text-orange-400"
-      : tone === "green"
-      ? "bg-green-500/10 text-green-400"
+    tone === "indigo"
+      ? "bg-indigo-50 text-indigo-600"
+      : tone === "emerald"
+      ? "bg-emerald-50 text-emerald-600"
       : tone === "blue"
-      ? "bg-blue-500/10 text-blue-400"
-      : "bg-purple-500/10 text-purple-400";
+      ? "bg-blue-50 text-blue-600"
+      : "bg-violet-50 text-violet-600";
 
   return (
     <div
@@ -1960,15 +2444,18 @@ function StatCard({
         overflow-hidden
         rounded-2xl
         border
-        border-white/10
-        bg-white/[0.045]
+        border-slate-200/80
+        bg-white
         p-4
-        shadow-lg
+        shadow-[0_8px_25px_rgba(15,23,42,0.04)]
         transition
-        hover:border-white/15
-        hover:bg-white/[0.06]
+        hover:-translate-y-[1px]
+        hover:shadow-lg
+        hover:shadow-slate-200/60
+        sm:p-5
       "
     >
+
       <div
         className={`
           mb-3
@@ -1984,19 +2471,20 @@ function StatCard({
         {icon}
       </div>
 
-      <p className="text-xs font-bold text-slate-500">
+      <p className="text-[10px] font-black text-slate-400 sm:text-xs">
         {title}
       </p>
 
-      <p className="mt-1 break-words text-lg font-black text-white sm:text-xl">
+      <p className="mt-1 break-words text-sm font-black text-slate-900 sm:text-lg">
         {value}
       </p>
 
       {subtitle && (
-        <p className="mt-1 text-[11px] font-bold text-slate-500">
+        <p className="mt-1 text-[9px] font-bold text-slate-400 sm:text-[11px]">
           {subtitle}
         </p>
       )}
+
     </div>
   );
 }
