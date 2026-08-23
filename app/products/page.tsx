@@ -41,8 +41,6 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
-  // GUIDE
   const [showGuide, setShowGuide] = useState(false);
 
   /* =========================================================
@@ -56,6 +54,7 @@ export default function ProductsPage() {
       const userId = localStorage.getItem("user_id");
 
       if (!userId) {
+        setProducts([]);
         setLoading(false);
         return;
       }
@@ -67,15 +66,16 @@ export default function ProductsPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
+        console.error("Erreur chargement produits :", error);
         alert(error.message);
       } else {
-        setProducts(data || []);
+        setProducts((data as Product[]) || []);
       }
     } catch (err) {
-      console.log(err);
+      console.error("Erreur :", err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   /* =========================================================
@@ -83,6 +83,8 @@ export default function ProductsPage() {
   ========================================================= */
 
   const refreshProducts = async () => {
+    if (refreshing) return;
+
     setRefreshing(true);
 
     await fetchProducts();
@@ -95,13 +97,18 @@ export default function ProductsPage() {
   ========================================================= */
 
   const deleteProduct = async (id: string) => {
-    const ok = confirm("Voulez-vous supprimer ce produit ?");
+    const ok = confirm(
+      "Voulez-vous vraiment supprimer ce produit ?\n\nCette action est irréversible."
+    );
 
     if (!ok) return;
 
     const userId = localStorage.getItem("user_id");
 
-    if (!userId) return;
+    if (!userId) {
+      alert("Utilisateur non identifié.");
+      return;
+    }
 
     const { error } = await supabase
       .from("products")
@@ -110,10 +117,14 @@ export default function ProductsPage() {
       .eq("user_id", userId);
 
     if (error) {
+      console.error("Erreur suppression :", error);
       alert(error.message);
-    } else {
-      await fetchProducts();
+      return;
     }
+
+    setProducts((current) =>
+      current.filter((product) => product.id !== id)
+    );
   };
 
   /* =========================================================
@@ -145,9 +156,7 @@ export default function ProductsPage() {
 
     const valeurFC = products.reduce(
       (total, p) => {
-        const currency = String(
-          p.currency || ""
-        )
+        const currency = String(p.currency || "")
           .trim()
           .toUpperCase();
 
@@ -174,9 +183,7 @@ export default function ProductsPage() {
 
     const valeurUSD = products.reduce(
       (total, p) => {
-        const currency = String(
-          p.currency || ""
-        )
+        const currency = String(p.currency || "")
           .trim()
           .toUpperCase();
 
@@ -203,9 +210,7 @@ export default function ProductsPage() {
 
     const beneficeFC = products.reduce(
       (total, p) => {
-        const currency = String(
-          p.currency || ""
-        )
+        const currency = String(p.currency || "")
           .trim()
           .toUpperCase();
 
@@ -235,9 +240,7 @@ export default function ProductsPage() {
 
     const beneficeUSD = products.reduce(
       (total, p) => {
-        const currency = String(
-          p.currency || ""
-        )
+        const currency = String(p.currency || "")
           .trim()
           .toUpperCase();
 
@@ -277,93 +280,96 @@ export default function ProductsPage() {
   ========================================================= */
 
   const filteredProducts = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase();
+
     return products
       .filter((p) =>
         (p.name || "")
           .toLowerCase()
-          .includes(searchTerm.toLowerCase())
+          .includes(search)
       )
       .sort((a, b) => {
         const aStock = Number(a.stock);
         const bStock = Number(b.stock);
 
-        // Rupture en premier
-        if (
-          aStock === 0 &&
-          bStock !== 0
-        )
+        /* Rupture en premier */
+        if (aStock === 0 && bStock !== 0) {
           return -1;
+        }
 
-        if (
-          bStock === 0 &&
-          aStock !== 0
-        )
+        if (bStock === 0 && aStock !== 0) {
           return 1;
+        }
 
-        // Stock faible ensuite
-        if (
-          aStock <= 5 &&
-          bStock > 5
-        )
+        /* Stock faible ensuite */
+        if (aStock > 0 && aStock <= 5 && bStock > 5) {
           return -1;
+        }
 
-        if (
-          bStock <= 5 &&
-          aStock > 5
-        )
+        if (bStock > 0 && bStock <= 5 && aStock > 5) {
           return 1;
+        }
 
         return 0;
       });
   }, [products, searchTerm]);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#eef2f7] pb-24 text-slate-900">
+    <main className="relative min-h-screen overflow-x-hidden bg-[#f5f7fb] pb-24 text-slate-900">
 
       {/* =====================================================
           BACKGROUND
       ===================================================== */}
 
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-32 -top-32 h-80 w-80 rounded-full bg-indigo-200/30 blur-3xl" />
-        <div className="absolute right-0 top-80 h-96 w-96 rounded-full bg-cyan-200/20 blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-indigo-200/20 blur-3xl sm:h-80 sm:w-80" />
+
+        <div className="absolute -right-24 top-80 h-72 w-72 rounded-full bg-cyan-200/15 blur-3xl sm:h-96 sm:w-96" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-8">
 
         {/* =====================================================
             HEADER
         ===================================================== */}
 
-        <header className="mb-6 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        <header className="mb-5 rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm sm:mb-6 sm:rounded-[28px] sm:p-7">
 
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4">
 
-            <div className="flex items-center gap-4">
+            {/* TITRE */}
 
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
-                <Package size={27} />
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg sm:h-14 sm:w-14">
+                <Package size={24} className="sm:h-7 sm:w-7" />
               </div>
 
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+              <div className="min-w-0 flex-1">
+
+                <div className="flex flex-wrap items-center gap-2">
+
+                  <h1 className="text-xl font-black tracking-tight sm:text-3xl">
                     Produits
                   </h1>
 
-                  <span className="hidden rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-600 sm:inline-flex">
+                  <span className="rounded-full bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-600">
                     STOCK
                   </span>
+
                 </div>
 
-                <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">
+                <p className="mt-1 text-[11px] font-medium leading-5 text-slate-500 sm:text-sm">
                   Gérez vos produits et votre stock simplement.
                 </p>
+
               </div>
 
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* ACTIONS */}
+
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
 
               <button
                 type="button"
@@ -379,27 +385,25 @@ export default function ProductsPage() {
                   border
                   border-slate-200
                   bg-slate-50
-                  px-4
+                  px-3
                   text-xs
                   font-black
                   text-slate-700
                   transition
                   hover:bg-slate-100
+                  disabled:cursor-not-allowed
                   disabled:opacity-60
+                  sm:px-4
                 "
               >
                 <RefreshCcw
                   size={16}
                   className={
-                    refreshing
-                      ? "animate-spin"
-                      : ""
+                    refreshing ? "animate-spin" : ""
                   }
                 />
 
-                <span className="hidden sm:inline">
-                  Actualiser
-                </span>
+                Actualiser
               </button>
 
               <Link
@@ -412,7 +416,7 @@ export default function ProductsPage() {
                   gap-2
                   rounded-xl
                   bg-slate-900
-                  px-4
+                  px-3
                   text-xs
                   font-black
                   text-white
@@ -420,6 +424,7 @@ export default function ProductsPage() {
                   shadow-slate-900/10
                   transition
                   hover:bg-slate-800
+                  sm:px-4
                 "
               >
                 <Plus size={17} />
@@ -436,29 +441,29 @@ export default function ProductsPage() {
             STATISTIQUES
         ===================================================== */}
 
-        <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section className="mb-5 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
 
           {/* TOTAL */}
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
 
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
 
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <ShoppingBag size={19} />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 sm:h-10 sm:w-10">
+                <ShoppingBag size={18} />
               </div>
 
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+              <span className="hidden text-[9px] font-black uppercase tracking-wider text-slate-400 sm:block">
                 Catalogue
               </span>
 
             </div>
 
-            <p className="text-xs font-semibold text-slate-500">
+            <p className="text-[10px] font-semibold text-slate-500 sm:text-xs">
               Total produits
             </p>
 
-            <p className="mt-1 text-2xl font-black text-slate-900 sm:text-3xl">
+            <p className="mt-1 text-xl font-black text-slate-900 sm:text-3xl">
               {stats.total}
             </p>
 
@@ -466,25 +471,25 @@ export default function ProductsPage() {
 
           {/* RUPTURE */}
 
-          <div className="rounded-2xl border border-red-100 bg-white p-4 shadow-sm sm:p-5">
+          <div className="min-w-0 rounded-2xl border border-red-100 bg-white p-3 shadow-sm sm:p-5">
 
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
 
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-500">
-                <AlertTriangle size={19} />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-500 sm:h-10 sm:w-10">
+                <AlertTriangle size={18} />
               </div>
 
-              <span className="text-[9px] font-black uppercase tracking-wider text-red-400">
+              <span className="hidden text-[9px] font-black uppercase tracking-wider text-red-400 sm:block">
                 Attention
               </span>
 
             </div>
 
-            <p className="text-xs font-semibold text-slate-500">
+            <p className="text-[10px] font-semibold text-slate-500 sm:text-xs">
               Rupture
             </p>
 
-            <p className="mt-1 text-2xl font-black text-red-500 sm:text-3xl">
+            <p className="mt-1 text-xl font-black text-red-500 sm:text-3xl">
               {stats.rupture}
             </p>
 
@@ -492,57 +497,57 @@ export default function ProductsPage() {
 
           {/* FAIBLE */}
 
-          <div className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm sm:p-5">
+          <div className="min-w-0 rounded-2xl border border-amber-100 bg-white p-3 shadow-sm sm:p-5">
 
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
 
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
-                <Boxes size={19} />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-500 sm:h-10 sm:w-10">
+                <Boxes size={18} />
               </div>
 
-              <span className="text-[9px] font-black uppercase tracking-wider text-amber-500">
+              <span className="hidden text-[9px] font-black uppercase tracking-wider text-amber-500 sm:block">
                 Surveiller
               </span>
 
             </div>
 
-            <p className="text-xs font-semibold text-slate-500">
+            <p className="text-[10px] font-semibold text-slate-500 sm:text-xs">
               Stock faible
             </p>
 
-            <p className="mt-1 text-2xl font-black text-amber-500 sm:text-3xl">
+            <p className="mt-1 text-xl font-black text-amber-500 sm:text-3xl">
               {stats.faible}
             </p>
 
           </div>
 
-          {/* VALEUR STOCK */}
+          {/* VALEUR */}
 
-          <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm sm:p-5">
+          <div className="min-w-0 rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm sm:p-5">
 
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
 
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                <CircleDollarSign size={19} />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 sm:h-10 sm:w-10">
+                <CircleDollarSign size={18} />
               </div>
 
-              <span className="text-[9px] font-black uppercase tracking-wider text-emerald-500">
+              <span className="hidden text-[9px] font-black uppercase tracking-wider text-emerald-500 sm:block">
                 Valeur
               </span>
 
             </div>
 
-            <p className="text-xs font-semibold text-slate-500">
+            <p className="text-[10px] font-semibold text-slate-500 sm:text-xs">
               Valeur du stock
             </p>
 
             <div className="mt-2 space-y-1">
 
-              <p className="text-sm font-black text-emerald-600">
+              <p className="truncate text-xs font-black text-emerald-600 sm:text-sm">
                 {stats.valeurFC.toLocaleString()} FC
               </p>
 
-              <p className="text-sm font-black text-emerald-600">
+              <p className="truncate text-xs font-black text-emerald-600 sm:text-sm">
                 {stats.valeurUSD.toLocaleString()} $
               </p>
 
@@ -556,24 +561,26 @@ export default function ProductsPage() {
             BÉNÉFICE
         ===================================================== */}
 
-        <section className="mb-6 overflow-hidden rounded-[24px] border border-indigo-100 bg-white shadow-sm">
+        <section className="mb-5 overflow-hidden rounded-[22px] border border-indigo-100 bg-white shadow-sm sm:mb-6 sm:rounded-[24px]">
 
-          <div className="border-b border-slate-100 p-5 sm:p-6">
+          <div className="border-b border-slate-100 p-4 sm:p-6">
 
             <div className="flex items-center gap-3">
 
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <TrendingUp size={21} />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 sm:h-11 sm:w-11">
+                <TrendingUp size={20} />
               </div>
 
-              <div>
-                <h2 className="font-black text-slate-900">
+              <div className="min-w-0">
+
+                <h2 className="text-sm font-black text-slate-900 sm:text-base">
                   Bénéfice potentiel
                 </h2>
 
-                <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                <p className="mt-0.5 text-[10px] font-medium leading-4 text-slate-500 sm:text-[11px]">
                   Estimation basée sur le stock actuellement disponible.
                 </p>
+
               </div>
 
             </div>
@@ -582,25 +589,25 @@ export default function ProductsPage() {
 
           <div className="grid grid-cols-2 gap-px bg-slate-100">
 
-            <div className="bg-white p-5 sm:p-6">
+            <div className="min-w-0 bg-white p-4 sm:p-6">
 
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 sm:text-[10px]">
                 Bénéfice FC
               </p>
 
-              <p className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">
+              <p className="mt-2 break-words text-base font-black text-slate-900 sm:text-2xl">
                 {stats.beneficeFC.toLocaleString()} FC
               </p>
 
             </div>
 
-            <div className="bg-white p-5 sm:p-6">
+            <div className="min-w-0 bg-white p-4 sm:p-6">
 
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 sm:text-[10px]">
                 Bénéfice USD
               </p>
 
-              <p className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">
+              <p className="mt-2 break-words text-base font-black text-slate-900 sm:text-2xl">
                 {stats.beneficeUSD.toLocaleString()} $
               </p>
 
@@ -614,57 +621,63 @@ export default function ProductsPage() {
             GUIDE
         ===================================================== */}
 
-        <section className="mb-6 overflow-hidden rounded-[24px] border border-indigo-100 bg-white shadow-sm">
+        <section className="mb-5 overflow-hidden rounded-[22px] border border-indigo-100 bg-white shadow-sm sm:mb-6 sm:rounded-[24px]">
 
-          <div className="p-5 sm:p-6">
+          <div className="p-4 sm:p-6">
 
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
 
-              <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 sm:h-11 sm:w-11">
+                <Info size={20} />
+              </div>
 
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                  <Info size={21} />
-                </div>
+              <div className="min-w-0 flex-1">
 
-                <div>
-                  <h2 className="font-black text-slate-900">
-                    Guide des produits
-                  </h2>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
-                  <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-                    Découvrez rapidement comment utiliser cette page.
-                  </p>
+                  <div className="min-w-0">
+
+                    <h2 className="text-sm font-black text-slate-900 sm:text-base">
+                      Guide des produits
+                    </h2>
+
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500 sm:text-sm">
+                      Découvrez rapidement comment utiliser cette page.
+                    </p>
+
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowGuide(!showGuide)}
+                    className="
+                      flex
+                      min-h-[42px]
+                      w-full
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-indigo-600
+                      px-4
+                      text-[11px]
+                      font-black
+                      text-white
+                      transition
+                      hover:bg-indigo-700
+                      sm:w-auto
+                    "
+                  >
+                    {showGuide ? "Fermer" : "Voir le guide"}
+                  </button>
+
                 </div>
 
               </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setShowGuide(!showGuide)
-                }
-                className="
-                  shrink-0
-                  rounded-xl
-                  bg-indigo-600
-                  px-3
-                  py-2
-                  text-[11px]
-                  font-black
-                  text-white
-                  transition
-                  hover:bg-indigo-700
-                "
-              >
-                {showGuide
-                  ? "Fermer"
-                  : "Voir le guide"}
-              </button>
-
             </div>
 
             {showGuide && (
-              <div className="mt-6 space-y-3 border-t border-slate-100 pt-5">
+              <div className="mt-5 space-y-3 border-t border-slate-100 pt-5">
 
                 {/* INTRODUCTION */}
 
@@ -673,8 +686,8 @@ export default function ProductsPage() {
                   <div className="mb-2 flex items-center gap-2">
 
                     <Sparkles
-                      size={18}
-                      className="text-indigo-600"
+                      size={17}
+                      className="shrink-0 text-indigo-600"
                     />
 
                     <h3 className="text-sm font-black text-slate-900">
@@ -683,7 +696,7 @@ export default function ProductsPage() {
 
                   </div>
 
-                  <p className="text-sm leading-7 text-slate-600">
+                  <p className="text-xs leading-6 text-slate-600 sm:text-sm sm:leading-7">
                     Cette page contient tous les produits
                     enregistrés dans votre commerce.
                     <br />
@@ -796,7 +809,8 @@ export default function ProductsPage() {
                       d'un produit change, appuyez sur le bouton{" "}
                       <strong className="text-indigo-600">
                         Modifier
-                      </strong>.
+                      </strong>
+                      .
                     </>
                   }
                 />
@@ -812,7 +826,8 @@ export default function ProductsPage() {
                       appuyez sur{" "}
                       <strong className="text-red-600">
                         Supprimer
-                      </strong>.
+                      </strong>
+                      .
                       <br />
                       <br />
                       Une confirmation sera demandée avant
@@ -876,11 +891,8 @@ export default function ProductsPage() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowGuide(false)
-                  }
+                  onClick={() => setShowGuide(false)}
                   className="
-                    mt-2
                     flex
                     min-h-[46px]
                     w-full
@@ -910,14 +922,14 @@ export default function ProductsPage() {
         </section>
 
         {/* =====================================================
-            RECHERCHE + AJOUT
+            RECHERCHE
         ===================================================== */}
 
-        <section className="mb-5 rounded-[24px] border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <section className="mb-5 rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm sm:rounded-[24px] sm:p-4">
 
           <div className="flex gap-2">
 
-            <div className="flex min-h-[50px] flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4">
+            <div className="flex min-h-[50px] min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 sm:gap-3 sm:px-4">
 
               <Search
                 size={18}
@@ -927,12 +939,11 @@ export default function ProductsPage() {
               <input
                 value={searchTerm}
                 onChange={(e) =>
-                  setSearchTerm(
-                    e.target.value
-                  )
+                  setSearchTerm(e.target.value)
                 }
                 placeholder="Chercher un produit"
                 className="
+                  min-w-0
                   w-full
                   bg-transparent
                   py-2
@@ -947,10 +958,9 @@ export default function ProductsPage() {
               {searchTerm && (
                 <button
                   type="button"
-                  onClick={() =>
-                    setSearchTerm("")
-                  }
-                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                  onClick={() => setSearchTerm("")}
+                  className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                  aria-label="Effacer la recherche"
                 >
                   <X size={15} />
                 </button>
@@ -973,6 +983,7 @@ export default function ProductsPage() {
                 shadow-md
                 transition
                 hover:bg-indigo-700
+                active:scale-95
               "
               aria-label="Ajouter un produit"
             >
@@ -984,29 +995,27 @@ export default function ProductsPage() {
         </section>
 
         {/* =====================================================
-            TITRE LISTE
+            TITRE INVENTAIRE
         ===================================================== */}
 
-        <div className="mb-3 flex items-center justify-between px-1">
+        <div className="mb-3 flex items-end justify-between gap-3 px-1">
 
-          <div>
+          <div className="min-w-0">
+
             <h2 className="text-lg font-black text-slate-900">
               Inventaire
             </h2>
 
             <p className="mt-0.5 text-[11px] font-medium text-slate-500">
               {filteredProducts.length} produit
-              {filteredProducts.length !== 1
-                ? "s"
-                : ""}{" "}
+              {filteredProducts.length !== 1 ? "s" : ""}{" "}
               affiché
-              {filteredProducts.length !== 1
-                ? "s"
-                : ""}
+              {filteredProducts.length !== 1 ? "s" : ""}
             </p>
+
           </div>
 
-          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+          <div className="flex shrink-0 items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400 sm:text-[10px]">
             <BarChart3 size={14} />
             Stock
           </div>
@@ -1020,7 +1029,7 @@ export default function ProductsPage() {
         <section className="space-y-3">
 
           {loading ? (
-            <div className="rounded-[24px] border border-slate-200 bg-white p-12 text-center shadow-sm">
+            <div className="rounded-[22px] border border-slate-200 bg-white p-10 text-center shadow-sm sm:rounded-[24px] sm:p-12">
 
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
                 <RefreshCcw
@@ -1039,7 +1048,7 @@ export default function ProductsPage() {
 
             </div>
           ) : filteredProducts.length === 0 ? (
-            <div className="rounded-[24px] border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <div className="rounded-[22px] border border-slate-200 bg-white p-8 text-center shadow-sm sm:rounded-[24px] sm:p-10">
 
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                 <Package size={25} />
@@ -1049,7 +1058,7 @@ export default function ProductsPage() {
                 Aucun produit trouvé
               </p>
 
-              <p className="mt-1 text-xs leading-5 text-slate-500">
+              <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">
                 Ajoutez un produit ou modifiez votre recherche.
               </p>
 
@@ -1060,6 +1069,7 @@ export default function ProductsPage() {
                     mx-auto
                     mt-5
                     inline-flex
+                    min-h-[44px]
                     items-center
                     gap-2
                     rounded-xl
@@ -1083,33 +1093,26 @@ export default function ProductsPage() {
               const stock = Number(p.stock) || 0;
 
               const purchasePrice =
-                Number(
-                  p.purchase_price || 0
-                );
+                Number(p.purchase_price) || 0;
 
               const sellingPrice =
-                Number(
-                  p.selling_price || 0
-                );
+                Number(p.selling_price) || 0;
 
               const profit =
-                (sellingPrice -
-                  purchasePrice) *
-                stock;
+                (sellingPrice - purchasePrice) * stock;
 
-              const isRupture =
-                stock <= 0;
+              const isRupture = stock <= 0;
 
               const isFaible =
-                stock > 0 &&
-                stock <= 5;
+                stock > 0 && stock <= 5;
 
               return (
                 <article
                   key={p.id}
                   className="
+                    min-w-0
                     overflow-hidden
-                    rounded-[24px]
+                    rounded-[22px]
                     border
                     border-slate-200
                     bg-white
@@ -1117,76 +1120,75 @@ export default function ProductsPage() {
                     transition
                     hover:border-indigo-200
                     hover:shadow-md
+                    sm:rounded-[24px]
                   "
                 >
 
-                  {/* =================================================
-                      PRODUIT HEADER
-                  ================================================= */}
+                  <div className="min-w-0 p-3.5 sm:p-5">
 
-                  <div className="p-4 sm:p-5">
+                    {/* =================================================
+                        PRODUIT HEADER
+                    ================================================= */}
 
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
 
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div
+                        className={`
+                          flex
+                          h-11
+                          w-11
+                          shrink-0
+                          items-center
+                          justify-center
+                          rounded-xl
+                          ${
+                            isRupture
+                              ? "bg-red-50 text-red-500"
+                              : isFaible
+                              ? "bg-amber-50 text-amber-500"
+                              : "bg-indigo-50 text-indigo-600"
+                          }
+                        `}
+                      >
+                        {isRupture ? (
+                          <AlertTriangle size={19} />
+                        ) : (
+                          <Package size={19} />
+                        )}
+                      </div>
 
-                        <div
-                          className={`
-                            flex
-                            h-11
-                            w-11
-                            shrink-0
-                            items-center
-                            justify-center
-                            rounded-xl
-                            ${
-                              isRupture
-                                ? "bg-red-50 text-red-500"
-                                : isFaible
-                                ? "bg-amber-50 text-amber-500"
-                                : "bg-indigo-50 text-indigo-600"
-                            }
-                          `}
-                        >
-                          {isRupture ? (
-                            <AlertTriangle size={19} />
-                          ) : (
-                            <Package size={19} />
-                          )}
-                        </div>
+                      <div className="min-w-0 flex-1">
 
-                        <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
 
-                          <h3 className="truncate text-base font-black text-slate-900 sm:text-lg">
+                          <h3 className="min-w-0 max-w-full break-words text-base font-black text-slate-900 sm:text-lg">
                             {p.name || "Produit sans nom"}
                           </h3>
 
-                          <p className="mt-1 text-[11px] font-medium text-slate-500">
-                            {p.unit || "Unité"} • Stock actuel
-                          </p>
+                          {isRupture ? (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-100 bg-red-50 px-2 py-1 text-[8px] font-black text-red-600 sm:text-[9px]">
+                              <AlertTriangle size={11} />
+                              Rupture
+                            </span>
+                          ) : isFaible ? (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-1 text-[8px] font-black text-amber-600 sm:text-[9px]">
+                              <AlertTriangle size={11} />
+                              Faible
+                            </span>
+                          ) : (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-1 text-[8px] font-black text-emerald-600 sm:text-[9px]">
+                              <CheckCircle size={11} />
+                              Disponible
+                            </span>
+                          )}
 
                         </div>
 
+                        <p className="mt-1 break-words text-[11px] font-medium text-slate-500">
+                          {p.unit || "Unité"} • Stock actuel
+                        </p>
+
                       </div>
-
-                      {/* STATUT */}
-
-                      {isRupture ? (
-                        <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-2.5 py-1.5 text-[9px] font-black text-red-600">
-                          <AlertTriangle size={12} />
-                          Rupture
-                        </span>
-                      ) : isFaible ? (
-                        <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1.5 text-[9px] font-black text-amber-600">
-                          <AlertTriangle size={12} />
-                          Faible
-                        </span>
-                      ) : (
-                        <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-[9px] font-black text-emerald-600">
-                          <CheckCircle size={12} />
-                          Disponible
-                        </span>
-                      )}
 
                     </div>
 
@@ -1194,18 +1196,18 @@ export default function ProductsPage() {
                         STOCK
                     ================================================= */}
 
-                    <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                    <div className="mt-4 rounded-2xl bg-slate-50 p-3.5 sm:mt-5 sm:p-4">
 
                       <div className="flex items-center justify-between gap-3">
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
 
                           <Boxes
                             size={16}
-                            className="text-slate-400"
+                            className="shrink-0 text-slate-400"
                           />
 
-                          <span className="text-xs font-bold text-slate-500">
+                          <span className="truncate text-[11px] font-bold text-slate-500 sm:text-xs">
                             Stock disponible
                           </span>
 
@@ -1213,8 +1215,10 @@ export default function ProductsPage() {
 
                         <span
                           className={`
-                            text-lg
+                            shrink-0
+                            text-base
                             font-black
+                            sm:text-lg
                             ${
                               isRupture
                                 ? "text-red-500"
@@ -1225,7 +1229,7 @@ export default function ProductsPage() {
                           `}
                         >
                           {stock}{" "}
-                          <span className="text-xs font-bold text-slate-400">
+                          <span className="text-[10px] font-bold text-slate-400 sm:text-xs">
                             {p.unit || "unité"}
                           </span>
                         </span>
@@ -1241,7 +1245,7 @@ export default function ProductsPage() {
                             transition-all
                             ${
                               isRupture
-                                ? "w-0 bg-red-500"
+                                ? "bg-red-500"
                                 : isFaible
                                 ? "bg-amber-500"
                                 : "bg-indigo-600"
@@ -1253,10 +1257,7 @@ export default function ProductsPage() {
                                 ? "0%"
                                 : `${Math.min(
                                     100,
-                                    Math.max(
-                                      10,
-                                      stock * 4
-                                    )
+                                    Math.max(10, stock * 4)
                                   )}%`,
                           }}
                         />
@@ -1271,26 +1272,26 @@ export default function ProductsPage() {
 
                     <div className="mt-3 grid grid-cols-2 gap-2">
 
-                      <div className="rounded-2xl border border-slate-100 bg-white p-3">
+                      <div className="min-w-0 rounded-2xl border border-slate-100 bg-white p-3">
 
-                        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                        <p className="text-[8px] font-black uppercase tracking-wider text-slate-400 sm:text-[9px]">
                           Prix achat
                         </p>
 
-                        <p className="mt-1 text-sm font-black text-slate-700">
+                        <p className="mt-1 break-words text-xs font-black text-slate-700 sm:text-sm">
                           {purchasePrice.toLocaleString()}{" "}
                           {p.currency}
                         </p>
 
                       </div>
 
-                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3">
+                      <div className="min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3">
 
-                        <p className="text-[9px] font-black uppercase tracking-wider text-emerald-500">
+                        <p className="text-[8px] font-black uppercase tracking-wider text-emerald-500 sm:text-[9px]">
                           Prix vente
                         </p>
 
-                        <p className="mt-1 text-sm font-black text-emerald-700">
+                        <p className="mt-1 break-words text-xs font-black text-emerald-700 sm:text-sm">
                           {sellingPrice.toLocaleString()}{" "}
                           {p.currency}
                         </p>
@@ -1303,16 +1304,16 @@ export default function ProductsPage() {
                         BENEFICE
                     ================================================= */}
 
-                    <div className="mt-3 flex items-center justify-between rounded-2xl border border-indigo-100 bg-indigo-50/50 px-3 py-3">
+                    <div className="mt-3 flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 px-3 py-3">
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
 
                         <Wallet
                           size={15}
-                          className="text-indigo-500"
+                          className="shrink-0 text-indigo-500"
                         />
 
-                        <span className="text-[10px] font-bold text-slate-500">
+                        <span className="truncate text-[10px] font-bold text-slate-500">
                           Bénéfice potentiel
                         </span>
 
@@ -1320,6 +1321,8 @@ export default function ProductsPage() {
 
                       <span
                         className={`
+                          shrink-0
+                          break-words
                           text-xs
                           font-black
                           ${
@@ -1339,56 +1342,74 @@ export default function ProductsPage() {
                         ACTIONS
                     ================================================= */}
 
-                    <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4">
 
                       <Link
                         href={`/products/edit/${p.id}`}
                         className="
                           flex
                           min-h-[46px]
+                          min-w-0
                           items-center
                           justify-center
-                          gap-2
+                          gap-1.5
                           rounded-xl
                           border
                           border-indigo-100
                           bg-indigo-50
-                          text-xs
+                          px-2
+                          text-[10px]
                           font-black
                           text-indigo-600
                           transition
                           hover:bg-indigo-100
+                          active:scale-[0.98]
+                          sm:gap-2
+                          sm:text-xs
                         "
                       >
-                        <Edit size={15} />
-                        Modifier
-                        <ChevronRight size={14} />
+                        <Edit size={14} className="shrink-0" />
+
+                        <span className="truncate">
+                          Modifier
+                        </span>
+
+                        <ChevronRight
+                          size={13}
+                          className="hidden shrink-0 sm:block"
+                        />
                       </Link>
 
                       <button
                         type="button"
-                        onClick={() =>
-                          deleteProduct(p.id)
-                        }
+                        onClick={() => deleteProduct(p.id)}
                         className="
                           flex
                           min-h-[46px]
+                          min-w-0
                           items-center
                           justify-center
-                          gap-2
+                          gap-1.5
                           rounded-xl
                           border
                           border-red-100
                           bg-red-50
-                          text-xs
+                          px-2
+                          text-[10px]
                           font-black
                           text-red-600
                           transition
                           hover:bg-red-100
+                          active:scale-[0.98]
+                          sm:gap-2
+                          sm:text-xs
                         "
                       >
-                        <Trash2 size={15} />
-                        Supprimer
+                        <Trash2 size={14} className="shrink-0" />
+
+                        <span className="truncate">
+                          Supprimer
+                        </span>
                       </button>
 
                     </div>
@@ -1422,7 +1443,7 @@ function GuideItem({
   text: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
 
       <div className="flex items-start gap-3">
 
@@ -1430,13 +1451,13 @@ function GuideItem({
           {number}
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
 
           <h3 className="mb-2 text-sm font-black text-slate-900">
             {title}
           </h3>
 
-          <p className="text-sm leading-7 text-slate-600">
+          <p className="break-words text-xs leading-6 text-slate-600 sm:text-sm sm:leading-7">
             {text}
           </p>
 

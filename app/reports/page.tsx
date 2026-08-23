@@ -2143,7 +2143,7 @@ export default function ReportsPage() {
 
     addPageHeader(
       "Detail des ventes",
-      `${data.length} transaction${
+      `${data.length} ventes${
         data.length >
         1
           ? "s"
@@ -2152,7 +2152,7 @@ export default function ReportsPage() {
     );
 
     addSectionTitle(
-      "Liste des transactions",
+      "Liste des ventes",
       40
     );
 
@@ -2462,7 +2462,7 @@ export default function ReportsPage() {
       );
     } else {
       observations.push(
-        `L'activite comprend ${data.length} transaction${
+        `L'activite comprend ${data.length} ventes${
           data.length >
           1
             ? "s"
@@ -2903,34 +2903,48 @@ export default function ReportsPage() {
                   </h3>
 
                   <div className="mt-3 space-y-2.5 text-xs leading-5 text-slate-600 sm:text-sm">
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        1.
-                      </span>{" "}
-                      Tapez le nom d'un produit pour retrouver toutes ses ventes.
-                    </p>
+  <p>
+    <span className="font-bold text-slate-800">
+      1.
+    </span>{" "}
+    Consultez les ventes d'aujourd'hui et d'hier avec les montants en FC et en USD, les bénéfices et les quantités vendues.
+  </p>
 
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        2.
-                      </span>{" "}
-                      Utilisez les dates « Du » et « Au » pour analyser une période.
-                    </p>
+  <p>
+    <span className="font-bold text-slate-800">
+      2.
+    </span>{" "}
+    Utilisez « Du » et « Au », puis cliquez sur « Voir la période » pour analyser une période précise.
+  </p>
 
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        3.
-                      </span>{" "}
-                      Cliquez sur « Créer le PDF » pour générer un rapport professionnel.
-                    </p>
+  <p>
+    <span className="font-bold text-slate-800">
+      3.
+    </span>{" "}
+    Les 5 dernières ventes sont affichées en premier. Cliquez sur « Voir toutes les ventes » pour afficher toutes les ventes.
+  </p>
 
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        4.
-                      </span>{" "}
-                      Chaque vente peut être supprimée définitivement depuis l'historique.
-                    </p>
-                  </div>
+  <p>
+    <span className="font-bold text-slate-800">
+      4.
+    </span>{" "}
+    Utilisez le bouton de suppression pour supprimer définitivement une vente après confirmation.
+  </p>
+
+  <p>
+    <span className="font-bold text-slate-800">
+      5.
+    </span>{" "}
+    Cliquez sur « Créer le PDF » pour générer un rapport professionnel avec le résumé, le suivi journalier, les ventes et l'analyse commerciale.
+  </p>
+
+  <p>
+    <span className="font-bold text-slate-800">
+      6.
+    </span>{" "}
+    « Actualiser » recharge les ventes et « Réinitialiser » enlève les filtres.
+  </p>
+</div>
                 </div>
               </div>
 
@@ -3056,120 +3070,93 @@ export default function ReportsPage() {
           </div>
         )}
 
-        {/* ==================================================
-            STATISTIQUES JOURNALIÈRES
-        ================================================== */}
+       {/* ==================================================
+    STATISTIQUES JOURNALIÈRES
+    AUJOURD'HUI ET HIER EN PREMIER
+================================================== */}
 
-        <section className="grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
+<section
+  className="
+    grid
+    w-full
+    min-w-0
+    grid-cols-2
+    gap-2
+    sm:gap-4
+    lg:gap-5
+  "
+>
+  {/* AUJOURD'HUI — TOUJOURS EN PREMIER */}
 
-          {/* AUJOURD'HUI — INDIGO */}
+  <ReportCard
+    icon={
+      <BarChart3
+        size={19}
+      />
+    }
+    title="Aujourd'hui"
+    value={`${formatMoney(
+      today.fc
+    )} FC`}
+    secondaryValue={`${formatMoney(
+      today.usd
+    )} $`}
+    subtitle={`Bénéfice : ${formatMoney(
+      today.profitFc
+    )} FC • ${formatMoney(
+      today.profitUsd
+    )} $`}
+    trend={
+      dayVariationFc ||
+      dayVariationUsd
+    }
+    trendLabel="vs hier"
+    extra={`${today.quantity} article${
+      today.quantity > 1
+        ? "s"
+        : ""
+    } vendu${
+      today.quantity > 1
+        ? "s"
+        : ""
+    }`}
+    tone="indigo"
+  />
 
-          <ReportCard
-            icon={
-              <BarChart3
-                size={19}
-              />
-            }
-            title="Aujourd'hui"
-            value={`${formatMoney(
-              today.fc
-            )} FC`}
-            secondaryValue={`${formatMoney(
-              today.usd
-            )} $`}
-            subtitle={`Bénéfice : ${formatMoney(
-              today.profitFc
-            )} FC • ${formatMoney(
-              today.profitUsd
-            )} $`}
-            trend={
-              dayVariationFc ||
-              dayVariationUsd
-            }
-            trendLabel="vs hier"
-            extra={`${today.quantity} article${
-              today.quantity >
-              1
-                ? "s"
-                : ""
-            } vendu${
-              today.quantity >
-              1
-                ? "s"
-                : ""
-            }`}
-            tone="indigo"
-          />
+  {/* HIER — TOUJOURS APRÈS AUJOURD'HUI */}
 
-          {/* HIER — BLEU */}
+  <ReportCard
+    icon={
+      <CalendarDays
+        size={19}
+      />
+    }
+    title="Hier"
+    value={`${formatMoney(
+      yesterday.fc
+    )} FC`}
+    secondaryValue={`${formatMoney(
+      yesterday.usd
+    )} $`}
+    subtitle={`Bénéfice : ${formatMoney(
+      yesterday.profitFc
+    )} FC • ${formatMoney(
+      yesterday.profitUsd
+    )} $`}
+    extra={`${yesterday.quantity} article${
+      yesterday.quantity > 1
+        ? "s"
+        : ""
+    } vendu${
+      yesterday.quantity > 1
+        ? "s"
+        : ""
+    }`}
+    tone="slate"
+  />
+</section>
 
-          <ReportCard
-            icon={
-              <CalendarDays
-                size={19}
-              />
-            }
-            title="Hier"
-            value={`${formatMoney(
-              yesterday.fc
-            )} FC`}
-            secondaryValue={`${formatMoney(
-              yesterday.usd
-            )} $`}
-            subtitle={`Bénéfice : ${formatMoney(
-              yesterday.profitFc
-            )} FC • ${formatMoney(
-              yesterday.profitUsd
-            )} $`}
-            extra={`${yesterday.quantity} article${
-              yesterday.quantity >
-              1
-                ? "s"
-                : ""
-            } vendu${
-              yesterday.quantity >
-              1
-                ? "s"
-                : ""
-            }`}
-            tone="slate"
-          />
-
-          {/* AVANT-HIER — AMBRE */}
-
-          <ReportCard
-            icon={
-              <CalendarDays
-                size={19}
-              />
-            }
-            title="Avant-hier"
-            value={`${formatMoney(
-              beforeYesterday.fc
-            )} FC`}
-            secondaryValue={`${formatMoney(
-              beforeYesterday.usd
-            )} $`}
-            subtitle={`Bénéfice : ${formatMoney(
-              beforeYesterday.profitFc
-            )} FC • ${formatMoney(
-              beforeYesterday.profitUsd
-            )} $`}
-            extra={`${beforeYesterday.quantity} article${
-              beforeYesterday.quantity >
-              1
-                ? "s"
-                : ""
-            } vendu${
-              beforeYesterday.quantity >
-              1
-                ? "s"
-                : ""
-            }`}
-            tone="amber"
-          />
-
-        </section>
+        
 
         {/* ==================================================
             RÉSUMÉ
@@ -3275,21 +3262,7 @@ export default function ReportsPage() {
               tone="blue"
             />
 
-            <MiniStat
-              label="Panier moyen FC"
-              value={`${formatMoney(
-                summary.averageFc
-              )} FC`}
-              tone="slate"
-            />
-
-            <MiniStat
-              label="Panier moyen USD"
-              value={`${formatMoney(
-                summary.averageUsd
-              )} $`}
-              tone="slate"
-            />
+            
           </div>
         </section>
 
@@ -3311,101 +3284,7 @@ export default function ReportsPage() {
             sm:p-6
           "
         >
-          <div className="mb-5 flex min-w-0 items-center gap-3">
-            <div
-              className="
-                flex
-                h-10
-                w-10
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-indigo-50
-                text-indigo-600
-              "
-            >
-              <Search
-                size={19}
-                strokeWidth={2.2}
-              />
-            </div>
-
-            <div className="min-w-0">
-              <h2 className="text-lg font-black text-slate-900 sm:text-xl">
-                Rechercher les ventes
-              </h2>
-
-              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                Filtrez vos ventes par produit ou par période.
-              </p>
-            </div>
-          </div>
-
-          {/* PRODUIT */}
-
-          <div className="min-w-0">
-            <label
-              htmlFor="product-search"
-              className="mb-2 block text-xs font-extrabold text-slate-700 sm:text-sm"
-            >
-              Rechercher un produit
-            </label>
-
-            <div className="relative min-w-0">
-              <div className="pointer-events-none absolute left-3 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center text-indigo-500">
-                <Package size={18} />
-              </div>
-
-              <input
-                id="product-search"
-                type="text"
-                value={
-                  productQuery
-                }
-                onChange={(e) =>
-                  searchProduct(
-                    e.target.value
-                  )
-                }
-                placeholder="Ex : Savon, Riz, Huile..."
-                className="
-                  block
-                  min-h-[48px]
-                  w-full
-                  min-w-0
-                  rounded-2xl
-                  border
-                  border-slate-200
-                  bg-slate-50
-                  p-3
-                  pl-10
-                  text-[16px]
-                  text-slate-900
-                  outline-none
-                  transition
-                  placeholder:text-slate-400
-                  focus:border-indigo-400
-                  focus:bg-white
-                  focus:ring-4
-                  focus:ring-indigo-50
-                "
-              />
-            </div>
-          </div>
-
-          {/* SÉPARATEUR */}
-
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-slate-100" />
-
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400">
-              ou
-            </span>
-
-            <div className="h-px flex-1 bg-slate-100" />
-          </div>
-
+    
           {/* PÉRIODE */}
 
           <div className="min-w-0">
@@ -3710,7 +3589,7 @@ export default function ReportsPage() {
         </h2>
 
         <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-          Vos 5 dernières transactions
+          Vos 5 dernières ventes
         </p>
       </div>
     </div>

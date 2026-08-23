@@ -637,12 +637,12 @@ export default function EditProductPage() {
   if (loadingProduct) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4">
-        <div className="flex items-center gap-3 rounded-[26px] bg-white px-6 py-5 text-sm font-semibold text-slate-600 shadow-sm">
+        <div className="flex w-full max-w-sm items-center justify-center gap-3 rounded-[24px] bg-white px-5 py-5 text-sm font-semibold text-slate-600 shadow-sm">
           <Loader2
-            size={22}
-            className="animate-spin text-indigo-600"
+            size={21}
+            className="shrink-0 animate-spin text-indigo-600"
           />
-          Chargement du produit...
+          <span>Chargement du produit...</span>
         </div>
       </div>
     );
@@ -651,8 +651,8 @@ export default function EditProductPage() {
   if (!product) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4">
-        <div className="w-full max-w-md rounded-[26px] bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+        <div className="w-full max-w-md rounded-[26px] bg-white p-6 text-center shadow-sm sm:p-8">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
             <AlertTriangle size={28} />
           </div>
 
@@ -660,7 +660,7 @@ export default function EditProductPage() {
             Produit introuvable
           </p>
 
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm leading-6 text-slate-500">
             Le produit demandé n'existe pas ou
             n'est plus disponible.
           </p>
@@ -679,32 +679,31 @@ export default function EditProductPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+    <div className="min-h-screen overflow-x-hidden bg-[#f5f7fb] text-slate-900">
 
-      <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-5 lg:px-8">
 
         {/* ======================================================
             HEADER
         ====================================================== */}
 
-        <div className="mb-6">
+        <div className="mb-5">
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
 
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                <Package size={24} />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 sm:h-12 sm:w-12">
+                <Package size={22} />
               </div>
 
-              <div>
-                <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              <div className="min-w-0">
+                <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-3xl">
                   Gestion du produit
                 </h1>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  Modifier les informations ou
-                  ajouter du stock
+                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                  Modifier ou ajouter du stock
                 </p>
               </div>
 
@@ -719,7 +718,7 @@ export default function EditProductPage() {
                 loading ||
                 loadingRestock
               }
-              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 sm:w-auto sm:px-5"
             >
               Retour aux produits
             </button>
@@ -732,61 +731,57 @@ export default function EditProductPage() {
             PRODUIT ACTUEL
         ====================================================== */}
 
-        <div className="mb-6 rounded-[26px] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-5 rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:mb-6 sm:rounded-[26px] sm:p-6">
 
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <div className="flex items-start gap-3 sm:gap-5">
 
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-              <Package size={27} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 sm:h-14 sm:w-14">
+              <Package size={24} />
             </div>
 
             <div className="min-w-0 flex-1">
 
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Produit sélectionné
-                </p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 sm:text-xs">
+                Produit sélectionné
+              </p>
 
-                <h2 className="truncate text-xl font-black text-slate-900">
-                  {product.name ||
-                    "Produit sans nom"}
-                </h2>
-              </div>
+              <h2 className="mt-0.5 truncate text-lg font-black text-slate-900 sm:text-xl">
+                {product.name ||
+                  "Produit sans nom"}
+              </h2>
 
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:grid-cols-4 sm:gap-3">
 
-                {/* STAT CARD */}
-
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold text-slate-400">
+                <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+                  <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
                     Unité
                   </p>
 
-                  <p className="mt-1 truncate text-base font-black text-slate-900">
+                  <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
                     {product.unit || "Pièce"}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold text-slate-400">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+                  <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
                     Stock réel
                   </p>
 
-                  <p className="mt-1 text-base font-black text-slate-900">
+                  <p className="mt-1 text-sm font-black text-slate-900 sm:text-base">
                     {currentStock}
                   </p>
 
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[10px] text-slate-400 sm:text-[11px]">
                     pièces
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold text-slate-400">
+                <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+                  <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
                     Coût / pièce
                   </p>
 
-                  <p className="mt-1 text-base font-black text-slate-900">
+                  <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
                     {Math.round(
                       Number(
                         product.purchase_price ||
@@ -797,12 +792,12 @@ export default function EditProductPage() {
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold text-slate-400">
+                <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+                  <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
                     Vente / pièce
                   </p>
 
-                  <p className="mt-1 text-base font-black text-slate-900">
+                  <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
                     {Math.round(
                       Number(
                         product.selling_price ||
@@ -825,22 +820,22 @@ export default function EditProductPage() {
             GUIDE
         ====================================================== */}
 
-        <div className="mb-6 rounded-[26px] border border-slate-100 bg-white shadow-sm">
+        <div className="mb-5 rounded-[24px] border border-slate-100 bg-white shadow-sm sm:mb-6 sm:rounded-[26px]">
 
-          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
 
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
 
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                <Info size={21} />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                <Info size={19} />
               </div>
 
-              <div>
-                <h2 className="font-black text-slate-900">
+              <div className="min-w-0">
+                <h2 className="truncate font-black text-slate-900">
                   Guide de gestion du stock
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">
                   Comprendre les deux opérations
                 </p>
               </div>
@@ -852,7 +847,7 @@ export default function EditProductPage() {
               onClick={() =>
                 setShowGuide(!showGuide)
               }
-              className="rounded-2xl bg-indigo-600 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700"
+              className="w-full rounded-2xl bg-indigo-600 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700 sm:w-auto"
             >
               {showGuide
                 ? "Fermer le guide"
@@ -862,26 +857,24 @@ export default function EditProductPage() {
           </div>
 
           {showGuide && (
-            <div className="border-t border-slate-100 p-5 sm:p-6">
+            <div className="border-t border-slate-100 p-4 sm:p-6">
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
 
-                {/* MODIFIER */}
-
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5">
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 sm:p-5">
 
                   <div className="flex gap-3">
 
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                      <Pencil size={19} />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                      <Pencil size={18} />
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-black text-slate-900">
                         Modifier le produit
                       </h3>
 
-                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                      <p className="mt-2 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
                         Utilisez cette option pour
                         corriger le nom, l'unité, les
                         prix ou remplacer volontairement
@@ -898,22 +891,20 @@ export default function EditProductPage() {
 
                 </div>
 
-                {/* RESTOCK */}
-
-                <div className="rounded-2xl border border-green-100 bg-green-50/60 p-5">
+                <div className="rounded-2xl border border-green-100 bg-green-50/60 p-4 sm:p-5">
 
                   <div className="flex gap-3">
 
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-600">
-                      <RefreshCcw size={19} />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-600">
+                      <RefreshCcw size={18} />
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-black text-slate-900">
                         Réapprovisionner
                       </h3>
 
-                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                      <p className="mt-2 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
                         Utilisez cette option lorsque
                         vous recevez une nouvelle
                         marchandise.
@@ -929,14 +920,12 @@ export default function EditProductPage() {
 
                 </div>
 
-                {/* EXEMPLE */}
-
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:p-5">
 
                   <div className="flex gap-3">
 
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                      <Boxes size={19} />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                      <Boxes size={18} />
                     </div>
 
                     <div className="min-w-0">
@@ -944,7 +933,7 @@ export default function EditProductPage() {
                         Exemple avec des cartons
                       </h3>
 
-                      <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      <div className="mt-3 space-y-2 text-xs text-slate-600 sm:text-sm">
 
                         <p>
                           Stock actuel :
@@ -967,14 +956,14 @@ export default function EditProductPage() {
                           </strong>
                         </p>
 
-                        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3">
+                        <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-white p-3">
 
                           <span className="font-black text-slate-900">
                             5 cartons
                           </span>
 
                           <Plus
-                            size={16}
+                            size={14}
                             className="text-green-600"
                           />
 
@@ -983,7 +972,7 @@ export default function EditProductPage() {
                           </span>
 
                           <ArrowRight
-                            size={16}
+                            size={14}
                             className="text-indigo-600"
                           />
 
@@ -1007,22 +996,20 @@ export default function EditProductPage() {
 
                 </div>
 
-                {/* PRIX */}
-
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:p-5">
 
                   <div className="flex gap-3">
 
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                      <CircleDollarSign size={19} />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                      <CircleDollarSign size={18} />
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-black text-slate-900">
                         Prix du nouvel arrivage
                       </h3>
 
-                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                      <p className="mt-2 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
                         Indiquez le prix total payé pour
                         la nouvelle marchandise.
                         L'application calcule automatiquement
@@ -1036,12 +1023,12 @@ export default function EditProductPage() {
 
               </div>
 
-              <div className="mt-4 rounded-2xl border border-green-100 bg-green-50 p-4">
+              <div className="mt-3 rounded-2xl border border-green-100 bg-green-50 p-4 sm:mt-4">
 
                 <div className="flex gap-3">
 
                   <CheckCircle
-                    size={20}
+                    size={19}
                     className="mt-0.5 shrink-0 text-green-600"
                   />
 
@@ -1050,7 +1037,7 @@ export default function EditProductPage() {
                       Produit sans stock
                     </p>
 
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                    <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
                       Un produit peut avoir un stock de
                       0. Vous pourrez ensuite le
                       réapprovisionner normalement.
@@ -1066,7 +1053,7 @@ export default function EditProductPage() {
                 onClick={() =>
                   setShowGuide(false)
                 }
-                className="mt-5 w-full rounded-2xl bg-indigo-600 px-5 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700"
+                className="mt-4 w-full rounded-2xl bg-indigo-600 px-5 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700"
               >
                 ✓ J'ai compris
               </button>
@@ -1080,42 +1067,43 @@ export default function EditProductPage() {
             CHOIX DU MODE
         ====================================================== */}
 
-        <div className="mb-6 rounded-[26px] border border-slate-100 bg-white p-3 shadow-sm">
+        <div className="mb-5 rounded-[24px] border border-slate-100 bg-white p-2.5 shadow-sm sm:mb-6 sm:rounded-[26px] sm:p-3">
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
 
             <button
               type="button"
               onClick={() =>
                 setMode("edit")
               }
-              className={`rounded-2xl border p-4 text-left transition ${
+              className={`min-w-0 rounded-2xl border p-3 text-left transition sm:p-4 ${
                 mode === "edit"
                   ? "border-indigo-200 bg-indigo-50"
                   : "border-transparent bg-slate-50 hover:bg-slate-100"
               }`}
             >
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3">
 
                 <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                     mode === "edit"
                       ? "bg-indigo-100 text-indigo-600"
                       : "bg-white text-slate-500"
                   }`}
                 >
-                  <Pencil size={19} />
+                  <Pencil size={18} />
                 </div>
 
-                <div>
-                  <p className="font-black text-slate-900">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-900 sm:text-base">
                     Modifier
                   </p>
 
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">
                     Corriger le produit
                   </p>
+
                 </div>
 
               </div>
@@ -1127,31 +1115,31 @@ export default function EditProductPage() {
               onClick={() =>
                 setMode("restock")
               }
-              className={`rounded-2xl border p-4 text-left transition ${
+              className={`min-w-0 rounded-2xl border p-3 text-left transition sm:p-4 ${
                 mode === "restock"
                   ? "border-green-200 bg-green-50"
                   : "border-transparent bg-slate-50 hover:bg-slate-100"
               }`}
             >
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3">
 
                 <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                     mode === "restock"
                       ? "bg-green-100 text-green-600"
                       : "bg-white text-slate-500"
                   }`}
                 >
-                  <RefreshCcw size={19} />
+                  <RefreshCcw size={18} />
                 </div>
 
-                <div>
-                  <p className="font-black text-slate-900">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-900 sm:text-base">
                     Réapprovisionner
                   </p>
 
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">
                     Ajouter du stock
                   </p>
                 </div>
@@ -1169,16 +1157,14 @@ export default function EditProductPage() {
         ====================================================== */}
 
         {mode === "edit" && (
-          <div className="space-y-6">
+          <div className="space-y-5 sm:space-y-6">
 
-            {/* FORMULAIRE */}
+            <div className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
 
-            <div className="rounded-[26px] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-5 flex items-center gap-3 sm:mb-6">
 
-              <div className="mb-6 flex items-center gap-3">
-
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                  <Pencil size={20} />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 sm:h-11 sm:w-11">
+                  <Pencil size={19} />
                 </div>
 
                 <div>
@@ -1186,15 +1172,14 @@ export default function EditProductPage() {
                     Informations du produit
                   </h2>
 
-                  <p className="text-xs text-slate-500">
-                    Modifiez les informations
-                    nécessaires
+                  <p className="text-[11px] text-slate-500 sm:text-xs">
+                    Modifiez les informations nécessaires
                   </p>
                 </div>
 
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
 
                 {/* NOM */}
 
@@ -1209,7 +1194,7 @@ export default function EditProductPage() {
                       setName(e.target.value)
                     }
                     placeholder="Exemple : Coca-Cola 33cl"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   />
                 </div>
 
@@ -1225,7 +1210,7 @@ export default function EditProductPage() {
                     onChange={(e) =>
                       setType(e.target.value)
                     }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   >
                     <option value="Pièce">
                       Pièce
@@ -1255,6 +1240,7 @@ export default function EditProductPage() {
                   <input
                     type="number"
                     min="0"
+                    inputMode="decimal"
                     value={quantity}
                     onChange={(e) =>
                       setQuantity(e.target.value)
@@ -1264,10 +1250,10 @@ export default function EditProductPage() {
                         ? "Exemple : 50"
                         : `Nombre de ${type}(s)`
                     }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   />
 
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
+                  <p className="mt-2 text-[11px] leading-5 text-slate-400 sm:text-xs">
                     Cette quantité remplacera le stock
                     actuel. Pour ajouter une livraison,
                     utilisez plutôt{" "}
@@ -1281,7 +1267,7 @@ export default function EditProductPage() {
                 {/* PIÈCES */}
 
                 {type !== "Pièce" && (
-                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3.5 sm:p-4">
 
                     <label className="mb-2 block text-xs font-bold text-slate-600">
                       Nombre de pièces dans {type}
@@ -1290,6 +1276,7 @@ export default function EditProductPage() {
                     <input
                       type="number"
                       min="1"
+                      inputMode="numeric"
                       value={piecesPerUnit}
                       onChange={(e) =>
                         setPiecesPerUnit(
@@ -1297,21 +1284,21 @@ export default function EditProductPage() {
                         )
                       }
                       placeholder="Exemple : 24"
-                      className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
+                      className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                     />
 
-                    <div className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-4">
+                    <div className="mt-3 flex items-start gap-3 rounded-2xl bg-white p-3.5 sm:p-4">
 
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
                         <Calculator size={17} />
                       </div>
 
-                      <div>
-                        <p className="text-xs font-semibold text-slate-400">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold text-slate-400 sm:text-xs">
                           Nouveau stock réel
                         </p>
 
-                        <p className="mt-1 font-black text-indigo-600">
+                        <p className="mt-1 break-words text-sm font-black text-indigo-600 sm:text-base">
                           {Number(quantity || 0)}
                           {" × "}
                           {Number(
@@ -1337,15 +1324,16 @@ export default function EditProductPage() {
                   <input
                     type="number"
                     min="0"
+                    inputMode="decimal"
                     value={buyPrice}
                     onChange={(e) =>
                       setBuyPrice(e.target.value)
                     }
                     placeholder="Exemple : 100000"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   />
 
-                  <p className="mt-2 text-xs text-slate-400">
+                  <p className="mt-2 text-[11px] text-slate-400 sm:text-xs">
                     Montant total correspondant à la
                     nouvelle quantité.
                   </p>
@@ -1361,12 +1349,13 @@ export default function EditProductPage() {
                   <input
                     type="number"
                     min="0"
+                    inputMode="decimal"
                     value={sellPrice}
                     onChange={(e) =>
                       setSellPrice(e.target.value)
                     }
                     placeholder="Exemple : 2000"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   />
                 </div>
 
@@ -1382,7 +1371,7 @@ export default function EditProductPage() {
                     onChange={(e) =>
                       setCurrency(e.target.value)
                     }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   >
                     <option value="FC">
                       Franc congolais (FC)
@@ -1402,12 +1391,12 @@ export default function EditProductPage() {
                 STATISTIQUES
             ================================================== */}
 
-            <div className="rounded-[26px] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
 
               <div className="mb-5 flex items-center gap-3">
 
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                  <TrendingUp size={20} />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 sm:h-11 sm:w-11">
+                  <TrendingUp size={19} />
                 </div>
 
                 <div>
@@ -1415,35 +1404,35 @@ export default function EditProductPage() {
                     Nouveau résumé
                   </h2>
 
-                  <p className="text-xs text-slate-500">
+                  <p className="text-[11px] text-slate-500 sm:text-xs">
                     Résultat après modification
                   </p>
                 </div>
 
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3">
 
                 {/* STOCK */}
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
 
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                    <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm sm:flex">
                       <Boxes size={18} />
                     </div>
 
-                    <div>
-                      <p className="text-xs font-semibold text-slate-400">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
                         Stock réel
                       </p>
 
-                      <p className="text-xl font-black text-slate-900">
+                      <p className="text-lg font-black text-slate-900 sm:text-xl">
                         {totalPieces}
                       </p>
 
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[10px] text-slate-400 sm:text-[11px]">
                         pièce(s)
                       </p>
                     </div>
@@ -1454,20 +1443,20 @@ export default function EditProductPage() {
 
                 {/* COÛT */}
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
 
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                    <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm sm:flex">
                       <CircleDollarSign size={18} />
                     </div>
 
-                    <div>
-                      <p className="text-xs font-semibold text-slate-400">
-                        Coût par pièce
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
+                        Coût / pièce
                       </p>
 
-                      <p className="text-xl font-black text-slate-900">
+                      <p className="truncate text-lg font-black text-slate-900 sm:text-xl">
                         {Math.round(
                           pricePerPiece
                         )}{" "}
@@ -1481,30 +1470,30 @@ export default function EditProductPage() {
 
                 {/* BÉNÉFICE */}
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
 
                     <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                      className={`hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:flex ${
                         profitPerPiece >= 0
                           ? "bg-green-50 text-green-600"
-                          : "bg-red-50 text-red-600"
+                          : "bg-slate-100 text-slate-600"
                       }`}
                     >
                       <TrendingUp size={18} />
                     </div>
 
-                    <div>
-                      <p className="text-xs font-semibold text-slate-400">
-                        Bénéfice par pièce
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
+                        Bénéfice / pièce
                       </p>
 
                       <p
-                        className={`text-xl font-black ${
+                        className={`truncate text-lg font-black sm:text-xl ${
                           profitPerPiece >= 0
                             ? "text-green-600"
-                            : "text-red-600"
+                            : "text-slate-600"
                         }`}
                       >
                         {Math.round(
@@ -1520,24 +1509,24 @@ export default function EditProductPage() {
 
                 {/* BÉNÉFICE TOTAL */}
 
-                <div className="rounded-2xl border border-green-100 bg-green-50 p-4">
+                <div className="rounded-2xl border border-green-100 bg-green-50 p-3.5 sm:p-4">
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
 
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-green-600 shadow-sm">
+                    <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-green-600 shadow-sm sm:flex">
                       <Sparkles size={18} />
                     </div>
 
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-slate-500 sm:text-xs">
                         Bénéfice potentiel
                       </p>
 
                       <p
-                        className={`text-xl font-black ${
+                        className={`truncate text-lg font-black sm:text-xl ${
                           totalProfit >= 0
                             ? "text-green-600"
-                            : "text-red-600"
+                            : "text-slate-600"
                         }`}
                       >
                         {Math.round(
@@ -1561,7 +1550,7 @@ export default function EditProductPage() {
               type="button"
               onClick={updateProduct}
               disabled={loading}
-              className="flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 p-4 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-[54px] w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-4 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[56px]"
             >
               {loading ? (
                 <>
@@ -1573,7 +1562,7 @@ export default function EditProductPage() {
                 </>
               ) : (
                 <>
-                  <Pencil size={20} />
+                  <Pencil size={19} />
                   Enregistrer les modifications
                 </>
               )}
@@ -1587,24 +1576,24 @@ export default function EditProductPage() {
         ====================================================== */}
 
         {mode === "restock" && (
-          <div className="space-y-6">
+          <div className="space-y-5 sm:space-y-6">
 
             {/* INTRO */}
 
-            <div className="rounded-[26px] border border-green-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="rounded-[24px] border border-green-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
 
               <div className="flex items-start gap-3">
 
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-600">
-                  <PackagePlus size={21} />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-600 sm:h-11 sm:w-11">
+                  <PackagePlus size={20} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <h2 className="font-black text-slate-900">
                     Réapprovisionner le stock
                   </h2>
 
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                  <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6">
                     La quantité indiquée sera{" "}
                     <strong className="text-green-600">
                       ajoutée
@@ -1619,30 +1608,30 @@ export default function EditProductPage() {
 
             {/* FORMULAIRE */}
 
-            <div className="rounded-[26px] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
 
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
 
                 {/* STOCK ACTUEL */}
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
 
                   <div className="flex items-center gap-3">
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                      <Boxes size={20} />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                      <Boxes size={19} />
                     </div>
 
                     <div>
-                      <p className="text-xs font-bold text-slate-400">
+                      <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
                         Stock actuellement disponible
                       </p>
 
-                      <p className="mt-1 text-2xl font-black text-slate-900">
+                      <p className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
                         {currentStock}
                       </p>
 
-                      <p className="text-xs text-slate-400">
+                      <p className="text-[11px] text-slate-400 sm:text-xs">
                         pièce(s) réelles
                       </p>
                     </div>
@@ -1661,6 +1650,7 @@ export default function EditProductPage() {
                   <input
                     type="number"
                     min="1"
+                    inputMode="decimal"
                     value={restockQuantity}
                     onChange={(e) =>
                       setRestockQuantity(
@@ -1672,14 +1662,14 @@ export default function EditProductPage() {
                         ? "Exemple : 50"
                         : `Nombre de ${product.unit || "unités"} reçus`
                     }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-green-400 focus:bg-white focus:ring-4 focus:ring-green-50"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-green-400 focus:bg-white focus:ring-4 focus:ring-green-50 sm:text-sm"
                   />
                 </div>
 
                 {/* PIÈCES PAR UNITÉ */}
 
                 {product.unit !== "Pièce" && (
-                  <div className="rounded-2xl border border-green-100 bg-green-50/50 p-4">
+                  <div className="rounded-2xl border border-green-100 bg-green-50/50 p-3.5 sm:p-4">
 
                     <label className="mb-2 block text-xs font-bold text-slate-600">
                       Nombre de pièces dans{" "}
@@ -1689,6 +1679,7 @@ export default function EditProductPage() {
                     <input
                       type="number"
                       min="1"
+                      inputMode="numeric"
                       value={
                         restockPiecesPerUnit
                       }
@@ -1698,21 +1689,21 @@ export default function EditProductPage() {
                         )
                       }
                       placeholder="Exemple : 24"
-                      className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-900 outline-none transition focus:border-green-400 focus:ring-4 focus:ring-green-50"
+                      className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-green-400 focus:ring-4 focus:ring-green-50 sm:text-sm"
                     />
 
-                    <div className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-4">
+                    <div className="mt-3 flex items-start gap-3 rounded-2xl bg-white p-3.5 sm:p-4">
 
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-50 text-green-600">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600">
                         <Calculator size={17} />
                       </div>
 
-                      <div>
-                        <p className="text-xs font-semibold text-slate-400">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold text-slate-400 sm:text-xs">
                           Nouvelle marchandise
                         </p>
 
-                        <p className="mt-1 font-black text-green-600">
+                        <p className="mt-1 break-words text-sm font-black text-green-600 sm:text-base">
                           {Number(
                             restockQuantity || 0
                           )}
@@ -1741,6 +1732,7 @@ export default function EditProductPage() {
                   <input
                     type="number"
                     min="0"
+                    inputMode="decimal"
                     value={restockBuyPrice}
                     onChange={(e) =>
                       setRestockBuyPrice(
@@ -1748,10 +1740,10 @@ export default function EditProductPage() {
                       )
                     }
                     placeholder="Exemple : 240000"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-green-400 focus:bg-white focus:ring-4 focus:ring-green-50"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-green-400 focus:bg-white focus:ring-4 focus:ring-green-50 sm:text-sm"
                   />
 
-                  <p className="mt-2 text-xs text-slate-400">
+                  <p className="mt-2 text-[11px] leading-5 text-slate-400 sm:text-xs">
                     Indiquez le montant total payé
                     pour cette nouvelle marchandise.
                   </p>
@@ -1765,41 +1757,41 @@ export default function EditProductPage() {
                 APERÇU
             ================================================== */}
 
-            <div className="rounded-[26px] border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
 
               <div className="mb-5 flex items-center gap-3">
 
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-50 text-green-600">
-                  <RefreshCcw size={20} />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-600 sm:h-11 sm:w-11">
+                  <RefreshCcw size={19} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <h2 className="font-black text-slate-900">
                     Aperçu du réapprovisionnement
                   </h2>
 
-                  <p className="text-xs text-slate-500">
+                  <p className="text-[11px] text-slate-500 sm:text-xs">
                     Voici ce qui sera enregistré
                   </p>
                 </div>
 
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3">
 
                 {/* ANCIEN */}
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
 
-                  <p className="text-xs font-bold text-slate-400">
+                  <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
                     Stock actuel
                   </p>
 
-                  <p className="mt-2 text-2xl font-black text-slate-900">
+                  <p className="mt-1.5 text-lg font-black text-slate-900 sm:mt-2 sm:text-2xl">
                     {currentStock}
                   </p>
 
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[10px] text-slate-400 sm:text-xs">
                     pièces
                   </p>
 
@@ -1807,17 +1799,17 @@ export default function EditProductPage() {
 
                 {/* AJOUT */}
 
-                <div className="rounded-2xl border border-green-100 bg-green-50 p-4">
+                <div className="rounded-2xl border border-green-100 bg-green-50 p-3 sm:p-4">
 
-                  <p className="text-xs font-bold text-slate-400">
+                  <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
                     Nouvel arrivage
                   </p>
 
-                  <p className="mt-2 text-2xl font-black text-green-600">
+                  <p className="mt-1.5 text-lg font-black text-green-600 sm:mt-2 sm:text-2xl">
                     +{restockPieces}
                   </p>
 
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[10px] text-slate-400 sm:text-xs">
                     pièces
                   </p>
 
@@ -1825,17 +1817,17 @@ export default function EditProductPage() {
 
                 {/* TOTAL */}
 
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-3 sm:p-4">
 
-                  <p className="text-xs font-bold text-slate-400">
+                  <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
                     Nouveau stock
                   </p>
 
-                  <p className="mt-2 text-2xl font-black text-indigo-600">
+                  <p className="mt-1.5 text-lg font-black text-indigo-600 sm:mt-2 sm:text-2xl">
                     {newStockAfterRestock}
                   </p>
 
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[10px] text-slate-400 sm:text-xs">
                     pièces
                   </p>
 
@@ -1845,22 +1837,22 @@ export default function EditProductPage() {
 
               {/* COÛTS */}
 
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:grid-cols-2">
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
 
                   <div className="flex items-center gap-3">
 
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                      <CircleDollarSign size={18} />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm sm:h-10 sm:w-10">
+                      <CircleDollarSign size={17} />
                     </div>
 
-                    <div>
-                      <p className="text-xs font-semibold text-slate-400">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
                         Coût ancien
                       </p>
 
-                      <p className="mt-1 text-xl font-black text-slate-900">
+                      <p className="mt-1 truncate text-lg font-black text-slate-900 sm:text-xl">
                         {Math.round(
                           Number(
                             product.purchase_price ||
@@ -1875,20 +1867,20 @@ export default function EditProductPage() {
 
                 </div>
 
-                <div className="rounded-2xl border border-green-100 bg-green-50 p-4">
+                <div className="rounded-2xl border border-green-100 bg-green-50 p-3.5 sm:p-4">
 
                   <div className="flex items-center gap-3">
 
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-green-600 shadow-sm">
-                      <TrendingUp size={18} />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-green-600 shadow-sm sm:h-10 sm:w-10">
+                      <TrendingUp size={17} />
                     </div>
 
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-slate-500 sm:text-xs">
                         Nouveau coût moyen
                       </p>
 
-                      <p className="mt-1 text-xl font-black text-green-600">
+                      <p className="mt-1 truncate text-lg font-black text-green-600 sm:text-xl">
                         {Math.round(
                           newAverageCost
                         )}{" "}
@@ -1904,22 +1896,22 @@ export default function EditProductPage() {
 
               {/* EXPLICATION */}
 
-              <div className="mt-4 rounded-2xl border border-green-100 bg-green-50 p-4">
+              <div className="mt-3 rounded-2xl border border-green-100 bg-green-50 p-3.5 sm:mt-4 sm:p-4">
 
                 <div className="flex gap-3">
 
                   <CheckCircle
-                    size={20}
+                    size={19}
                     className="mt-0.5 shrink-0 text-green-600"
                   />
 
-                  <div>
+                  <div className="min-w-0">
 
                     <p className="text-sm font-black text-slate-900">
                       Rien ne sera perdu
                     </p>
 
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500 sm:text-xs">
                       Le stock actuel de{" "}
                       <strong className="text-slate-900">
                         {currentStock}
@@ -1947,7 +1939,7 @@ export default function EditProductPage() {
               type="button"
               onClick={restockProduct}
               disabled={loadingRestock}
-              className="flex w-full items-center justify-center gap-3 rounded-2xl bg-green-600 p-4 text-sm font-black text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-[54px] w-full items-center justify-center gap-3 rounded-2xl bg-green-600 px-4 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[56px]"
             >
 
               {loadingRestock ? (
@@ -1961,7 +1953,7 @@ export default function EditProductPage() {
                 </>
               ) : (
                 <>
-                  <RefreshCcw size={20} />
+                  <RefreshCcw size={19} />
 
                   Ajouter au stock
                 </>
@@ -1985,7 +1977,7 @@ export default function EditProductPage() {
             loading ||
             loadingRestock
           }
-          className="mt-6 w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+          className="mt-5 min-h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 sm:mt-6"
         >
           Annuler
         </button>
@@ -1994,8 +1986,8 @@ export default function EditProductPage() {
             PETIT PIED
         ====================================================== */}
 
-        <div className="py-6 text-center">
-          <p className="text-xs text-slate-400">
+        <div className="px-2 py-5 text-center sm:py-6">
+          <p className="text-[10px] leading-5 text-slate-400 sm:text-xs">
             BISO-COMMERCE • Gestion professionnelle
             du stock
           </p>

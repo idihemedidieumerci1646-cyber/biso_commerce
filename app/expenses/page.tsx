@@ -410,15 +410,16 @@ export default function ExpensesPage() {
 
         {/* ======================================================
             STATISTIQUES
+            FC + USD TOUJOURS CÔTE À CÔTE
         ====================================================== */}
 
         <div
           className="
             grid
             w-full
-            grid-cols-1
-            gap-5
-            sm:grid-cols-2
+            grid-cols-2
+            gap-3
+            sm:gap-5
           "
         >
 
@@ -947,6 +948,7 @@ export default function ExpensesPage() {
 
         {/* ======================================================
             AUJOURD'HUI / HIER
+            TOUJOURS CÔTE À CÔTE
         ====================================================== */}
 
         {!showAll && !searchDate && (
@@ -954,9 +956,9 @@ export default function ExpensesPage() {
             className="
               grid
               w-full
-              grid-cols-1
-              gap-5
-              md:grid-cols-2
+              grid-cols-2
+              gap-3
+              sm:gap-5
             "
           >
 
@@ -1239,12 +1241,13 @@ function StatCard({
     <div
       className="
         w-full
+        min-w-0
         overflow-hidden
         rounded-[26px]
         border
         border-slate-100
         bg-white
-        p-5
+        p-4
         shadow-sm
         transition
         hover:shadow-md
@@ -1258,7 +1261,8 @@ function StatCard({
           min-w-0
           items-start
           justify-between
-          gap-4
+          gap-2
+          sm:gap-4
         "
       >
 
@@ -1267,9 +1271,10 @@ function StatCard({
           <p
             className="
               break-words
-              text-sm
+              text-xs
               font-bold
               text-slate-500
+              sm:text-sm
             "
           >
             {title}
@@ -1279,8 +1284,9 @@ function StatCard({
             className="
               mt-1
               break-words
-              text-xs
+              text-[10px]
               text-slate-400
+              sm:text-xs
             "
           >
             {description}
@@ -1296,7 +1302,8 @@ function StatCard({
             justify-center
             rounded-2xl
             bg-indigo-50
-            p-3
+            p-2
+            sm:p-3
           "
         >
           {icon}
@@ -1306,12 +1313,14 @@ function StatCard({
 
       <p
         className="
-          mt-5
+          mt-4
           break-words
-          text-3xl
+          text-xl
           font-black
           tracking-tight
           text-slate-900
+          sm:mt-5
+          sm:text-3xl
         "
       >
         {value}
@@ -1417,7 +1426,7 @@ function ExpenseList({
         border
         border-slate-100
         bg-white
-        p-5
+        p-4
         shadow-sm
         sm:p-6
       "
@@ -1430,11 +1439,11 @@ function ExpenseList({
           min-w-0
           items-center
           justify-between
-          gap-3
+          gap-2
         "
       >
 
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
 
           <div
             className="
@@ -1456,9 +1465,10 @@ function ExpenseList({
           <h2
             className="
               break-words
-              text-xl
+              text-base
               font-black
               text-slate-900
+              sm:text-xl
             "
           >
             {title}
@@ -1471,11 +1481,12 @@ function ExpenseList({
             shrink-0
             rounded-xl
             bg-indigo-50
-            px-3
+            px-2.5
             py-1.5
             text-xs
             font-black
             text-indigo-600
+            sm:px-3
           "
         >
           {data.length}
@@ -1490,8 +1501,9 @@ function ExpenseList({
             border
             border-slate-100
             bg-slate-50
-            p-6
+            p-5
             text-center
+            sm:p-6
           "
         >
 
@@ -1517,9 +1529,10 @@ function ExpenseList({
 
           <p
             className="
-              text-sm
+              text-xs
               font-bold
               text-slate-600
+              sm:text-sm
             "
           >
             Aucune dépense.
@@ -1555,11 +1568,12 @@ function ExpenseList({
                 border-indigo-100
                 bg-indigo-50
                 py-3
-                text-sm
+                text-xs
                 font-black
                 text-indigo-600
                 transition
                 hover:bg-indigo-100
+                sm:text-sm
               "
             >
               {showAll
@@ -1604,7 +1618,7 @@ function ExpenseRow({
         max-w-full
         items-center
         justify-between
-        gap-3
+        gap-2
         overflow-hidden
         border-b
         border-slate-100
@@ -1622,8 +1636,10 @@ function ExpenseRow({
         <p
           className="
             break-words
+            text-sm
             font-bold
             text-slate-900
+            sm:text-base
           "
         >
           {expense.title}
@@ -1633,8 +1649,9 @@ function ExpenseRow({
           className="
             mt-1
             break-words
-            text-xs
+            text-[10px]
             text-slate-500
+            sm:text-xs
           "
         >
           {new Date(
@@ -1656,17 +1673,17 @@ function ExpenseRow({
           min-w-0
           shrink-0
           items-center
-          gap-2
+          gap-1.5
           sm:gap-3
         "
       >
 
         <p
           className="
-            max-w-[130px]
+            max-w-[90px]
             break-words
             text-right
-            text-sm
+            text-xs
             font-black
             text-slate-900
             sm:max-w-none
@@ -1689,11 +1706,12 @@ function ExpenseRow({
             justify-center
             rounded-xl
             bg-red-50
-            p-2.5
+            p-2
             text-red-600
             transition
             hover:bg-red-100
             active:scale-95
+            sm:p-2.5
           "
           title="Supprimer cette dépense"
           aria-label="Supprimer cette dépense"
