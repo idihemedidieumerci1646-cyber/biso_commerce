@@ -1988,8 +1988,7 @@ export default function EditProductPage() {
 
         <div className="px-2 py-5 text-center sm:py-6">
           <p className="text-[10px] leading-5 text-slate-400 sm:text-xs">
-            BISO-COMMERCE • Gestion professionnelle
-            du stock
+            BISO-COMMERCE
           </p>
         </div>
 

@@ -99,7 +99,9 @@ export default function LowStockPage() {
     loadProducts();
   }
 
-  const outOfStock = products.filter((p) => p.stock <= 0);
+  const outOfStock = products.filter(
+    (p) => p.stock <= 0
+  );
 
   const almostEmpty = products.filter(
     (p) => p.stock > 0 && p.stock <= 5
@@ -109,36 +111,52 @@ export default function LowStockPage() {
     <main
       className="
         min-h-screen
+        w-full
+        min-w-0
+        overflow-x-hidden
         bg-[#f5f7fb]
         text-slate-900
-        px-4
-        py-6
+        px-3
+        py-4
         pb-24
         sm:px-6
+        sm:py-6
         lg:px-8
       "
     >
-      <div className="mx-auto max-w-6xl">
-
+      <div
+        className="
+          mx-auto
+          w-full
+          max-w-6xl
+          min-w-0
+        "
+      >
         {/* =========================================================
             HEADER
         ========================================================= */}
 
         <div
           className="
-            mb-6
-            rounded-[26px]
+            mb-5
+            w-full
+            min-w-0
+            overflow-hidden
+            rounded-[24px]
             border
             border-slate-200
             bg-white
-            p-5
+            p-4
             shadow-sm
+            sm:mb-6
+            sm:rounded-[26px]
             sm:p-7
           "
         >
           <div
             className="
               flex
+              min-w-0
               flex-col
               gap-5
               sm:flex-row
@@ -151,23 +169,26 @@ export default function LowStockPage() {
                 className="
                   mb-4
                   flex
-                  h-12
-                  w-12
+                  h-11
+                  w-11
                   items-center
                   justify-center
                   rounded-2xl
                   bg-indigo-50
+                  sm:h-12
+                  sm:w-12
                 "
               >
                 <AlertTriangle
                   className="text-indigo-600"
-                  size={25}
+                  size={24}
                 />
               </div>
 
               <h1
                 className="
-                  text-2xl
+                  break-words
+                  text-xl
                   font-black
                   tracking-tight
                   text-slate-900
@@ -181,9 +202,11 @@ export default function LowStockPage() {
                 className="
                   mt-2
                   max-w-2xl
-                  text-sm
-                  leading-6
+                  text-xs
+                  leading-5
                   text-slate-500
+                  sm:text-sm
+                  sm:leading-6
                 "
               >
                 Retrouvez rapidement les produits à
@@ -195,14 +218,16 @@ export default function LowStockPage() {
               href="/products"
               className="
                 flex
+                min-h-[46px]
                 w-full
+                shrink-0
                 items-center
                 justify-center
                 gap-2
                 rounded-2xl
                 bg-indigo-600
                 px-5
-                py-3.5
+                py-3
                 text-sm
                 font-black
                 text-white
@@ -211,6 +236,7 @@ export default function LowStockPage() {
                 hover:bg-indigo-700
                 active:scale-[0.98]
                 sm:w-auto
+                sm:py-3.5
               "
             >
               <Package size={18} />
@@ -222,21 +248,31 @@ export default function LowStockPage() {
 
         {/* =========================================================
             RESUME STOCK
+            MOBILE = 1 COLONNE
+            TABLETTE / PC = 2 COLONNES
         ========================================================= */}
 
         <div
           className="
-            mb-6
+            mb-5
             grid
-            grid-cols-2
+            w-full
+            min-w-0
+            grid-cols-1
             gap-3
+            sm:mb-6
+            sm:grid-cols-2
             sm:gap-4
           "
         >
-          {/* RUPTURE */}
+          {/* =====================================================
+              RUPTURE
+          ===================================================== */}
 
           <div
             className="
+              min-w-0
+              overflow-hidden
               rounded-[22px]
               border
               border-slate-200
@@ -250,9 +286,10 @@ export default function LowStockPage() {
             <div
               className="
                 flex
+                min-w-0
                 items-start
                 justify-between
-                gap-2
+                gap-3
               "
             >
               <div
@@ -260,6 +297,7 @@ export default function LowStockPage() {
                   flex
                   h-10
                   w-10
+                  shrink-0
                   items-center
                   justify-center
                   rounded-xl
@@ -277,9 +315,10 @@ export default function LowStockPage() {
 
               <span
                 className="
+                  shrink-0
                   rounded-full
                   bg-red-50
-                  px-2
+                  px-2.5
                   py-1
                   text-[10px]
                   font-bold
@@ -296,6 +335,7 @@ export default function LowStockPage() {
             <p
               className="
                 mt-4
+                break-words
                 text-[10px]
                 font-bold
                 uppercase
@@ -334,10 +374,14 @@ export default function LowStockPage() {
             </p>
           </div>
 
-          {/* PRESQUE FINI */}
+          {/* =====================================================
+              PRESQUE FINI
+          ===================================================== */}
 
           <div
             className="
+              min-w-0
+              overflow-hidden
               rounded-[22px]
               border
               border-slate-200
@@ -351,9 +395,10 @@ export default function LowStockPage() {
             <div
               className="
                 flex
+                min-w-0
                 items-start
                 justify-between
-                gap-2
+                gap-3
               "
             >
               <div
@@ -361,6 +406,7 @@ export default function LowStockPage() {
                   flex
                   h-10
                   w-10
+                  shrink-0
                   items-center
                   justify-center
                   rounded-xl
@@ -378,9 +424,10 @@ export default function LowStockPage() {
 
               <span
                 className="
+                  shrink-0
                   rounded-full
                   bg-indigo-50
-                  px-2
+                  px-2.5
                   py-1
                   text-[10px]
                   font-bold
@@ -397,6 +444,7 @@ export default function LowStockPage() {
             <p
               className="
                 mt-4
+                break-words
                 text-[10px]
                 font-bold
                 uppercase
@@ -443,14 +491,20 @@ export default function LowStockPage() {
         {loading ? (
           <div
             className="
-              rounded-[26px]
+              w-full
+              min-w-0
+              overflow-hidden
+              rounded-[24px]
               border
               border-slate-200
               bg-white
-              px-6
-              py-12
+              px-5
+              py-10
               text-center
               shadow-sm
+              sm:rounded-[26px]
+              sm:px-6
+              sm:py-12
             "
           >
             <div
@@ -495,11 +549,13 @@ export default function LowStockPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-7">
+          <div className="w-full min-w-0 space-y-7">
 
             {/* =====================================================
                 PRODUITS EN RUPTURE + PRESQUE EPUISES
-                CÔTE À CÔTE
+
+                MOBILE : 1 COLONNE
+                TABLETTE / PC : 2 COLONNES
             ===================================================== */}
 
             {(outOfStock.length > 0 ||
@@ -507,13 +563,17 @@ export default function LowStockPage() {
               <div
                 className="
                   grid
-                  grid-cols-2
-                  gap-3
+                  w-full
+                  min-w-0
+                  grid-cols-1
+                  gap-6
+                  sm:grid-cols-2
                   sm:gap-5
                 "
               >
-
-                {/* PRODUITS EN RUPTURE */}
+                {/* =================================================
+                    PRODUITS EN RUPTURE
+                ================================================= */}
 
                 {outOfStock.length > 0 && (
                   <section className="min-w-0">
@@ -521,6 +581,7 @@ export default function LowStockPage() {
                       className="
                         mb-3
                         flex
+                        min-w-0
                         items-center
                         gap-2
                         sm:mb-4
@@ -550,10 +611,13 @@ export default function LowStockPage() {
                       <div className="min-w-0">
                         <h2
                           className="
+                            break-words
                             text-sm
                             font-black
+                            leading-5
                             text-slate-900
                             sm:text-lg
+                            sm:leading-6
                           "
                         >
                           Produits en rupture
@@ -586,7 +650,9 @@ export default function LowStockPage() {
                   </section>
                 )}
 
-                {/* PRODUITS PRESQUE ÉPUISÉS */}
+                {/* =================================================
+                    PRODUITS PRESQUE ÉPUISÉS
+                ================================================= */}
 
                 {almostEmpty.length > 0 && (
                   <section className="min-w-0">
@@ -594,6 +660,7 @@ export default function LowStockPage() {
                       className="
                         mb-3
                         flex
+                        min-w-0
                         items-center
                         gap-2
                         sm:mb-4
@@ -623,10 +690,13 @@ export default function LowStockPage() {
                       <div className="min-w-0">
                         <h2
                           className="
+                            break-words
                             text-sm
                             font-black
+                            leading-5
                             text-slate-900
                             sm:text-lg
+                            sm:leading-6
                           "
                         >
                           Presque épuisés
@@ -657,7 +727,6 @@ export default function LowStockPage() {
                     </div>
                   </section>
                 )}
-
               </div>
             )}
 
@@ -669,13 +738,18 @@ export default function LowStockPage() {
               almostEmpty.length === 0 && (
                 <div
                   className="
-                    rounded-[26px]
+                    w-full
+                    min-w-0
+                    overflow-hidden
+                    rounded-[24px]
                     border
                     border-slate-200
                     bg-white
-                    p-8
+                    p-6
                     text-center
                     shadow-sm
+                    sm:rounded-[26px]
+                    sm:p-8
                   "
                 >
                   <div
@@ -699,9 +773,10 @@ export default function LowStockPage() {
                   <p
                     className="
                       mt-4
-                      text-xl
+                      text-lg
                       font-black
                       text-slate-900
+                      sm:text-xl
                     "
                   >
                     Excellent stock ✅
@@ -726,7 +801,9 @@ export default function LowStockPage() {
                     className="
                       mt-6
                       inline-flex
+                      min-h-[46px]
                       items-center
+                      justify-center
                       gap-2
                       rounded-2xl
                       bg-indigo-600
@@ -754,6 +831,10 @@ export default function LowStockPage() {
   );
 }
 
+/* =========================================================
+   PRODUCT CARD
+========================================================= */
+
 function ProductCard({
   product,
   danger = false,
@@ -766,6 +847,8 @@ function ProductCard({
   return (
     <div
       className="
+        w-full
+        min-w-0
         overflow-hidden
         rounded-[22px]
         border
@@ -784,10 +867,10 @@ function ProductCard({
       ========================================================= */}
 
       <div className="min-w-0">
-
         <div
           className="
             flex
+            min-w-0
             items-start
             justify-between
             gap-2
@@ -797,7 +880,8 @@ function ProductCard({
             className="
               flex
               min-w-0
-              items-center
+              flex-1
+              items-start
               gap-2
               sm:gap-3
             "
@@ -819,18 +903,24 @@ function ProductCard({
             >
               <Package
                 size={18}
-                className="text-indigo-600 sm:h-[21px] sm:w-[21px]"
+                className="
+                  text-indigo-600
+                  sm:h-[21px]
+                  sm:w-[21px]
+                "
               />
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h3
                 className="
-                  truncate
+                  break-words
                   text-sm
                   font-black
+                  leading-5
                   text-slate-900
                   sm:text-lg
+                  sm:leading-6
                 "
               >
                 {product.name}
@@ -850,7 +940,9 @@ function ProductCard({
             </div>
           </div>
 
-          {/* STATUT */}
+          {/* =====================================================
+              STATUT
+          ===================================================== */}
 
           <span
             className={`
@@ -871,15 +963,20 @@ function ProductCard({
               }
             `}
           >
-            {danger ? "RUPTURE" : "FAIBLE"}
+            {danger
+              ? "RUPTURE"
+              : "FAIBLE"}
           </span>
         </div>
 
-        {/* STOCK BIEN VISIBLE */}
+        {/* =========================================================
+            STOCK
+        ========================================================= */}
 
         <div
           className={`
             mt-3
+            w-full
             rounded-xl
             border
             p-3
@@ -910,6 +1007,7 @@ function ProductCard({
             className="
               mt-1
               flex
+              min-w-0
               items-end
               gap-1.5
               sm:gap-2
@@ -919,6 +1017,7 @@ function ProductCard({
               className={`
                 text-2xl
                 font-black
+                leading-none
                 sm:text-3xl
                 ${
                   danger
@@ -933,11 +1032,15 @@ function ProductCard({
             <span
               className="
                 mb-0.5
-                truncate
+                min-w-0
+                max-w-[65%]
+                break-words
                 text-[10px]
                 font-bold
+                leading-4
                 text-slate-500
                 sm:mb-1
+                sm:max-w-none
                 sm:text-sm
               "
             >
@@ -967,6 +1070,7 @@ function ProductCard({
         className={`
           mt-3
           flex
+          min-w-0
           items-start
           gap-2
           rounded-xl
@@ -1009,6 +1113,8 @@ function ProductCard({
 
         <p
           className="
+            min-w-0
+            break-words
             text-[10px]
             leading-4
             text-slate-600
@@ -1024,32 +1130,39 @@ function ProductCard({
 
       {/* =========================================================
           ACTIONS
-          TOUJOURS SUR LA MÊME LIGNE
+          MOBILE : TOUJOURS LISIBLES
       ========================================================= */}
 
       <div
         className="
           mt-3
           grid
+          w-full
+          min-w-0
           grid-cols-2
           gap-2
           sm:mt-5
           sm:gap-3
         "
       >
+        {/* SUPPRIMER */}
+
         <button
           type="button"
-          onClick={() => onDelete(product.id)}
+          onClick={() =>
+            onDelete(product.id)
+          }
           className="
             flex
             min-w-0
+            min-h-[44px]
             items-center
             justify-center
             gap-1
             rounded-xl
             bg-red-600
             px-2
-            py-3
+            py-2.5
             text-[10px]
             font-bold
             text-white
@@ -1066,7 +1179,11 @@ function ProductCard({
         >
           <Trash2
             size={15}
-            className="shrink-0 sm:h-[17px] sm:w-[17px]"
+            className="
+              shrink-0
+              sm:h-[17px]
+              sm:w-[17px]
+            "
           />
 
           <span className="truncate">
@@ -1074,18 +1191,21 @@ function ProductCard({
           </span>
         </button>
 
+        {/* RÉAPPROVISIONNER */}
+
         <Link
           href={`/products/edit/${product.id}`}
           className="
             flex
             min-w-0
+            min-h-[44px]
             items-center
             justify-center
             gap-1
             rounded-xl
             bg-green-50
             px-2
-            py-3
+            py-2.5
             text-[10px]
             font-bold
             text-green-700
@@ -1107,7 +1227,11 @@ function ProductCard({
 
           <ArrowRight
             size={15}
-            className="shrink-0 sm:h-[17px] sm:w-[17px]"
+            className="
+              shrink-0
+              sm:h-[17px]
+              sm:w-[17px]
+            "
           />
         </Link>
       </div>

@@ -23,7 +23,7 @@
    - Suppression définitive
    - 5 dernières ventes
    - Voir toutes les ventes
-   - PDF professionnel
+   - PDF 
    - Guide
 ====================================================================== */
 
@@ -2935,7 +2935,7 @@ export default function ReportsPage() {
     <span className="font-bold text-slate-800">
       5.
     </span>{" "}
-    Cliquez sur « Créer le PDF » pour générer un rapport professionnel avec le résumé, le suivi journalier, les ventes et l'analyse commerciale.
+    Cliquez sur « Créer le PDF » pour générer un rapport avec le résumé, le suivi journalier, les ventes et l'analyse commerciale.
   </p>
 
   <p>
@@ -3080,8 +3080,9 @@ export default function ReportsPage() {
     grid
     w-full
     min-w-0
-    grid-cols-2
-    gap-2
+    grid-cols-1
+    gap-3
+    sm:grid-cols-2
     sm:gap-4
     lg:gap-5
   "
@@ -3095,22 +3096,30 @@ export default function ReportsPage() {
       />
     }
     title="Aujourd'hui"
+
+    /* VENTES — PRINCIPALES */
     value={`${formatMoney(
       today.fc
     )} FC`}
+
     secondaryValue={`${formatMoney(
       today.usd
     )} $`}
+
+    /* BÉNÉFICE — SECONDAIRE */
     subtitle={`Bénéfice : ${formatMoney(
       today.profitFc
     )} FC • ${formatMoney(
       today.profitUsd
     )} $`}
+
     trend={
       dayVariationFc ||
       dayVariationUsd
     }
+
     trendLabel="vs hier"
+
     extra={`${today.quantity} article${
       today.quantity > 1
         ? "s"
@@ -3120,6 +3129,7 @@ export default function ReportsPage() {
         ? "s"
         : ""
     }`}
+
     tone="indigo"
   />
 
@@ -3132,17 +3142,23 @@ export default function ReportsPage() {
       />
     }
     title="Hier"
+
+    /* VENTES — PRINCIPALES */
     value={`${formatMoney(
       yesterday.fc
     )} FC`}
+
     secondaryValue={`${formatMoney(
       yesterday.usd
     )} $`}
+
+    /* BÉNÉFICE — SECONDAIRE */
     subtitle={`Bénéfice : ${formatMoney(
       yesterday.profitFc
     )} FC • ${formatMoney(
       yesterday.profitUsd
     )} $`}
+
     extra={`${yesterday.quantity} article${
       yesterday.quantity > 1
         ? "s"
@@ -3152,10 +3168,10 @@ export default function ReportsPage() {
         ? "s"
         : ""
     }`}
+
     tone="slate"
   />
 </section>
-
         
 
         {/* ==================================================
