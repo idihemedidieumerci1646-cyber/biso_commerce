@@ -2,7 +2,7 @@
   "name": "Biso-Commerce",
   "short_name": "Biso-Commerce",
   "description": "Gestion intelligente des commerces",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f172a",
