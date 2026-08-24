@@ -11,8 +11,6 @@ import {
   Trash2,
   Edit,
   AlertTriangle,
-  CheckCircle,
-  Sparkles,
   RefreshCcw,
   Boxes,
   TrendingUp,
@@ -25,7 +23,6 @@ import {
   WifiOff,
   CloudOff,
   Loader2,
-  Database,
 } from "lucide-react";
 
 /* =========================================================
@@ -67,13 +64,7 @@ type SyncState =
 ========================================================= */
 
 const DB_NAME = "biso-commerce-products";
-
-/*
- * IMPORTANT :
- * Le navigateur possède déjà une version 4.
- * Il ne faut jamais redescendre à 3.
- */
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 const PRODUCTS_STORE = "products";
 const DELETE_QUEUE_STORE = "delete_queue";
@@ -97,130 +88,86 @@ function openProductsDB(): Promise<IDBDatabase> {
     return dbPromise;
   }
 
-  dbPromise = new Promise<IDBDatabase>(
-    (resolve, reject) => {
-      const request = indexedDB.open(
-        DB_NAME,
-        DB_VERSION
-      );
+  dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        const transaction = request.transaction;
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      const transaction = request.transaction;
 
-        if (!transaction) {
-          return;
-        }
+      if (!transaction) {
+        return;
+      }
 
-        /* ---------------------------------------------------
-           PRODUITS
-        --------------------------------------------------- */
+      let productsStore: IDBObjectStore;
 
-        let productsStore: IDBObjectStore;
+      if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {
+        productsStore = db.createObjectStore(PRODUCTS_STORE, {
+          keyPath: "id",
+        });
+      } else {
+        productsStore =
+          transaction.objectStore(PRODUCTS_STORE);
+      }
 
-        if (
-          !db.objectStoreNames.contains(
-            PRODUCTS_STORE
-          )
-        ) {
-          productsStore =
-            db.createObjectStore(
-              PRODUCTS_STORE,
-              {
-                keyPath: "id",
-              }
-            );
-        } else {
-          productsStore =
-            transaction.objectStore(
-              PRODUCTS_STORE
-            );
-        }
+      if (!productsStore.indexNames.contains("user_id")) {
+        productsStore.createIndex("user_id", "user_id", {
+          unique: false,
+        });
+      }
 
-        if (
-          !productsStore.indexNames.contains(
-            "user_id"
-          )
-        ) {
-          productsStore.createIndex(
-            "user_id",
-            "user_id",
-            {
-              unique: false,
-            }
-          );
-        }
+      if (!productsStore.indexNames.contains("created_at")) {
+        productsStore.createIndex(
+          "created_at",
+          "created_at",
+          {
+            unique: false,
+          }
+        );
+      }
 
-        if (
-          !productsStore.indexNames.contains(
-            "created_at"
-          )
-        ) {
-          productsStore.createIndex(
-            "created_at",
-            "created_at",
-            {
-              unique: false,
-            }
-          );
-        }
+      if (!db.objectStoreNames.contains(DELETE_QUEUE_STORE)) {
+        const deleteStore = db.createObjectStore(
+          DELETE_QUEUE_STORE,
+          {
+            keyPath: "id",
+          }
+        );
 
-        /* ---------------------------------------------------
-           FILE DE SUPPRESSION
-        --------------------------------------------------- */
+        deleteStore.createIndex("userId", "userId", {
+          unique: false,
+        });
+      }
+    };
 
-        if (
-          !db.objectStoreNames.contains(
-            DELETE_QUEUE_STORE
-          )
-        ) {
-          const deleteStore =
-            db.createObjectStore(
-              DELETE_QUEUE_STORE,
-              {
-                keyPath: "id",
-              }
-            );
+    request.onsuccess = () => {
+      const db = request.result;
 
-          deleteStore.createIndex(
-            "userId",
-            "userId",
-            {
-              unique: false,
-            }
-          );
-        }
-      };
-
-      request.onsuccess = () => {
-        const db = request.result;
-
-        db.onversionchange = () => {
-          db.close();
-          dbPromise = null;
-        };
-
-        resolve(db);
-      };
-
-      request.onerror = () => {
+      db.onversionchange = () => {
+        db.close();
         dbPromise = null;
-
-        reject(
-          request.error ||
-            new Error(
-              "Impossible d'ouvrir IndexedDB."
-            )
-        );
       };
 
-      request.onblocked = () => {
-        console.warn(
-          "La mise à jour IndexedDB est bloquée. Fermez les autres onglets de Biso-Commerce."
-        );
-      };
-    }
-  );
+      resolve(db);
+    };
+
+    request.onerror = () => {
+      dbPromise = null;
+
+      reject(
+        request.error ||
+          new Error(
+            "Impossible d'ouvrir IndexedDB."
+          )
+      );
+    };
+
+    request.onblocked = () => {
+      console.warn(
+        "La mise à jour IndexedDB est bloquée. Fermez les autres onglets de Biso-Commerce."
+      );
+    };
+  });
 
   return dbPromise;
 }
@@ -229,9 +176,7 @@ function openProductsDB(): Promise<IDBDatabase> {
    UTILITAIRE ERREUR
 ========================================================= */
 
-function getErrorMessage(
-  error: unknown
-): string {
+function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
@@ -249,17 +194,9 @@ function getErrorMessage(
       statusCode?: number;
     };
 
-    if (e.message) {
-      return e.message;
-    }
-
-    if (e.details) {
-      return e.details;
-    }
-
-    if (e.hint) {
-      return e.hint;
-    }
+    if (e.message) return e.message;
+    if (e.details) return e.details;
+    if (e.hint) return e.hint;
 
     if (e.code) {
       return `Erreur Supabase (${e.code})`;
@@ -348,74 +285,55 @@ function getStoredUserId(): string | null {
 async function getAllCachedProducts(
   userId: string
 ): Promise<Product[]> {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (resolve, reject) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readonly"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readonly"
+    );
 
-      const store =
-        transaction.objectStore(
-          PRODUCTS_STORE
-        );
+    const store =
+      transaction.objectStore(
+        PRODUCTS_STORE
+      );
 
-      const request =
-        store.getAll();
+    const request = store.getAll();
 
-      request.onsuccess = () => {
-        const all =
-          (request.result ||
-            []) as Product[];
+    request.onsuccess = () => {
+      const all =
+        (request.result || []) as Product[];
 
-        const result =
-          all.filter(
-            (product) =>
-              String(
-                product.user_id || ""
-              ) ===
-              String(userId)
-          );
+      const result = all.filter(
+        (product) =>
+          String(product.user_id || "") ===
+          String(userId)
+      );
 
-        result.sort(
-          (a, b) => {
-            const dateA =
-              a.created_at
-                ? new Date(
-                    a.created_at
-                  ).getTime()
-                : 0;
+      result.sort((a, b) => {
+        const dateA = a.created_at
+          ? new Date(a.created_at).getTime()
+          : 0;
 
-            const dateB =
-              b.created_at
-                ? new Date(
-                    b.created_at
-                  ).getTime()
-                : 0;
+        const dateB = b.created_at
+          ? new Date(b.created_at).getTime()
+          : 0;
 
-            return (
-              dateB - dateA
-            );
-          }
-        );
+        return dateB - dateA;
+      });
 
-        resolve(result);
-      };
+      resolve(result);
+    };
 
-      request.onerror = () => {
-        reject(
-          request.error ||
-            new Error(
-              "Impossible de lire les produits hors connexion."
-            )
-        );
-      };
-    }
-  );
+    request.onerror = () => {
+      reject(
+        request.error ||
+          new Error(
+            "Impossible de lire les produits hors connexion."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
@@ -425,36 +343,30 @@ async function getAllCachedProducts(
 async function cacheProduct(
   product: Product
 ): Promise<void> {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (resolve, reject) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readwrite"
+    );
 
-      transaction
-        .objectStore(
-          PRODUCTS_STORE
-        )
-        .put(product);
+    transaction
+      .objectStore(PRODUCTS_STORE)
+      .put(product);
 
-      transaction.oncomplete = () =>
-        resolve();
+    transaction.oncomplete = () =>
+      resolve();
 
-      transaction.onerror = () => {
-        reject(
-          transaction.error ||
-            new Error(
-              "Impossible de sauvegarder le produit."
-            )
-        );
-      };
-    }
-  );
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de sauvegarder le produit."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
@@ -468,39 +380,35 @@ async function cacheProducts(
     return;
   }
 
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (resolve, reject) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readwrite"
+    );
 
-      const store =
-        transaction.objectStore(
-          PRODUCTS_STORE
-        );
+    const store =
+      transaction.objectStore(
+        PRODUCTS_STORE
+      );
 
-      for (const product of products) {
-        store.put(product);
-      }
-
-      transaction.oncomplete = () =>
-        resolve();
-
-      transaction.onerror = () => {
-        reject(
-          transaction.error ||
-            new Error(
-              "Impossible de mettre en cache les produits."
-            )
-        );
-      };
+    for (const product of products) {
+      store.put(product);
     }
-  );
+
+    transaction.oncomplete = () =>
+      resolve();
+
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de mettre en cache les produits."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
@@ -510,36 +418,30 @@ async function cacheProducts(
 async function removeCachedProduct(
   id: string
 ): Promise<void> {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (resolve, reject) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readwrite"
+    );
 
-      transaction
-        .objectStore(
-          PRODUCTS_STORE
-        )
-        .delete(id);
+    transaction
+      .objectStore(PRODUCTS_STORE)
+      .delete(id);
 
-      transaction.oncomplete = () =>
-        resolve();
+    transaction.oncomplete = () =>
+      resolve();
 
-      transaction.onerror = () => {
-        reject(
-          transaction.error ||
-            new Error(
-              "Impossible de supprimer le produit localement."
-            )
-        );
-      };
-    }
-  );
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de supprimer le produit localement."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
@@ -549,36 +451,30 @@ async function removeCachedProduct(
 async function addDeleteToQueue(
   item: PendingDelete
 ): Promise<void> {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (resolve, reject) => {
-      const transaction =
-        db.transaction(
-          DELETE_QUEUE_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      DELETE_QUEUE_STORE,
+      "readwrite"
+    );
 
-      transaction
-        .objectStore(
-          DELETE_QUEUE_STORE
-        )
-        .put(item);
+    transaction
+      .objectStore(DELETE_QUEUE_STORE)
+      .put(item);
 
-      transaction.oncomplete = () =>
-        resolve();
+    transaction.oncomplete = () =>
+      resolve();
 
-      transaction.onerror = () => {
-        reject(
-          transaction.error ||
-            new Error(
-              "Impossible d'enregistrer la suppression hors connexion."
-            )
-        );
-      };
-    }
-  );
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible d'enregistrer la suppression hors connexion."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
@@ -588,41 +484,36 @@ async function addDeleteToQueue(
 async function getDeleteQueue(): Promise<
   PendingDelete[]
 > {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (resolve, reject) => {
-      const transaction =
-        db.transaction(
-          DELETE_QUEUE_STORE,
-          "readonly"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      DELETE_QUEUE_STORE,
+      "readonly"
+    );
 
-      const request =
-        transaction
-          .objectStore(
-            DELETE_QUEUE_STORE
+    const request =
+      transaction
+        .objectStore(
+          DELETE_QUEUE_STORE
+        )
+        .getAll();
+
+    request.onsuccess = () => {
+      resolve(
+        (request.result || []) as PendingDelete[]
+      );
+    };
+
+    request.onerror = () => {
+      reject(
+        request.error ||
+          new Error(
+            "Impossible de lire la file de suppression."
           )
-          .getAll();
-
-      request.onsuccess = () => {
-        resolve(
-          (request.result ||
-            []) as PendingDelete[]
-        );
-      };
-
-      request.onerror = () => {
-        reject(
-          request.error ||
-            new Error(
-              "Impossible de lire la file de suppression."
-            )
-        );
-      };
-    }
-  );
+      );
+    };
+  });
 }
 
 /* =========================================================
@@ -632,36 +523,30 @@ async function getDeleteQueue(): Promise<
 async function removeFromDeleteQueue(
   id: string
 ): Promise<void> {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (resolve, reject) => {
-      const transaction =
-        db.transaction(
-          DELETE_QUEUE_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      DELETE_QUEUE_STORE,
+      "readwrite"
+    );
 
-      transaction
-        .objectStore(
-          DELETE_QUEUE_STORE
-        )
-        .delete(id);
+    transaction
+      .objectStore(DELETE_QUEUE_STORE)
+      .delete(id);
 
-      transaction.oncomplete = () =>
-        resolve();
+    transaction.oncomplete = () =>
+      resolve();
 
-      transaction.onerror = () => {
-        reject(
-          transaction.error ||
-            new Error(
-              "Impossible de terminer la suppression."
-            )
-        );
-      };
-    }
-  );
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de terminer la suppression."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
@@ -681,13 +566,9 @@ function normalizeProduct(
     stock:
       Number(product.stock) || 0,
     purchase_price:
-      Number(
-        product.purchase_price
-      ) || 0,
+      Number(product.purchase_price) || 0,
     selling_price:
-      Number(
-        product.selling_price
-      ) || 0,
+      Number(product.selling_price) || 0,
     currency: String(
       product.currency || ""
     ),
@@ -718,9 +599,6 @@ export default function ProductsPage() {
   const [isOnline, setIsOnline] =
     useState(true);
 
-    const [successModal, setSuccessModal] =
-  useState(false);
-
   const [syncState, setSyncState] =
     useState<SyncState>("online");
 
@@ -731,9 +609,7 @@ export default function ProductsPage() {
     useState(0);
 
   const [deletingIds, setDeletingIds] =
-    useState<Set<string>>(
-      new Set()
-    );
+    useState<Set<string>>(new Set());
 
   const [deleteModal, setDeleteModal] =
     useState<DeleteModalState>({
@@ -811,8 +687,7 @@ export default function ProductsPage() {
   const syncPendingDeletes =
     useCallback(async () => {
       if (
-        typeof navigator !==
-          "undefined" &&
+        typeof navigator !== "undefined" &&
         !navigator.onLine
       ) {
         return;
@@ -855,16 +730,12 @@ export default function ProductsPage() {
 
       for (const item of userQueue) {
         try {
-          const {
-            error,
-          } = await supabase
-            .from("products")
-            .delete()
-            .eq("id", item.id)
-            .eq(
-              "user_id",
-              userId
-            );
+          const { error } =
+            await supabase
+              .from("products")
+              .delete()
+              .eq("id", item.id)
+              .eq("user_id", userId);
 
           if (error) {
             throw error;
@@ -913,10 +784,6 @@ export default function ProductsPage() {
 
   /* =========================================================
      CHARGER PRODUITS SUPABASE
-     
-     PAS DE LIMIT(20)
-     
-     Chargement par blocs de 1000.
   ========================================================= */
 
   const fetchProductsOnline =
@@ -941,8 +808,7 @@ export default function ProductsPage() {
       }
 
       if (
-        typeof navigator !==
-          "undefined" &&
+        typeof navigator !== "undefined" &&
         !navigator.onLine
       ) {
         return;
@@ -951,17 +817,10 @@ export default function ProductsPage() {
       setSyncState("syncing");
       setSyncError(null);
 
-      /*
-       * IMPORTANT :
-       * On garde 1000 comme taille de page.
-       * Il n'y a PAS de limite totale à 20.
-       */
       const pageSize = 1000;
-
       let from = 0;
 
-      const allProducts: Product[] =
-        [];
+      const allProducts: Product[] = [];
 
       try {
         while (true) {
@@ -980,29 +839,18 @@ export default function ProductsPage() {
           } = await supabase
             .from("products")
             .select("*")
-            .eq(
-              "user_id",
-              userId
-            )
-            .order(
-              "created_at",
-              {
-                ascending: false,
-              }
-            )
-            .range(
-              from,
-              to
-            );
+            .eq("user_id", userId)
+            .order("created_at", {
+              ascending: false,
+            })
+            .range(from, to);
 
           if (error) {
             throw error;
           }
 
           const page =
-            (
-              (data || []) as Product[]
-            ).map(
+            ((data || []) as Product[]).map(
               normalizeProduct
             );
 
@@ -1014,11 +862,6 @@ export default function ProductsPage() {
             `Produits reçus dans ce bloc : ${page.length}`
           );
 
-          /*
-           * Moins de 1000 signifie
-           * que nous sommes arrivés
-           * à la fin.
-           */
           if (
             page.length <
             pageSize
@@ -1034,29 +877,24 @@ export default function ProductsPage() {
           allProducts.length
         );
 
-        /*
-         * ----------------------------------------------------
-         * CAS IMPORTANT :
-         *
-         * Si Supabase a répondu correctement,
-         * on peut mettre le catalogue en cache.
-         * ----------------------------------------------------
-         */
+        /* =====================================================
+           CACHE DES PRODUITS SERVEUR
+        ===================================================== */
 
         await cacheProducts(
           allProducts
         );
 
-        /*
-         * ----------------------------------------------------
-         * Nettoyage du cache.
-         *
-         * Cette opération n'est effectuée QUE lorsque
-         * le téléchargement complet est terminé.
-         * ----------------------------------------------------
-         */
+        /* =====================================================
+           CORRECTION IMPORTANTE
 
-        const cached =
+           On NE SUPPRIME PLUS automatiquement du cache
+           les produits qui ne sont pas encore sur Supabase.
+
+           Ils peuvent avoir été créés hors connexion.
+        ===================================================== */
+
+        const cachedProducts =
           await getAllCachedProducts(
             userId
           );
@@ -1069,53 +907,73 @@ export default function ProductsPage() {
             )
           );
 
-        const queue =
-          await getDeleteQueue();
-
-        for (const cachedProduct of cached) {
-          if (
-            !serverIds.has(
-              cachedProduct.id
-            )
-          ) {
-            const waiting =
-              queue.some(
-                (item) =>
-                  item.id ===
-                    cachedProduct.id &&
-                  String(
-                    item.userId
-                  ) ===
-                    String(
-                      userId
-                    )
-              );
-
-            /*
-             * On retire du cache uniquement :
-             *
-             * 1. si le téléchargement Supabase
-             *    est complètement terminé
-             *
-             * 2. si le produit n'existe vraiment
-             *    plus sur Supabase
-             *
-             * 3. s'il n'est pas déjà en attente
-             *    de suppression.
-             */
-            if (!waiting) {
-              await removeCachedProduct(
-                cachedProduct.id
-              );
-            }
-          }
-        }
+        /*
+         * Produits présents localement mais pas encore
+         * présents sur Supabase.
+         */
+        const localOnlyProducts =
+          cachedProducts.filter(
+            (product) =>
+              !serverIds.has(
+                product.id
+              )
+          );
 
         /*
-         * Affichage du catalogue complet.
+         * Supabase + produits locaux.
+         */
+        const mergedProducts = [
+          ...localOnlyProducts,
+          ...allProducts,
+        ];
+
+        /*
+         * Éviter les doublons.
+         */
+        const uniqueProducts =
+          Array.from(
+            new Map(
+              mergedProducts.map(
+                (product) => [
+                  product.id,
+                  product,
+                ]
+              )
+            ).values()
+          );
+
+        /*
+         * Trier du plus récent au plus ancien.
+         */
+        uniqueProducts.sort(
+          (a, b) => {
+            const dateA =
+              a.created_at
+                ? new Date(
+                    a.created_at
+                  ).getTime()
+                : 0;
+
+            const dateB =
+              b.created_at
+                ? new Date(
+                    b.created_at
+                  ).getTime()
+                : 0;
+
+            return (
+              dateB - dateA
+            );
+          }
+        );
+
+        /*
+         * AFFICHAGE DU CATALOGUE COMPLET
+         *
+         * Les produits locaux ne disparaissent plus.
          */
         setProducts(
-          allProducts
+          uniqueProducts
         );
 
         setSyncState("online");
@@ -1123,28 +981,16 @@ export default function ProductsPage() {
 
         await updatePendingDeleteCount();
       } catch (error: unknown) {
-        /*
-         * ----------------------------------------------------
-         * CORRECTION PRINCIPALE :
-         *
-         * On affiche une vraie erreur au lieu de {}.
-         * ----------------------------------------------------
-         */
-
         logSupabaseError(
           "Erreur chargement Supabase :",
           error
         );
 
         const message =
-          getErrorMessage(
-            error
-          );
+          getErrorMessage(error);
 
         /*
          * NE PAS supprimer le cache.
-         *
-         * On garde les produits déjà disponibles.
          */
         try {
           const cached =
@@ -1201,7 +1047,7 @@ export default function ProductsPage() {
         }
 
         /*
-         * 1. CACHE IMMÉDIAT
+         * CACHE IMMÉDIAT
          */
         try {
           const cached =
@@ -1220,11 +1066,10 @@ export default function ProductsPage() {
         }
 
         /*
-         * 2. INTERNET
+         * INTERNET
          */
         if (
-          typeof navigator !==
-            "undefined" &&
+          typeof navigator !== "undefined" &&
           navigator.onLine
         ) {
           await syncPendingDeletes();
@@ -1271,9 +1116,6 @@ export default function ProductsPage() {
         return;
       }
 
-      /*
-       * Empêcher double clic.
-       */
       if (
         deletingIds.has(
           product.id
@@ -1295,27 +1137,15 @@ export default function ProductsPage() {
         }
       );
 
-      /*
-       * Fermer la modal.
-       */
       setDeleteModal({
         open: false,
         product: null,
       });
 
-      /*
-       * Sauvegarde temporaire pour pouvoir
-       * restaurer en cas d'erreur.
-       */
       const previousProducts =
         products;
 
       try {
-        /*
-         * --------------------------------------------------
-         * SUPPRESSION OPTIMISTE
-         * --------------------------------------------------
-         */
         setProducts(
           (current) =>
             current.filter(
@@ -1325,33 +1155,20 @@ export default function ProductsPage() {
             )
         );
 
-        /*
-         * --------------------------------------------------
-         * SUPPRIMER DU CACHE
-         * --------------------------------------------------
-         */
         await removeCachedProduct(
           product.id
         );
 
-        /*
-         * --------------------------------------------------
-         * HORS CONNEXION
-         * --------------------------------------------------
-         */
         if (
-          typeof navigator !==
-            "undefined" &&
+          typeof navigator !== "undefined" &&
           !navigator.onLine
         ) {
-          await addDeleteToQueue(
-            {
-              id: product.id,
-              userId,
-              createdAt:
-                Date.now(),
-            }
-          );
+          await addDeleteToQueue({
+            id: product.id,
+            userId,
+            createdAt:
+              Date.now(),
+          });
 
           await updatePendingDeleteCount();
 
@@ -1364,11 +1181,6 @@ export default function ProductsPage() {
           return;
         }
 
-        /*
-         * --------------------------------------------------
-         * EN LIGNE
-         * --------------------------------------------------
-         */
         setSyncState(
           "syncing"
         );
@@ -1379,25 +1191,14 @@ export default function ProductsPage() {
         } = await supabase
           .from("products")
           .delete()
-          .eq(
-            "id",
-            product.id
-          )
-          .eq(
-            "user_id",
-            userId
-          )
+          .eq("id", product.id)
+          .eq("user_id", userId)
           .select("id");
 
         if (error) {
           throw error;
         }
 
-        /*
-         * Si aucune ligne n'a été retournée,
-         * cela peut indiquer que Supabase/RLS
-         * n'a autorisé aucune ligne à être supprimée.
-         */
         if (
           !data ||
           data.length === 0
@@ -1418,27 +1219,17 @@ export default function ProductsPage() {
           error
         );
 
-        /*
-         * --------------------------------------------------
-         * SI INTERNET EST TOMBE ENTRE TEMPS :
-         *
-         * on conserve la suppression en attente.
-         * --------------------------------------------------
-         */
         if (
-          typeof navigator !==
-            "undefined" &&
+          typeof navigator !== "undefined" &&
           !navigator.onLine
         ) {
           try {
-            await addDeleteToQueue(
-              {
-                id: product.id,
-                userId,
-                createdAt:
-                  Date.now(),
-              }
-            );
+            await addDeleteToQueue({
+              id: product.id,
+              userId,
+              createdAt:
+                Date.now(),
+            });
 
             await updatePendingDeleteCount();
 
@@ -1459,13 +1250,6 @@ export default function ProductsPage() {
           }
         }
 
-        /*
-         * --------------------------------------------------
-         * SI L'ERREUR EST RÉELLE :
-         *
-         * restaurer le produit.
-         * --------------------------------------------------
-         */
         try {
           await cacheProduct({
             ...product,
@@ -1496,9 +1280,7 @@ export default function ProductsPage() {
         setDeletingIds(
           (current) => {
             const next =
-              new Set(
-                current
-              );
+              new Set(current);
 
             next.delete(
               product.id
@@ -1614,22 +1396,22 @@ export default function ProductsPage() {
     };
   }, [loadProducts]);
 
-    /* =========================================================
+  /* =========================================================
      REALTIME — PRODUITS
-     
-     Chaque utilisateur reçoit uniquement les changements
-     concernant ses propres produits.
   ========================================================= */
 
   useEffect(() => {
-    const userId = getStoredUserId();
+    const userId =
+      getStoredUserId();
 
     if (!userId) {
       return;
     }
 
     const channel = supabase
-      .channel(`products-user-${userId}`)
+      .channel(
+        `products-user-${userId}`
+      )
       .on(
         "postgres_changes",
         {
@@ -1644,12 +1426,9 @@ export default function ProductsPage() {
             payload
           );
 
-          /* ================================
-             NOUVEAU PRODUIT
-          ================================= */
-
           if (
-            payload.eventType === "INSERT" &&
+            payload.eventType ===
+              "INSERT" &&
             payload.new
           ) {
             const product =
@@ -1658,7 +1437,9 @@ export default function ProductsPage() {
               );
 
             try {
-              await cacheProduct(product);
+              await cacheProduct(
+                product
+              );
             } catch (error) {
               console.error(
                 "Erreur cache nouveau produit :",
@@ -1666,35 +1447,38 @@ export default function ProductsPage() {
               );
             }
 
-            setProducts((current) => {
-              const exists = current.some(
-                (item) =>
-                  item.id === product.id
-              );
+            setProducts(
+              (current) => {
+                const exists =
+                  current.some(
+                    (item) =>
+                      item.id ===
+                      product.id
+                  );
 
-              if (exists) {
-                return current.map((item) =>
-                  item.id === product.id
-                    ? product
-                    : item
-                );
+                if (exists) {
+                  return current.map(
+                    (item) =>
+                      item.id ===
+                      product.id
+                        ? product
+                        : item
+                  );
+                }
+
+                return [
+                  product,
+                  ...current,
+                ];
               }
-
-              return [
-                product,
-                ...current,
-              ];
-            });
+            );
 
             return;
           }
 
-          /* ================================
-             PRODUIT MODIFIÉ
-          ================================= */
-
           if (
-            payload.eventType === "UPDATE" &&
+            payload.eventType ===
+              "UPDATE" &&
             payload.new
           ) {
             const product =
@@ -1703,7 +1487,9 @@ export default function ProductsPage() {
               );
 
             try {
-              await cacheProduct(product);
+              await cacheProduct(
+                product
+              );
             } catch (error) {
               console.error(
                 "Erreur cache produit modifié :",
@@ -1711,28 +1497,29 @@ export default function ProductsPage() {
               );
             }
 
-            setProducts((current) =>
-              current.map((item) =>
-                item.id === product.id
-                  ? product
-                  : item
-              )
+            setProducts(
+              (current) =>
+                current.map(
+                  (item) =>
+                    item.id ===
+                    product.id
+                      ? product
+                      : item
+                )
             );
 
             return;
           }
 
-          /* ================================
-             PRODUIT SUPPRIMÉ
-          ================================= */
-
           if (
-            payload.eventType === "DELETE" &&
+            payload.eventType ===
+              "DELETE" &&
             payload.old
           ) {
             const productId =
               String(
-                (payload.old as Product).id
+                (payload.old as Product)
+                  .id
               );
 
             try {
@@ -1746,11 +1533,13 @@ export default function ProductsPage() {
               );
             }
 
-            setProducts((current) =>
-              current.filter(
-                (item) =>
-                  item.id !== productId
-              )
+            setProducts(
+              (current) =>
+                current.filter(
+                  (item) =>
+                    item.id !==
+                    productId
+                )
             );
           }
         }
@@ -1763,44 +1552,49 @@ export default function ProductsPage() {
       });
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(
+        channel
+      );
     };
   }, []);
 
-    /* =========================================================
-     RECHARGER IMMÉDIATEMENT APRÈS RETOUR SUR LA PAGE
-     
-     Quand on ajoute un produit depuis /products/add,
-     on recharge automatiquement le catalogue dès que
-     l'utilisateur revient sur cette page.
+  /* =========================================================
+     RECHARGER APRÈS RETOUR SUR PAGE
   ========================================================= */
 
   useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (
-        document.visibilityState === "visible"
-      ) {
+    const handleVisibilityChange =
+      async () => {
+        if (
+          document.visibilityState ===
+          "visible"
+        ) {
+          try {
+            await loadProducts(
+              false
+            );
+          } catch (error) {
+            console.error(
+              "Erreur rechargement après retour :",
+              error
+            );
+          }
+        }
+      };
+
+    const handleFocus =
+      async () => {
         try {
-          await loadProducts(false);
+          await loadProducts(
+            false
+          );
         } catch (error) {
           console.error(
-            "Erreur rechargement après retour :",
+            "Erreur rechargement après focus :",
             error
           );
         }
-      }
-    };
-
-    const handleFocus = async () => {
-      try {
-        await loadProducts(false);
-      } catch (error) {
-        console.error(
-          "Erreur rechargement après focus :",
-          error
-        );
-      }
-    };
+      };
 
     document.addEventListener(
       "visibilitychange",
@@ -1826,7 +1620,7 @@ export default function ProductsPage() {
   }, [loadProducts]);
 
   /* =========================================================
-     ONLINE
+     ONLINE / OFFLINE
   ========================================================= */
 
   useEffect(() => {
@@ -1901,136 +1695,117 @@ export default function ProductsPage() {
     syncPendingDeletes,
     updatePendingDeleteCount,
   ]);
-    /* =========================================================
+
+  /* =========================================================
      PRODUIT AJOUTÉ — AFFICHAGE IMMÉDIAT
-     
-     Permet à /products/add d'envoyer directement le nouveau
-     produit à cette page sans attendre un refresh Supabase.
   ========================================================= */
 
   useEffect(() => {
-    const handleProductAdded = async (
-      event: Event
-    ) => {
-      try {
-        const customEvent =
-          event as CustomEvent<Product>;
-
-        const newProduct =
-          customEvent.detail;
-
-        if (
-          !newProduct ||
-          !newProduct.id
-        ) {
-          return;
-        }
-
-        const normalizedProduct =
-          normalizeProduct(
-            newProduct
-          );
-
-        /*
-         * Mettre immédiatement le produit
-         * dans IndexedDB.
-         */
+    const handleProductAdded =
+      async (event: Event) => {
         try {
-          await cacheProduct(
-            normalizedProduct
-          );
-        } catch (error) {
-          console.error(
-            "Erreur cache produit ajouté :",
-            error
-          );
-        }
+          const customEvent =
+            event as CustomEvent<Product>;
 
-        /*
-         * Affichage immédiat dans la liste.
-         */
-        setProducts((current) => {
-          const exists =
-            current.some(
-              (product) =>
-                product.id ===
-                normalizedProduct.id
+          const newProduct =
+            customEvent.detail;
+
+          if (
+            !newProduct ||
+            !newProduct.id
+          ) {
+            return;
+          }
+
+          const normalizedProduct =
+            normalizeProduct(
+              newProduct
             );
 
-          if (exists) {
-            return current.map(
-              (product) =>
-                product.id ===
-                normalizedProduct.id
-                  ? normalizedProduct
-                  : product
+          try {
+            await cacheProduct(
+              normalizedProduct
+            );
+          } catch (error) {
+            console.error(
+              "Erreur cache produit ajouté :",
+              error
             );
           }
 
-          return [
-            normalizedProduct,
-            ...current,
-          ];
-        });
+          setProducts(
+            (current) => {
+              const exists =
+                current.some(
+                  (product) =>
+                    product.id ===
+                    normalizedProduct.id
+                );
 
-        /*
-         * Supprimer l'ancien message d'erreur
-         * s'il y en avait un.
-         */
-        setSyncError(null);
-      } catch (error) {
-        console.error(
-          "Erreur affichage produit ajouté :",
-          error
-        );
-      }
-    };
+              if (exists) {
+                return current.map(
+                  (product) =>
+                    product.id ===
+                    normalizedProduct.id
+                      ? normalizedProduct
+                      : product
+                );
+              }
 
-    /*
-     * Événement dans le même onglet.
-     */
+              return [
+                normalizedProduct,
+                ...current,
+              ];
+            }
+          );
+
+          setSyncError(null);
+        } catch (error) {
+          console.error(
+            "Erreur affichage produit ajouté :",
+            error
+          );
+        }
+      };
+
     window.addEventListener(
       "biso-product-added",
       handleProductAdded
     );
 
-    /*
-     * Événement localStorage :
-     * utile lorsque /products/add et /products
-     * sont deux navigations différentes.
-     */
-    const handleStorage = async (
-      event: StorageEvent
-    ) => {
-      if (
-        event.key !==
-          "biso-product-added" ||
-        !event.newValue
-      ) {
-        return;
-      }
+    const handleStorage =
+      async (
+        event: StorageEvent
+      ) => {
+        if (
+          event.key !==
+            "biso-product-added" ||
+          !event.newValue
+        ) {
+          return;
+        }
 
-      try {
-        const product =
-          JSON.parse(
-            event.newValue
-          ) as Product;
+        try {
+          const product =
+            JSON.parse(
+              event.newValue
+            ) as Product;
 
-        await handleProductAdded(
-          new CustomEvent(
-            "biso-product-added",
-            {
-              detail: product,
-            }
-          )
-        );
-      } catch (error) {
-        console.error(
-          "Erreur lecture produit ajouté :",
-          error
-        );
-      }
-    };
+          await handleProductAdded(
+            new CustomEvent(
+              "biso-product-added",
+              {
+                detail: product,
+              }
+            )
+          );
+        } catch (error) {
+          console.error(
+            "Erreur lecture produit ajouté :",
+            error
+          );
+        }
+      };
 
     window.addEventListener(
       "storage",
@@ -2058,8 +1833,7 @@ export default function ProductsPage() {
     const rupture =
       products.filter(
         (p) =>
-          Number(p.stock) <=
-          0
+          Number(p.stock) <= 0
       ).length;
 
     const faible =
@@ -2100,8 +1874,7 @@ export default function ProductsPage() {
         purchase * stock;
 
       const profit =
-        (selling -
-          purchase) *
+        (selling - purchase) *
         stock;
 
       if (
@@ -2117,8 +1890,7 @@ export default function ProductsPage() {
       if (
         currency === "$" ||
         currency === "USD" ||
-        currency ===
-          "DOLLAR"
+        currency === "DOLLAR"
       ) {
         valeurUSD += value;
         beneficeUSD += profit;
@@ -2126,8 +1898,7 @@ export default function ProductsPage() {
     }
 
     return {
-      total:
-        products.length,
+      total: products.length,
       rupture,
       faible,
       valeurFC,
@@ -2156,63 +1927,61 @@ export default function ProductsPage() {
               .includes(search)
         );
 
-      result.sort(
-        (a, b) => {
-          const aStock =
-            Number(a.stock);
+      result.sort((a, b) => {
+        const aStock =
+          Number(a.stock);
 
-          const bStock =
-            Number(b.stock);
+        const bStock =
+          Number(b.stock);
 
-          if (
-            aStock <= 0 &&
-            bStock > 0
-          ) {
-            return -1;
-          }
-
-          if (
-            bStock <= 0 &&
-            aStock > 0
-          ) {
-            return 1;
-          }
-
-          if (
-            aStock > 0 &&
-            aStock <= 5 &&
-            bStock > 5
-          ) {
-            return -1;
-          }
-
-          if (
-            bStock > 0 &&
-            bStock <= 5 &&
-            aStock > 5
-          ) {
-            return 1;
-          }
-
-          const aDate =
-            a.created_at
-              ? new Date(
-                  a.created_at
-                ).getTime()
-              : 0;
-
-          const bDate =
-            b.created_at
-              ? new Date(
-                  b.created_at
-                ).getTime()
-              : 0;
-
-          return (
-            bDate - aDate
-          );
+        if (
+          aStock <= 0 &&
+          bStock > 0
+        ) {
+          return -1;
         }
-      );
+
+        if (
+          bStock <= 0 &&
+          aStock > 0
+        ) {
+          return 1;
+        }
+
+        if (
+          aStock > 0 &&
+          aStock <= 5 &&
+          bStock > 5
+        ) {
+          return -1;
+        }
+
+        if (
+          bStock > 0 &&
+          bStock <= 5 &&
+          aStock > 5
+        ) {
+          return 1;
+        }
+
+        const aDate =
+          a.created_at
+            ? new Date(
+                a.created_at
+              ).getTime()
+            : 0;
+
+        const bDate =
+          b.created_at
+            ? new Date(
+                b.created_at
+              ).getTime()
+            : 0;
+
+        return (
+          bDate - aDate
+        );
+      });
 
       return result;
     }, [
@@ -2232,10 +2001,6 @@ export default function ProductsPage() {
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-8">
-
-        {/* ===================================================
-            HEADER
-        =================================================== */}
 
         <header className="mb-4 rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm sm:mb-5 sm:rounded-[28px] sm:p-6">
           <div className="flex flex-col gap-4">
@@ -2263,11 +2028,8 @@ export default function ProductsPage() {
 
                 </div>
 
-                
               </div>
             </div>
-
-            {/* STATUT */}
 
             <div className="flex flex-wrap items-center gap-2">
 
@@ -2323,8 +2085,6 @@ export default function ProductsPage() {
 
             </div>
 
-            {/* ACTIONS */}
-
             <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
 
               <button
@@ -2360,10 +2120,6 @@ export default function ProductsPage() {
             </div>
           </div>
         </header>
-
-        {/* ===================================================
-            ERREUR
-        =================================================== */}
 
         {syncError && (
           <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-3.5">
@@ -2402,10 +2158,6 @@ export default function ProductsPage() {
             </div>
           </div>
         )}
-
-        {/* ===================================================
-            STATISTIQUES
-        =================================================== */}
 
         <section className="mb-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
 
@@ -2477,10 +2229,6 @@ export default function ProductsPage() {
 
         </section>
 
-        {/* ===================================================
-            BENEFICE
-        =================================================== */}
-
         <section className="mb-4 overflow-hidden rounded-[22px] border border-indigo-100 bg-white shadow-sm">
 
           <div className="flex items-center gap-3 p-4">
@@ -2535,10 +2283,6 @@ export default function ProductsPage() {
 
           </div>
         </section>
-
-        {/* ===================================================
-            GUIDE
-        =================================================== */}
 
         <section className="mb-4 overflow-hidden rounded-[22px] border border-indigo-100 bg-white shadow-sm">
 
@@ -2646,10 +2390,6 @@ export default function ProductsPage() {
 
         </section>
 
-        {/* ===================================================
-            RECHERCHE
-        =================================================== */}
-
         <section className="mb-4 rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
 
           <div className="flex gap-2">
@@ -2678,9 +2418,7 @@ export default function ProductsPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setSearchTerm(
-                      ""
-                    )
+                    setSearchTerm("")
                   }
                   className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-200"
                 >
@@ -2699,10 +2437,6 @@ export default function ProductsPage() {
 
           </div>
         </section>
-
-        {/* ===================================================
-            TITRE
-        =================================================== */}
 
         <div className="mb-3 flex items-end justify-between px-1">
 
@@ -2723,13 +2457,7 @@ export default function ProductsPage() {
 
           </div>
 
-
-
         </div>
-
-        {/* ===================================================
-            PRODUITS
-        =================================================== */}
 
         <section className="space-y-2.5">
 
@@ -2801,10 +2529,6 @@ export default function ProductsPage() {
         </section>
 
       </div>
-
-      {/* =====================================================
-          MODAL
-      ===================================================== */}
 
       {deleteModal.open &&
         deleteModal.product && (
@@ -2913,8 +2637,7 @@ function ProductCard({
   onDelete: () => void;
 }) {
   const stock =
-    Number(product.stock) ||
-    0;
+    Number(product.stock) || 0;
 
   const purchase =
     Number(
@@ -3016,8 +2739,6 @@ function ProductCard({
 
         </div>
 
-        {/* PRIX */}
-
         <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-xl border border-slate-100">
 
           <div className="min-w-0 bg-slate-50 p-2.5">
@@ -3067,8 +2788,6 @@ function ProductCard({
 
         </div>
 
-        {/* BARRE STOCK */}
-
         <div className="mt-2.5 flex items-center gap-2">
 
           <Boxes
@@ -3108,8 +2827,6 @@ function ProductCard({
           </span>
 
         </div>
-
-        {/* ACTIONS */}
 
         <div className="mt-3 grid grid-cols-2 gap-2">
 
@@ -3287,8 +3004,6 @@ function DeleteModal({
             </button>
 
           </div>
-
-        
 
         </div>
       </div>

@@ -69,7 +69,7 @@ type ConnectionState =
 ========================================================= */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 const PRODUCTS_STORE = "products";
 const OFFLINE_SALES_STORE = "offline_sales";
@@ -99,7 +99,10 @@ function openSalesDB(): Promise<IDBDatabase> {
       return;
     }
 
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(
+      DB_NAME,
+      DB_VERSION
+    );
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -113,30 +116,65 @@ function openSalesDB(): Promise<IDBDatabase> {
 
       let productsStore: IDBObjectStore;
 
-      if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {
-        productsStore = db.createObjectStore(PRODUCTS_STORE, {
-          keyPath: "id",
-        });
+      if (
+        !db.objectStoreNames.contains(
+          PRODUCTS_STORE
+        )
+      ) {
+        productsStore =
+          db.createObjectStore(
+            PRODUCTS_STORE,
+            {
+              keyPath: "id",
+            }
+          );
       } else {
-        productsStore = transaction.objectStore(PRODUCTS_STORE);
+        productsStore =
+          transaction.objectStore(
+            PRODUCTS_STORE
+          );
       }
 
-      if (!productsStore.indexNames.contains("user_id")) {
-        productsStore.createIndex("user_id", "user_id", {
-          unique: false,
-        });
+      if (
+        !productsStore.indexNames.contains(
+          "user_id"
+        )
+      ) {
+        productsStore.createIndex(
+          "user_id",
+          "user_id",
+          {
+            unique: false,
+          }
+        );
       }
 
-      if (!productsStore.indexNames.contains("created_at")) {
-        productsStore.createIndex("created_at", "created_at", {
-          unique: false,
-        });
+      if (
+        !productsStore.indexNames.contains(
+          "created_at"
+        )
+      ) {
+        productsStore.createIndex(
+          "created_at",
+          "created_at",
+          {
+            unique: false,
+          }
+        );
       }
 
-      if (!productsStore.indexNames.contains("synced")) {
-        productsStore.createIndex("synced", "synced", {
-          unique: false,
-        });
+      if (
+        !productsStore.indexNames.contains(
+          "synced"
+        )
+      ) {
+        productsStore.createIndex(
+          "synced",
+          "synced",
+          {
+            unique: false,
+          }
+        );
       }
 
       /* =====================================================
@@ -145,47 +183,91 @@ function openSalesDB(): Promise<IDBDatabase> {
 
       let salesStore: IDBObjectStore;
 
-      if (!db.objectStoreNames.contains(OFFLINE_SALES_STORE)) {
-        salesStore = db.createObjectStore(OFFLINE_SALES_STORE, {
-          keyPath: "id",
-        });
+      if (
+        !db.objectStoreNames.contains(
+          OFFLINE_SALES_STORE
+        )
+      ) {
+        salesStore =
+          db.createObjectStore(
+            OFFLINE_SALES_STORE,
+            {
+              keyPath: "id",
+            }
+          );
       } else {
-        salesStore = transaction.objectStore(OFFLINE_SALES_STORE);
+        salesStore =
+          transaction.objectStore(
+            OFFLINE_SALES_STORE
+          );
       }
 
-      if (!salesStore.indexNames.contains("user_id")) {
-        salesStore.createIndex("user_id", "user_id", {
-          unique: false,
-        });
+      if (
+        !salesStore.indexNames.contains(
+          "user_id"
+        )
+      ) {
+        salesStore.createIndex(
+          "user_id",
+          "user_id",
+          {
+            unique: false,
+          }
+        );
       }
 
-      if (!salesStore.indexNames.contains("synced")) {
-        salesStore.createIndex("synced", "synced", {
-          unique: false,
-        });
+      if (
+        !salesStore.indexNames.contains(
+          "synced"
+        )
+      ) {
+        salesStore.createIndex(
+          "synced",
+          "synced",
+          {
+            unique: false,
+          }
+        );
       }
 
-      if (!salesStore.indexNames.contains("created_at")) {
-        salesStore.createIndex("created_at", "created_at", {
-          unique: false,
-        });
+      if (
+        !salesStore.indexNames.contains(
+          "created_at"
+        )
+      ) {
+        salesStore.createIndex(
+          "created_at",
+          "created_at",
+          {
+            unique: false,
+          }
+        );
       }
 
       /* =====================================================
          FILE DE SUPPRESSION
       ===================================================== */
 
-      if (!db.objectStoreNames.contains(DELETE_QUEUE_STORE)) {
-        const deleteStore = db.createObjectStore(
-          DELETE_QUEUE_STORE,
+      if (
+        !db.objectStoreNames.contains(
+          DELETE_QUEUE_STORE
+        )
+      ) {
+        const deleteStore =
+          db.createObjectStore(
+            DELETE_QUEUE_STORE,
+            {
+              keyPath: "id",
+            }
+          );
+
+        deleteStore.createIndex(
+          "userId",
+          "userId",
           {
-            keyPath: "id",
+            unique: false,
           }
         );
-
-        deleteStore.createIndex("userId", "userId", {
-          unique: false,
-        });
       }
     };
 
@@ -202,7 +284,9 @@ function openSalesDB(): Promise<IDBDatabase> {
     request.onerror = () => {
       reject(
         request.error ||
-          new Error("Impossible d'ouvrir IndexedDB.")
+          new Error(
+            "Impossible d'ouvrir IndexedDB."
+          )
       );
     };
 
@@ -229,18 +313,27 @@ async function getLocalProducts(
       "readonly"
     );
 
-    const store = transaction.objectStore(PRODUCTS_STORE);
-    const request = store.getAll();
+    const store =
+      transaction.objectStore(
+        PRODUCTS_STORE
+      );
+
+    const request =
+      store.getAll();
 
     request.onsuccess = () => {
       db.close();
 
-      const all = (request.result || []) as Product[];
+      const all =
+        (request.result || []) as Product[];
 
-      const products = all.filter(
-        (product) =>
-          String(product.user_id || "") === String(userId)
-      );
+      const products =
+        all.filter(
+          (product) =>
+            String(
+              product.user_id || ""
+            ) === String(userId)
+        );
 
       products.sort((a, b) =>
         (a.name || "").localeCompare(
@@ -305,7 +398,9 @@ async function saveLocalProduct(
 
       reject(
         transaction.error ||
-          new Error("Transaction locale interrompue.")
+          new Error(
+            "Transaction locale interrompue."
+          )
       );
     };
   });
@@ -330,15 +425,21 @@ async function saveOfflineSale(
     );
 
     const productsStore =
-      transaction.objectStore(PRODUCTS_STORE);
+      transaction.objectStore(
+        PRODUCTS_STORE
+      );
 
     const salesStore =
-      transaction.objectStore(OFFLINE_SALES_STORE);
+      transaction.objectStore(
+        OFFLINE_SALES_STORE
+      );
 
     salesStore.put(sale);
 
     const productRequest =
-      productsStore.get(sale.product_id);
+      productsStore.get(
+        sale.product_id
+      );
 
     productRequest.onsuccess = () => {
       const product =
@@ -351,13 +452,17 @@ async function saveOfflineSale(
         return;
       }
 
-      const currentStock = Number(product.stock);
+      const currentStock =
+        Number(product.stock);
 
       /*
-       * La vente locale possède déjà son stock_after.
-       * On évite donc de diminuer deux fois le stock.
+       * La vente possède déjà stock_after.
+       * On ne diminue donc jamais deux fois.
        */
-      if (currentStock !== sale.stock_after) {
+      if (
+        currentStock !==
+        sale.stock_after
+      ) {
         productsStore.put({
           ...product,
           stock: sale.stock_after,
@@ -399,7 +504,7 @@ async function saveOfflineSale(
 }
 
 /* =========================================================
-   LIRE VENTES EN ATTENTE
+   VENTES EN ATTENTE
 ========================================================= */
 
 async function getPendingOfflineSales(
@@ -414,9 +519,12 @@ async function getPendingOfflineSales(
     );
 
     const store =
-      transaction.objectStore(OFFLINE_SALES_STORE);
+      transaction.objectStore(
+        OFFLINE_SALES_STORE
+      );
 
-    const request = store.getAll();
+    const request =
+      store.getAll();
 
     request.onsuccess = () => {
       db.close();
@@ -424,43 +532,94 @@ async function getPendingOfflineSales(
       const all =
         (request.result || []) as OfflineSale[];
 
-      const pending = all
-        .filter(
-          (sale) =>
-            String(sale.user_id) === String(userId) &&
-            sale.synced !== true
-        )
-        .map((sale) => ({
-          ...sale,
+      /*
+       * IMPORTANT :
+       *
+       * Une ancienne vente peut avoir :
+       *
+       * sale_synced = true
+       * stock_synced = true
+       * synced = false
+       *
+       * Elle est pourtant complètement terminée.
+       *
+       * On ne la considère donc plus comme pending.
+       */
 
-          stock_before:
-            Number.isFinite(Number(sale.stock_before))
-              ? Number(sale.stock_before)
-              : 0,
+      const pending =
+        all
+          .filter((sale) => {
+            if (
+              String(sale.user_id) !==
+              String(userId)
+            ) {
+              return false;
+            }
 
-          stock_after:
-            Number.isFinite(Number(sale.stock_after))
-              ? Number(sale.stock_after)
-              : Math.max(
-                  0,
-                  Number(sale.stock_before || 0) -
-                    Number(sale.quantity || 0)
-                ),
+            const completelySynced =
+              sale.synced === true ||
+              (
+                sale.sale_synced === true &&
+                sale.stock_synced === true
+              );
 
-          sale_synced:
-            sale.sale_synced === true,
+            return !completelySynced;
+          })
+          .map((sale) => ({
+            ...sale,
 
-          stock_synced:
-            sale.stock_synced === true,
+            stock_before:
+              Number.isFinite(
+                Number(
+                  sale.stock_before
+                )
+              )
+                ? Number(
+                    sale.stock_before
+                  )
+                : 0,
 
-          synced:
-            sale.synced === true,
-        }));
+            stock_after:
+              Number.isFinite(
+                Number(
+                  sale.stock_after
+                )
+              )
+                ? Number(
+                    sale.stock_after
+                  )
+                : Math.max(
+                    0,
+                    Number(
+                      sale.stock_before ||
+                        0
+                    ) -
+                      Number(
+                        sale.quantity ||
+                          0
+                      )
+                  ),
+
+            sale_synced:
+              sale.sale_synced ===
+              true,
+
+            stock_synced:
+              sale.stock_synced ===
+              true,
+
+            synced:
+              sale.synced === true,
+          }));
 
       pending.sort(
         (a, b) =>
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
+          new Date(
+            a.created_at
+          ).getTime() -
+          new Date(
+            b.created_at
+          ).getTime()
       );
 
       resolve(pending);
@@ -473,6 +632,59 @@ async function getPendingOfflineSales(
         request.error ||
           new Error(
             "Impossible de lire les ventes en attente."
+          )
+      );
+    };
+  });
+}
+
+/* =========================================================
+   LIRE TOUTES LES VENTES LOCALES
+   Utilisé pour nettoyer les anciennes ventes déjà terminées.
+========================================================= */
+
+async function getAllOfflineSales(
+  userId: string
+): Promise<OfflineSale[]> {
+  const db = await openSalesDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      OFFLINE_SALES_STORE,
+      "readonly"
+    );
+
+    const store =
+      transaction.objectStore(
+        OFFLINE_SALES_STORE
+      );
+
+    const request =
+      store.getAll();
+
+    request.onsuccess = () => {
+      db.close();
+
+      const all =
+        (request.result || []) as OfflineSale[];
+
+      resolve(
+        all.filter(
+          (sale) =>
+            String(
+              sale.user_id
+            ) === String(userId)
+        )
+      );
+    };
+
+    request.onerror = () => {
+      db.close();
+
+      reject(
+        request.error ||
+          new Error(
+            "Impossible de lire les ventes locales."
           )
       );
     };
@@ -495,7 +707,9 @@ async function updateOfflineSale(
     );
 
     transaction
-      .objectStore(OFFLINE_SALES_STORE)
+      .objectStore(
+        OFFLINE_SALES_STORE
+      )
       .put(sale);
 
     transaction.oncomplete = () => {
@@ -543,7 +757,9 @@ async function removeOfflineSale(
     );
 
     transaction
-      .objectStore(OFFLINE_SALES_STORE)
+      .objectStore(
+        OFFLINE_SALES_STORE
+      )
       .delete(saleId);
 
     transaction.oncomplete = () => {
@@ -576,6 +792,55 @@ async function removeOfflineSale(
 }
 
 /* =========================================================
+   NETTOYER LES ANCIENNES VENTES DÉJÀ SYNCHRONISÉES
+========================================================= */
+
+async function cleanupCompletedOfflineSales(
+  userId: string
+): Promise<number> {
+  try {
+    const all =
+      await getAllOfflineSales(
+        userId
+      );
+
+    let removed = 0;
+
+    for (const sale of all) {
+      const alreadyComplete =
+        sale.synced === true ||
+        (
+          sale.sale_synced === true &&
+          sale.stock_synced === true
+        );
+
+      if (alreadyComplete) {
+        await removeOfflineSale(
+          sale.id
+        );
+
+        removed++;
+      }
+    }
+
+    if (removed > 0) {
+      console.log(
+        `[BISO-COMMERCE] ${removed} ancienne(s) vente(s) synchronisée(s) supprimée(s) de la file locale.`
+      );
+    }
+
+    return removed;
+  } catch (error) {
+    console.error(
+      "[BISO-COMMERCE] Nettoyage ventes terminées :",
+      error
+    );
+
+    return 0;
+  }
+}
+
+/* =========================================================
    SYNCHRONISER UNE VENTE
 ========================================================= */
 
@@ -590,14 +855,25 @@ async function syncOneOfflineSale(
   }
 
   try {
-    const stockBefore = Number(sale.stock_before);
-    const stockAfter = Number(sale.stock_after);
-    const quantity = Number(sale.quantity);
+    const stockBefore =
+      Number(sale.stock_before);
+
+    const stockAfter =
+      Number(sale.stock_after);
+
+    const quantity =
+      Number(sale.quantity);
 
     if (
-      !Number.isFinite(stockBefore) ||
-      !Number.isFinite(stockAfter) ||
-      !Number.isInteger(quantity) ||
+      !Number.isFinite(
+        stockBefore
+      ) ||
+      !Number.isFinite(
+        stockAfter
+      ) ||
+      !Number.isInteger(
+        quantity
+      ) ||
       quantity <= 0
     ) {
       console.error(
@@ -609,7 +885,7 @@ async function syncOneOfflineSale(
     }
 
     /* =====================================================
-       1. VÉRIFIER LA VENTE
+       1. VÉRIFIER LA VENTE SERVEUR
     ===================================================== */
 
     const {
@@ -619,7 +895,10 @@ async function syncOneOfflineSale(
       .from("sales")
       .select("id")
       .eq("id", sale.id)
-      .eq("user_id", sale.user_id)
+      .eq(
+        "user_id",
+        sale.user_id
+      )
       .maybeSingle();
 
     if (existingSaleError) {
@@ -632,48 +911,59 @@ async function syncOneOfflineSale(
     }
 
     /* =====================================================
-       2. CRÉER LA VENTE SI NÉCESSAIRE
+       2. CRÉER LA VENTE SI ELLE N'EXISTE PAS
     ===================================================== */
 
     if (!existingSale) {
-      const { error: saleError } =
-        await supabase
-          .from("sales")
-          .insert({
-            id: sale.id,
-            user_id: sale.user_id,
-            product_id: sale.product_id,
-            product_name: sale.product_name,
-            quantity: sale.quantity,
-            purchase_price: sale.purchase_price,
-            selling_price: sale.selling_price,
-            total_sale: sale.total_sale,
-            profit: sale.profit,
-            currency: sale.currency,
-            created_at: sale.created_at,
-          });
+      const {
+        error: saleError,
+      } = await supabase
+        .from("sales")
+        .insert({
+          id: sale.id,
+          user_id: sale.user_id,
+          product_id:
+            sale.product_id,
+          product_name:
+            sale.product_name,
+          quantity:
+            sale.quantity,
+          purchase_price:
+            sale.purchase_price,
+          selling_price:
+            sale.selling_price,
+          total_sale:
+            sale.total_sale,
+          profit:
+            sale.profit,
+          currency:
+            sale.currency,
+          created_at:
+            sale.created_at,
+        });
 
       if (saleError) {
-        /*
-         * Cas important :
-         * une erreur réseau peut arriver après que
-         * Supabase ait réellement reçu l'INSERT.
-         *
-         * On ne supprime donc PAS la vente locale ici.
-         * Au prochain essai, on vérifiera son existence.
-         */
         console.error(
           "[BISO-COMMERCE] Création vente échouée :",
           saleError
         );
+
+        /*
+         * IMPORTANT :
+         * On garde la vente locale.
+         *
+         * Au prochain essai, le système vérifiera
+         * d'abord si Supabase l'a finalement reçue.
+         */
 
         return false;
       }
     }
 
     /*
-     * La vente est maintenant confirmée côté serveur.
+     * À partir d'ici, la vente existe côté serveur.
      */
+
     sale.sale_synced = true;
 
     await updateOfflineSale({
@@ -690,9 +980,17 @@ async function syncOneOfflineSale(
       error: productError,
     } = await supabase
       .from("products")
-      .select("id, stock")
-      .eq("id", sale.product_id)
-      .eq("user_id", sale.user_id)
+      .select(
+        "id, stock"
+      )
+      .eq(
+        "id",
+        sale.product_id
+      )
+      .eq(
+        "user_id",
+        sale.user_id
+      )
       .maybeSingle();
 
     if (productError) {
@@ -714,196 +1012,35 @@ async function syncOneOfflineSale(
     }
 
     const serverStock =
-      Number(serverProduct.stock);
+      Number(
+        serverProduct.stock
+      );
 
     /* =====================================================
-       4. STOCK DÉJÀ SYNCHRONISÉ
-    ===================================================== */
-
-    if (serverStock === stockAfter) {
-      /*
-       * Très important :
-       *
-       * La vente peut avoir été créée puis le navigateur
-       * avoir perdu Internet avant de terminer l'update.
-       *
-       * Si le stock serveur est déjà exactement stockAfter,
-       * nous considérons le stock comme synchronisé.
-       */
-      sale.stock_synced = true;
-    }
-
-    /* =====================================================
-       5. STOCK PAS ENCORE SYNCHRONISÉ
-    ===================================================== */
-
-    else if (serverStock === stockBefore) {
-      const {
-        data: updatedProducts,
-        error: stockUpdateError,
-      } = await supabase
-        .from("products")
-        .update({
-          stock: stockAfter,
-        })
-        .eq("id", sale.product_id)
-        .eq("user_id", sale.user_id)
-        .eq("stock", stockBefore)
-        .select("id, stock");
-
-      if (stockUpdateError) {
-        console.error(
-          "[BISO-COMMERCE] Mise à jour stock :",
-          stockUpdateError
-        );
-
-        /*
-         * On ne supprime pas la vente locale.
-         */
-        return false;
-      }
-
-      /*
-       * Si Supabase retourne zéro ligne, il est possible
-       * qu'un autre onglet/appareil ait déjà modifié le stock.
-       *
-       * On relit donc le serveur avant de considérer
-       * la vente comme bloquée.
-       */
-      if (
-        !updatedProducts ||
-        updatedProducts.length === 0
-      ) {
-        const {
-          data: retryProduct,
-          error: retryError,
-        } = await supabase
-          .from("products")
-          .select("id, stock")
-          .eq("id", sale.product_id)
-          .eq("user_id", sale.user_id)
-          .maybeSingle();
-
-        if (retryError || !retryProduct) {
-          console.error(
-            "[BISO-COMMERCE] Vérification stock après conflit :",
-            retryError
-          );
-
-          return false;
-        }
-
-        if (
-          Number(retryProduct.stock) ===
-          stockAfter
-        ) {
-          sale.stock_synced = true;
-        } else {
-          console.warn(
-            "[BISO-COMMERCE] Conflit de stock :",
-            {
-              produit: sale.product_name,
-              stockAvant: stockBefore,
-              stockAprès: stockAfter,
-              stockServeur:
-                retryProduct.stock,
-            }
-          );
-
-          return false;
-        }
-      } else {
-        const returnedStock =
-          Number(updatedProducts[0].stock);
-
-        if (returnedStock !== stockAfter) {
-          console.error(
-            "[BISO-COMMERCE] Stock incorrect après mise à jour :",
-            {
-              attendu: stockAfter,
-              serveur: returnedStock,
-            }
-          );
-
-          return false;
-        }
-
-        sale.stock_synced = true;
-      }
-    }
-
-    /* =====================================================
-       6. DERNIÈRE VÉRIFICATION
+       4. CAS LE PLUS IMPORTANT
+       
+       Vente déjà dans Supabase
+       ET stock déjà synchronisé.
+       
+       On supprime immédiatement la copie locale.
     ===================================================== */
 
     if (
-      sale.sale_synced === true &&
-      sale.stock_synced === true
+      existingSale &&
+      serverStock === stockAfter
     ) {
-      /*
-       * On vérifie une dernière fois que la vente existe
-       * réellement côté serveur.
-       */
-      const {
-        data: finalSale,
-        error: finalSaleError,
-      } = await supabase
-        .from("sales")
-        .select("id")
-        .eq("id", sale.id)
-        .eq("user_id", sale.user_id)
-        .maybeSingle();
+      console.log(
+        "[BISO-COMMERCE] Vente déjà complètement synchronisée :",
+        sale.id
+      );
 
-      if (
-        finalSaleError ||
-        !finalSale
-      ) {
-        console.error(
-          "[BISO-COMMERCE] Vérification finale de la vente échouée.",
-          finalSaleError
-        );
+      sale.sale_synced = true;
+      sale.stock_synced = true;
+      sale.synced = true;
 
-        return false;
-      }
-
-      /*
-       * On vérifie aussi le stock final.
-       */
-      const {
-        data: finalProduct,
-        error: finalProductError,
-      } = await supabase
-        .from("products")
-        .select("stock")
-        .eq("id", sale.product_id)
-        .eq("user_id", sale.user_id)
-        .maybeSingle();
-
-      if (
-        finalProductError ||
-        !finalProduct ||
-        Number(finalProduct.stock) !==
-          stockAfter
-      ) {
-        console.error(
-          "[BISO-COMMERCE] Vérification finale du stock échouée.",
-          finalProductError
-        );
-
-        return false;
-      }
-
-      /*
-       * ===================================================
-       * IMPORTANT
-       *
-       * C'est seulement maintenant que l'on supprime
-       * la vente de IndexedDB.
-       *
-       * Donc le compteur passera réellement à 0.
-       * ===================================================
-       */
-      await removeOfflineSale(sale.id);
+      await removeOfflineSale(
+        sale.id
+      );
 
       window.dispatchEvent(
         new CustomEvent(
@@ -919,7 +1056,309 @@ async function syncOneOfflineSale(
 
       window.dispatchEvent(
         new CustomEvent(
-          "biso-offline-sales-synced"
+          "biso-offline-sales-synced",
+          {
+            detail: {
+              saleId: sale.id,
+              remaining: 0,
+            },
+          }
+        )
+      );
+
+      return true;
+    }
+
+    /* =====================================================
+       5. STOCK DÉJÀ SYNCHRONISÉ
+    ===================================================== */
+
+    if (
+      serverStock ===
+      stockAfter
+    ) {
+      sale.stock_synced =
+        true;
+    }
+
+    /* =====================================================
+       6. STOCK PAS ENCORE SYNCHRONISÉ
+    ===================================================== */
+
+    else if (
+      serverStock ===
+      stockBefore
+    ) {
+      const {
+        data:
+          updatedProducts,
+        error:
+          stockUpdateError,
+      } = await supabase
+        .from("products")
+        .update({
+          stock:
+            stockAfter,
+        })
+        .eq(
+          "id",
+          sale.product_id
+        )
+        .eq(
+          "user_id",
+          sale.user_id
+        )
+        .eq(
+          "stock",
+          stockBefore
+        )
+        .select(
+          "id, stock"
+        );
+
+      if (
+        stockUpdateError
+      ) {
+        console.error(
+          "[BISO-COMMERCE] Mise à jour stock :",
+          stockUpdateError
+        );
+
+        return false;
+      }
+
+      /*
+       * Aucun résultat.
+       *
+       * Cela signifie probablement qu'un autre appareil
+       * a déjà modifié le stock.
+       */
+      if (
+        !updatedProducts ||
+        updatedProducts.length ===
+          0
+      ) {
+        const {
+          data:
+            retryProduct,
+          error:
+            retryError,
+        } = await supabase
+          .from("products")
+          .select(
+            "id, stock"
+          )
+          .eq(
+            "id",
+            sale.product_id
+          )
+          .eq(
+            "user_id",
+            sale.user_id
+          )
+          .maybeSingle();
+
+        if (
+          retryError ||
+          !retryProduct
+        ) {
+          console.error(
+            "[BISO-COMMERCE] Vérification stock après conflit :",
+            retryError
+          );
+
+          return false;
+        }
+
+        if (
+          Number(
+            retryProduct.stock
+          ) === stockAfter
+        ) {
+          sale.stock_synced =
+            true;
+        } else {
+          console.warn(
+            "[BISO-COMMERCE] Conflit de stock :",
+            {
+              produit:
+                sale.product_name,
+              stockAvant:
+                stockBefore,
+              stockAprès:
+                stockAfter,
+              stockServeur:
+                retryProduct.stock,
+            }
+          );
+
+          return false;
+        }
+      } else {
+        const returnedStock =
+          Number(
+            updatedProducts[0]
+              .stock
+          );
+
+        if (
+          returnedStock !==
+          stockAfter
+        ) {
+          console.error(
+            "[BISO-COMMERCE] Stock incorrect après mise à jour :",
+            {
+              attendu:
+                stockAfter,
+              serveur:
+                returnedStock,
+            }
+          );
+
+          return false;
+        }
+
+        sale.stock_synced =
+          true;
+      }
+    }
+
+    /* =====================================================
+       7. STOCK INATTENDU
+    ===================================================== */
+
+    else {
+      console.warn(
+        "[BISO-COMMERCE] Stock serveur différent de l'état attendu.",
+        {
+          produit:
+            sale.product_name,
+          stockBefore,
+          stockAfter,
+          serverStock,
+        }
+      );
+
+      return false;
+    }
+
+    /* =====================================================
+       8. VÉRIFICATION FINALE
+    ===================================================== */
+
+    if (
+      sale.sale_synced ===
+        true &&
+      sale.stock_synced ===
+        true
+    ) {
+      sale.synced = true;
+
+      /*
+       * Vérifier une dernière fois la vente.
+       */
+
+      const {
+        data: finalSale,
+        error:
+          finalSaleError,
+      } = await supabase
+        .from("sales")
+        .select("id")
+        .eq(
+          "id",
+          sale.id
+        )
+        .eq(
+          "user_id",
+          sale.user_id
+        )
+        .maybeSingle();
+
+      if (
+        finalSaleError ||
+        !finalSale
+      ) {
+        console.error(
+          "[BISO-COMMERCE] Vérification finale vente échouée :",
+          finalSaleError
+        );
+
+        return false;
+      }
+
+      /*
+       * Vérifier le stock final.
+       */
+
+      const {
+        data:
+          finalProduct,
+        error:
+          finalProductError,
+      } = await supabase
+        .from("products")
+        .select("stock")
+        .eq(
+          "id",
+          sale.product_id
+        )
+        .eq(
+          "user_id",
+          sale.user_id
+        )
+        .maybeSingle();
+
+      if (
+        finalProductError ||
+        !finalProduct ||
+        Number(
+          finalProduct.stock
+        ) !== stockAfter
+      ) {
+        console.error(
+          "[BISO-COMMERCE] Vérification finale stock échouée :",
+          finalProductError
+        );
+
+        return false;
+      }
+
+      /*
+       * ===================================================
+       * VENTE COMPLÈTEMENT TERMINÉE
+       *
+       * On supprime la copie locale.
+       * Elle ne sera donc plus comptée comme pending.
+       * ===================================================
+       */
+
+      await removeOfflineSale(
+        sale.id
+      );
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "biso-products-updated"
+        )
+      );
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "biso-sales-updated"
+        )
+      );
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "biso-offline-sales-synced",
+          {
+            detail: {
+              saleId:
+                sale.id,
+              remaining: 0,
+            },
+          }
         )
       );
 
@@ -927,18 +1366,22 @@ async function syncOneOfflineSale(
     }
 
     /*
-     * La vente est enregistrée mais le stock
-     * n'est pas encore terminé.
+     * La vente existe mais le stock n'est pas encore terminé.
      */
+
     await updateOfflineSale({
       ...sale,
       sale_synced:
-        sale.sale_synced === true,
+        sale.sale_synced ===
+        true,
       stock_synced:
-        sale.stock_synced === true,
+        sale.stock_synced ===
+        true,
       synced:
-        sale.sale_synced === true &&
-        sale.stock_synced === true,
+        sale.sale_synced ===
+          true &&
+        sale.stock_synced ===
+          true,
     });
 
     return false;
@@ -968,20 +1411,50 @@ async function syncOfflineSales(
   }
 
   try {
+    /*
+     * Première étape :
+     * nettoyer les anciennes ventes déjà complètement
+     * synchronisées mais qui seraient encore dans IndexedDB.
+     */
+
+    await cleanupCompletedOfflineSales(
+      userId
+    );
+
     const pendingSales =
       await getPendingOfflineSales(
         userId
       );
 
-    if (pendingSales.length === 0) {
+    if (
+      pendingSales.length ===
+      0
+    ) {
+      window.dispatchEvent(
+        new CustomEvent(
+          "biso-offline-sales-synced",
+          {
+            detail: {
+              remaining: 0,
+            },
+          }
+        )
+      );
+
       return true;
     }
 
-    let allSynced = true;
+    let allSynced =
+      true;
 
-    for (const sale of pendingSales) {
-      if (!navigator.onLine) {
-        allSynced = false;
+    for (
+      const sale of pendingSales
+    ) {
+      if (
+        !navigator.onLine
+      ) {
+        allSynced =
+          false;
         break;
       }
 
@@ -991,23 +1464,31 @@ async function syncOfflineSales(
         );
 
       if (!success) {
-        allSynced = false;
+        allSynced =
+          false;
       }
     }
 
     /*
-     * On relit IndexedDB après la synchronisation.
-     *
-     * Si les ventes ont été supprimées avec succès,
-     * cette liste sera vide.
+     * Nettoyage supplémentaire.
      */
+
+    await cleanupCompletedOfflineSales(
+      userId
+    );
+
+    /*
+     * Relecture réelle de la file.
+     */
+
     const remainingSales =
       await getPendingOfflineSales(
         userId
       );
 
     const completelySynced =
-      remainingSales.length === 0;
+      remainingSales.length ===
+      0;
 
     window.dispatchEvent(
       new CustomEvent(
@@ -1060,44 +1541,67 @@ async function fetchProductsOnline(
   } = await supabase
     .from("products")
     .select("*")
-    .eq("user_id", userId)
+    .eq(
+      "user_id",
+      userId
+    )
     .order("name");
 
   if (error) {
     throw error;
   }
 
-  return ((data || []) as Product[]).map(
+  return (
+    (data || []) as Product[]
+  ).map(
     (product) => ({
       ...product,
 
-      id: String(product.id),
+      id: String(
+        product.id
+      ),
 
-      user_id: product.user_id
-        ? String(product.user_id)
-        : userId,
+      user_id:
+        product.user_id
+          ? String(
+              product.user_id
+            )
+          : userId,
 
       name:
         product.name ||
         "Produit sans nom",
 
       stock:
-        Number(product.stock) || 0,
+        Number(
+          product.stock
+        ) || 0,
 
       initial_stock:
-        Number(product.initial_stock) || 0,
+        Number(
+          product.initial_stock
+        ) || 0,
 
       purchase_price:
-        Number(product.purchase_price) || 0,
+        Number(
+          product.purchase_price
+        ) || 0,
 
       selling_price:
-        Number(product.selling_price) || 0,
+        Number(
+          product.selling_price
+        ) || 0,
 
       currency:
-        String(product.currency || ""),
+        String(
+          product.currency ||
+            ""
+        ),
 
       pieces_per_unit:
-        Number(product.pieces_per_unit) || 1,
+        Number(
+          product.pieces_per_unit
+        ) || 1,
     })
   );
 }
@@ -1109,48 +1613,59 @@ async function fetchProductsOnline(
 async function cacheProducts(
   products: Product[]
 ): Promise<void> {
-  const db = await openSalesDB();
+  const db =
+    await openSalesDB();
 
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      PRODUCTS_STORE,
-      "readwrite"
-    );
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          PRODUCTS_STORE,
+          "readwrite"
+        );
 
-    const store =
-      transaction.objectStore(PRODUCTS_STORE);
+      const store =
+        transaction.objectStore(
+          PRODUCTS_STORE
+        );
 
-    for (const product of products) {
-      store.put(product);
+      for (
+        const product of products
+      ) {
+        store.put(product);
+      }
+
+      transaction.oncomplete =
+        () => {
+          db.close();
+          resolve();
+        };
+
+      transaction.onerror =
+        () => {
+          db.close();
+
+          reject(
+            transaction.error ||
+              new Error(
+                "Impossible de mettre les produits en cache."
+              )
+          );
+        };
+
+      transaction.onabort =
+        () => {
+          db.close();
+
+          reject(
+            transaction.error ||
+              new Error(
+                "Mise en cache interrompue."
+              )
+          );
+        };
     }
-
-    transaction.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-
-    transaction.onerror = () => {
-      db.close();
-
-      reject(
-        transaction.error ||
-          new Error(
-            "Impossible de mettre les produits en cache."
-          )
-      );
-    };
-
-    transaction.onabort = () => {
-      db.close();
-
-      reject(
-        transaction.error ||
-          new Error(
-            "Mise en cache interrompue."
-          )
-      );
-    };
-  });
+  );
 }
 
 /* =========================================================
@@ -1158,34 +1673,52 @@ async function cacheProducts(
 ========================================================= */
 
 export default function SalesPage() {
-  const [products, setProducts] =
-    useState<Product[]>([]);
+  const [
+    products,
+    setProducts,
+  ] = useState<Product[]>(
+    []
+  );
 
-  const [productId, setProductId] =
-    useState("");
+  const [
+    productId,
+    setProductId,
+  ] = useState("");
 
-  const [searchTerm, setSearchTerm] =
-    useState("");
+  const [
+    searchTerm,
+    setSearchTerm,
+  ] = useState("");
 
-  const [quantity, setQuantity] =
-    useState("");
+  const [
+    quantity,
+    setQuantity,
+  ] = useState("");
 
-  const [loading, setLoading] =
-    useState(false);
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
 
-  const [showGuide, setShowGuide] =
-    useState(false);
+  const [
+    showGuide,
+    setShowGuide,
+  ] = useState(false);
 
-  const [showSuccess, setShowSuccess] =
-    useState(false);
+  const [
+    showSuccess,
+    setShowSuccess,
+  ] = useState(false);
 
   const [
     successOffline,
     setSuccessOffline,
   ] = useState(false);
 
-  const [isOnline, setIsOnline] =
-    useState(true);
+  const [
+    isOnline,
+    setIsOnline,
+  ] = useState(true);
 
   const [
     connectionState,
@@ -1201,10 +1734,14 @@ export default function SalesPage() {
   ] = useState(0);
 
   const quantityInputRef =
-    useRef<HTMLInputElement>(null);
+    useRef<HTMLInputElement>(
+      null
+    );
 
   const summaryRef =
-    useRef<HTMLDivElement>(null);
+    useRef<HTMLDivElement>(
+      null
+    );
 
   /* =========================================================
      USER ID
@@ -1213,7 +1750,8 @@ export default function SalesPage() {
   const getUserId =
     useCallback(() => {
       if (
-        typeof window === "undefined"
+        typeof window ===
+        "undefined"
       ) {
         return null;
       }
@@ -1228,37 +1766,47 @@ export default function SalesPage() {
   ========================================================= */
 
   const refreshPendingSalesCount =
-    useCallback(async () => {
-      const userId =
-        getUserId();
+    useCallback(
+      async () => {
+        const userId =
+          getUserId();
 
-      if (!userId) {
-        setPendingSalesCount(0);
-        return;
-      }
+        if (!userId) {
+          setPendingSalesCount(
+            0
+          );
+          return;
+        }
 
-      try {
-        const pending =
-          await getPendingOfflineSales(
+        try {
+          /*
+           * Nettoyage des anciennes ventes terminées.
+           */
+          await cleanupCompletedOfflineSales(
             userId
           );
 
-        setPendingSalesCount(
-          pending.length
-        );
-      } catch (error) {
-        console.error(
-          "[BISO-COMMERCE] Compteur :",
-          error
-        );
+          const pending =
+            await getPendingOfflineSales(
+              userId
+            );
 
-        /*
-         * On ne laisse jamais un ancien compteur
-         * affiché en cas de lecture impossible.
-         */
-        setPendingSalesCount(0);
-      }
-    }, [getUserId]);
+          setPendingSalesCount(
+            pending.length
+          );
+        } catch (error) {
+          console.error(
+            "[BISO-COMMERCE] Compteur :",
+            error
+          );
+
+          setPendingSalesCount(
+            0
+          );
+        }
+      },
+      [getUserId]
+    );
 
   /* =========================================================
      CHARGEMENT
@@ -1275,34 +1823,43 @@ export default function SalesPage() {
 
           if (!userId) {
             setProducts([]);
-            setPendingSalesCount(0);
+            setPendingSalesCount(
+              0
+            );
             return;
           }
 
           /*
            * CACHE IMMÉDIAT
            */
+
           const cached =
             await getLocalProducts(
               userId
             );
 
-          setProducts(cached);
+          setProducts(
+            cached
+          );
 
           /*
            * COMPTEUR IMMÉDIAT
            */
+
           await refreshPendingSalesCount();
 
           /*
            * HORS CONNEXION
            */
+
           if (
             typeof navigator !==
               "undefined" &&
             !navigator.onLine
           ) {
-            setIsOnline(false);
+            setIsOnline(
+              false
+            );
 
             setConnectionState(
               "offline"
@@ -1314,6 +1871,7 @@ export default function SalesPage() {
           /*
            * SYNCHRONISATION
            */
+
           if (!silent) {
             setConnectionState(
               "syncing"
@@ -1326,13 +1884,15 @@ export default function SalesPage() {
 
           /*
            * IMPORTANT :
-           * le compteur est relu après la synchronisation.
+           * relecture après synchronisation.
            */
+
           await refreshPendingSalesCount();
 
           /*
-           * RÉCUPÉRER LES PRODUITS SERVEUR
+           * PRODUITS SERVEUR
            */
+
           if (
             typeof navigator !==
               "undefined" &&
@@ -1343,6 +1903,15 @@ export default function SalesPage() {
                 userId
               );
 
+            /*
+             * Il ne faut pas écraser un stock local
+             * plus récent avec une ancienne valeur serveur
+             * pendant qu'une vente est encore pending.
+             *
+             * La synchronisation est déjà passée avant cette
+             * récupération.
+             */
+
             await cacheProducts(
               onlineProducts
             );
@@ -1351,7 +1920,9 @@ export default function SalesPage() {
               onlineProducts
             );
 
-            setIsOnline(true);
+            setIsOnline(
+              true
+            );
 
             setConnectionState(
               "online"
@@ -1364,8 +1935,9 @@ export default function SalesPage() {
           );
 
           /*
-           * NE JAMAIS VIDER L'ÉCRAN
+           * Ne jamais vider l'écran.
            */
+
           try {
             const userId =
               getUserId();
@@ -1412,7 +1984,9 @@ export default function SalesPage() {
     const online =
       navigator.onLine;
 
-    setIsOnline(online);
+    setIsOnline(
+      online
+    );
 
     setConnectionState(
       online
@@ -1421,16 +1995,20 @@ export default function SalesPage() {
     );
 
     void loadProducts();
-  }, [loadProducts]);
+  }, [
+    loadProducts,
+  ]);
 
   /* =========================================================
-     ÉVÉNEMENTS INTERNET
+     INTERNET
   ========================================================= */
 
   useEffect(() => {
     const handleOnline =
       async () => {
-        setIsOnline(true);
+        setIsOnline(
+          true
+        );
 
         setConnectionState(
           "syncing"
@@ -1440,31 +2018,22 @@ export default function SalesPage() {
           getUserId();
 
         if (userId) {
-          /*
-           * Première synchronisation.
-           */
           await syncOfflineSales(
             userId
           );
 
-          /*
-           * Relecture du compteur APRÈS suppression
-           * des ventes synchronisées.
-           */
           await refreshPendingSalesCount();
         }
 
-        /*
-         * Rechargement produits.
-         * loadProducts refait également une vérification
-         * de synchronisation, ce qui rend le système
-         * beaucoup plus robuste.
-         */
-        await loadProducts(true);
+        await loadProducts(
+          true
+        );
 
         await refreshPendingSalesCount();
 
-        setIsOnline(true);
+        setIsOnline(
+          true
+        );
 
         setConnectionState(
           "online"
@@ -1473,7 +2042,9 @@ export default function SalesPage() {
 
     const handleOffline =
       () => {
-        setIsOnline(false);
+        setIsOnline(
+          false
+        );
 
         setConnectionState(
           "offline"
@@ -1508,13 +2079,34 @@ export default function SalesPage() {
   ]);
 
   /* =========================================================
-     ÉVÉNEMENT SYNCHRONISATION TERMINÉE
+     ÉVÉNEMENT SYNCHRONISATION
   ========================================================= */
 
   useEffect(() => {
     const handleOfflineSalesSynced =
       async () => {
         await refreshPendingSalesCount();
+
+        const userId =
+          getUserId();
+
+        if (!userId) return;
+
+        try {
+          const cached =
+            await getLocalProducts(
+              userId
+            );
+
+          setProducts(
+            cached
+          );
+        } catch (error) {
+          console.error(
+            "[BISO-COMMERCE] Actualisation après sync :",
+            error
+          );
+        }
       };
 
     window.addEventListener(
@@ -1529,6 +2121,7 @@ export default function SalesPage() {
       );
     };
   }, [
+    getUserId,
     refreshPendingSalesCount,
   ]);
 
@@ -1596,7 +2189,8 @@ export default function SalesPage() {
   const selectedProduct =
     products.find(
       (p) =>
-        p.id === productId
+        p.id ===
+        productId
     );
 
   /* =========================================================
@@ -1619,7 +2213,9 @@ export default function SalesPage() {
 
   const increaseQty = () => {
     const current =
-      Number(quantity || 0);
+      Number(
+        quantity || 0
+      );
 
     const next =
       current + 1;
@@ -1649,11 +2245,17 @@ export default function SalesPage() {
 
   const decreaseQty = () => {
     const value =
-      Number(quantity || 0);
+      Number(
+        quantity || 0
+      );
 
-    if (value > 1) {
+    if (
+      value > 1
+    ) {
       setQuantity(
-        String(value - 1)
+        String(
+          value - 1
+        )
       );
     }
   };
@@ -1706,8 +2308,10 @@ export default function SalesPage() {
       setTimeout(() => {
         quantityInputRef.current?.scrollIntoView(
           {
-            behavior: "smooth",
-            block: "center",
+            behavior:
+              "smooth",
+            block:
+              "center",
           }
         );
       }, 300);
@@ -1720,13 +2324,17 @@ export default function SalesPage() {
   useEffect(() => {
     if (
       selectedProduct &&
-      Number(quantity) > 0
+      Number(
+        quantity
+      ) > 0
     ) {
       setTimeout(() => {
         summaryRef.current?.scrollIntoView(
           {
-            behavior: "smooth",
-            block: "nearest",
+            behavior:
+              "smooth",
+            block:
+              "nearest",
           }
         );
       }, 100);
@@ -1738,419 +2346,396 @@ export default function SalesPage() {
 
   /* =========================================================
      ENREGISTRER VENTE
-========================================================= */
-  const saveSale = async () => {
-    if (
-      !selectedProduct ||
-      !quantity
-    ) {
-      alert(
-        "Sélectionnez un produit et une quantité avant de continuer."
-      );
+  ========================================================= */
 
-      return;
-    }
+  const saveSale =
+    async () => {
+      if (
+        !selectedProduct ||
+        !quantity
+      ) {
+        alert(
+          "Sélectionnez un produit et une quantité avant de continuer."
+        );
 
-    const qty =
-      Number(quantity);
+        return;
+      }
 
-    if (
-      !Number.isInteger(qty) ||
-      qty <= 0
-    ) {
-      alert(
-        "La quantité doit être un nombre entier supérieur à zéro."
-      );
-
-      return;
-    }
-
-    const currentStock =
-      Number(
-        selectedProduct.stock
-      );
-
-    if (
-      qty > currentStock
-    ) {
-      alert(
-        `Stock insuffisant !\nDisponible : ${currentStock}`
-      );
-
-      return;
-    }
-
-    const userId =
-      getUserId();
-
-    if (!userId) {
-      alert(
-        "Utilisateur non connecté."
-      );
-
-      return;
-    }
-
-    if (loading) return;
-
-    setLoading(true);
-
-    try {
-      const prixVente =
+      const qty =
         Number(
-          selectedProduct.selling_price
+          quantity
         );
-
-      const prixAchat =
-        Number(
-          selectedProduct.purchase_price
-        );
-
-      const totalSale =
-        prixVente * qty;
-
-      const profit =
-        (
-          prixVente -
-          prixAchat
-        ) * qty;
-
-      const stockBefore =
-        currentStock;
-
-      const stockAfter =
-        Math.max(
-          0,
-          stockBefore - qty
-        );
-
-      const saleId =
-        typeof crypto !==
-          "undefined" &&
-        typeof crypto.randomUUID ===
-          "function"
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()
-              .toString(36)
-              .slice(2)}`;
-
-      const createdAt =
-        new Date().toISOString();
-
-      const saleData: OfflineSale =
-        {
-          id: saleId,
-          user_id: userId,
-          product_id:
-            selectedProduct.id,
-          product_name:
-            selectedProduct.name,
-          quantity: qty,
-          purchase_price:
-            prixAchat,
-          selling_price:
-            prixVente,
-          total_sale:
-            totalSale,
-          profit,
-          currency:
-            selectedProduct.currency,
-          created_at:
-            createdAt,
-          stock_before:
-            stockBefore,
-          stock_after:
-            stockAfter,
-          sale_synced:
-            false,
-          stock_synced:
-            false,
-          synced:
-            false,
-        };
-
-      /* =====================================================
-         HORS CONNEXION
-      ===================================================== */
 
       if (
-        typeof navigator !==
-          "undefined" &&
-        !navigator.onLine
+        !Number.isInteger(
+          qty
+        ) ||
+        qty <= 0
       ) {
-        await saveOfflineSale(
-          saleData
+        alert(
+          "La quantité doit être un nombre entier supérieur à zéro."
         );
-
-        const updatedProduct: Product =
-          {
-            ...selectedProduct,
-            stock:
-              stockAfter,
-            user_id:
-              userId,
-          };
-
-        setProducts(
-          (current) =>
-            current.map(
-              (product) =>
-                product.id ===
-                updatedProduct.id
-                  ? updatedProduct
-                  : product
-            )
-        );
-
-        setIsOnline(false);
-
-        setConnectionState(
-          "offline"
-        );
-
-        setSuccessOffline(
-          true
-        );
-
-        setShowSuccess(
-          true
-        );
-
-        setQuantity("");
-        setProductId("");
-        setSearchTerm("");
-
-        await refreshPendingSalesCount();
 
         return;
       }
 
-      /* =====================================================
-         EN LIGNE
-      ===================================================== */
+      const currentStock =
+        Number(
+          selectedProduct.stock
+        );
 
-      setConnectionState(
-        "syncing"
+      if (
+        qty >
+        currentStock
+      ) {
+        alert(
+          `Stock insuffisant !\nDisponible : ${currentStock}`
+        );
+
+        return;
+      }
+
+      const userId =
+        getUserId();
+
+      if (!userId) {
+        alert(
+          "Utilisateur non connecté."
+        );
+
+        return;
+      }
+
+      if (loading)
+        return;
+
+      setLoading(
+        true
       );
 
-      /*
-       * On enregistre d'abord la vente.
-       */
-      const {
-        error: saleError,
-      } = await supabase
-        .from("sales")
-        .insert({
-          id:
-            saleData.id,
-          user_id:
-            saleData.user_id,
-          product_id:
-            saleData.product_id,
-          product_name:
-            saleData.product_name,
-          quantity:
-            saleData.quantity,
-          purchase_price:
-            saleData.purchase_price,
-          selling_price:
-            saleData.selling_price,
-          total_sale:
-            saleData.total_sale,
-          profit:
-            saleData.profit,
-          currency:
-            saleData.currency,
-          created_at:
-            saleData.created_at,
-        });
+      try {
+        const prixVente =
+          Number(
+            selectedProduct.selling_price
+          );
 
-      /*
-       * Si l'insertion échoue, on garde la vente
-       * localement pour ne jamais la perdre.
-       */
-      if (saleError) {
-        console.error(
-          "[BISO-COMMERCE] Vente serveur refusée :",
-          saleError
-        );
+        const prixAchat =
+          Number(
+            selectedProduct.purchase_price
+          );
 
-        await saveOfflineSale(
-          saleData
-        );
+        const totalSale =
+          prixVente *
+          qty;
 
-        const updatedProduct: Product =
+        const profit =
+          (
+            prixVente -
+            prixAchat
+          ) *
+          qty;
+
+        const stockBefore =
+          currentStock;
+
+        const stockAfter =
+          Math.max(
+            0,
+            stockBefore -
+              qty
+          );
+
+        const saleId =
+          typeof crypto !==
+            "undefined" &&
+          typeof crypto.randomUUID ===
+            "function"
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()
+                .toString(
+                  36
+                )
+                .slice(
+                  2
+                )}`;
+
+        const createdAt =
+          new Date().toISOString();
+
+        const saleData: OfflineSale =
           {
-            ...selectedProduct,
-            stock:
-              stockAfter,
+            id: saleId,
             user_id:
               userId,
-          };
+            product_id:
+              selectedProduct.id,
+            product_name:
+              selectedProduct.name,
+            quantity:
+              qty,
+            purchase_price:
+              prixAchat,
+            selling_price:
+              prixVente,
+            total_sale:
+              totalSale,
+            profit,
+            currency:
+              selectedProduct.currency,
+            created_at:
+              createdAt,
 
-        setProducts(
-          (current) =>
-            current.map(
-              (product) =>
-                product.id ===
-                updatedProduct.id
-                  ? updatedProduct
-                  : product
-            )
-        );
-
-        setSuccessOffline(
-          true
-        );
-
-        setShowSuccess(
-          true
-        );
-
-        /*
-         * Attention :
-         * Internet peut être disponible mais Supabase
-         * peut être temporairement inaccessible.
-         *
-         * On garde donc l'état syncing plutôt que
-         * d'affirmer que le téléphone est hors connexion.
-         */
-        setConnectionState(
-          navigator.onLine
-            ? "syncing"
-            : "offline"
-        );
-
-        setQuantity("");
-        setProductId("");
-        setSearchTerm("");
-
-        await refreshPendingSalesCount();
-
-        return;
-      }
-
-      /*
-       * La vente est maintenant sur Supabase.
-       */
-      saleData.sale_synced =
-        true;
-
-      /* =====================================================
-         DIMINUER STOCK SERVEUR
-      ===================================================== */
-
-      const {
-        data: updatedProducts,
-        error: stockError,
-      } = await supabase
-        .from("products")
-        .update({
-          stock:
-            stockAfter,
-        })
-        .eq(
-          "id",
-          selectedProduct.id
-        )
-        .eq(
-          "user_id",
-          userId
-        )
-        .eq(
-          "stock",
-          stockBefore
-        )
-        .select("id, stock");
-
-      /*
-       * Si le stock n'a pas pu être mis à jour,
-       * la vente existe déjà.
-       *
-       * On la met donc en attente avec sale_synced=true.
-       */
-      if (stockError) {
-        console.error(
-          "[BISO-COMMERCE] Stock serveur non synchronisé :",
-          stockError
-        );
-
-        await saveOfflineSale({
-          ...saleData,
-          sale_synced:
-            true,
-          stock_synced:
-            false,
-          synced:
-            false,
-        });
-
-        const updatedProduct: Product =
-          {
-            ...selectedProduct,
-            stock:
+            stock_before:
+              stockBefore,
+            stock_after:
               stockAfter,
-            user_id:
-              userId,
+
+            sale_synced:
+              false,
+
+            stock_synced:
+              false,
+
+            synced:
+              false,
           };
 
-        await saveLocalProduct(
-          updatedProduct
-        );
+        /* ===================================================
+           HORS CONNEXION
+        =================================================== */
 
-        setProducts(
-          (current) =>
-            current.map(
-              (product) =>
-                product.id ===
-                updatedProduct.id
-                  ? updatedProduct
-                  : product
+        if (
+          typeof navigator !==
+            "undefined" &&
+          !navigator.onLine
+        ) {
+          await saveOfflineSale(
+            saleData
+          );
+
+          const updatedProduct:
+            Product =
+            {
+              ...selectedProduct,
+
+              stock:
+                stockAfter,
+
+              user_id:
+                userId,
+            };
+
+          setProducts(
+            (current) =>
+              current.map(
+                (
+                  product
+                ) =>
+                  product.id ===
+                  updatedProduct.id
+                    ? updatedProduct
+                    : product
+              )
+          );
+
+          setIsOnline(
+            false
+          );
+
+          setConnectionState(
+            "offline"
+          );
+
+          setSuccessOffline(
+            true
+          );
+
+          setShowSuccess(
+            true
+          );
+
+          setQuantity(
+            ""
+          );
+
+          setProductId(
+            ""
+          );
+
+          setSearchTerm(
+            ""
+          );
+
+          await refreshPendingSalesCount();
+
+          window.dispatchEvent(
+            new CustomEvent(
+              "biso-products-updated"
             )
-        );
+          );
 
-        setSuccessOffline(
-          true
-        );
+          window.dispatchEvent(
+            new CustomEvent(
+              "biso-sales-updated"
+            )
+          );
 
-        setShowSuccess(
-          true
-        );
+          return;
+        }
+
+        /* ===================================================
+           EN LIGNE
+        =================================================== */
 
         setConnectionState(
           "syncing"
         );
 
-        setQuantity("");
-        setProductId("");
-        setSearchTerm("");
-
-        await refreshPendingSalesCount();
-
-        return;
-      }
-
-      /*
-       * Aucun produit retourné :
-       * le filtre stock_before n'a probablement trouvé
-       * aucune ligne.
-       */
-      if (
-        !updatedProducts ||
-        updatedProducts.length === 0
-      ) {
         /*
-         * On relit le produit.
+         * IMPORTANT :
          *
-         * S'il est déjà à stockAfter, le stock est
-         * considéré comme correctement synchronisé.
+         * Même en ligne, si quelque chose échoue,
+         * la vente est conservée localement.
          */
+
         const {
-          data: currentServerProduct,
-          error: currentServerProductError,
+          error:
+            saleError,
+        } = await supabase
+          .from("sales")
+          .insert({
+            id:
+              saleData.id,
+            user_id:
+              saleData.user_id,
+            product_id:
+              saleData.product_id,
+            product_name:
+              saleData.product_name,
+            quantity:
+              saleData.quantity,
+            purchase_price:
+              saleData.purchase_price,
+            selling_price:
+              saleData.selling_price,
+            total_sale:
+              saleData.total_sale,
+            profit:
+              saleData.profit,
+            currency:
+              saleData.currency,
+            created_at:
+              saleData.created_at,
+          });
+
+        /* ===================================================
+           INSERT VENTE ÉCHOUÉ
+        =================================================== */
+
+        if (saleError) {
+          console.error(
+            "[BISO-COMMERCE] Vente serveur refusée :",
+            saleError
+          );
+
+          await saveOfflineSale(
+            saleData
+          );
+
+          const updatedProduct:
+            Product =
+            {
+              ...selectedProduct,
+
+              stock:
+                stockAfter,
+
+              user_id:
+                userId,
+            };
+
+          await saveLocalProduct(
+            updatedProduct
+          );
+
+          setProducts(
+            (current) =>
+              current.map(
+                (
+                  product
+                ) =>
+                  product.id ===
+                  updatedProduct.id
+                    ? updatedProduct
+                    : product
+              )
+          );
+
+          setSuccessOffline(
+            true
+          );
+
+          setShowSuccess(
+            true
+          );
+
+          setConnectionState(
+            navigator.onLine
+              ? "syncing"
+              : "offline"
+          );
+
+          setQuantity(
+            ""
+          );
+
+          setProductId(
+            ""
+          );
+
+          setSearchTerm(
+            ""
+          );
+
+          await refreshPendingSalesCount();
+
+          window.dispatchEvent(
+            new CustomEvent(
+              "biso-products-updated"
+            )
+          );
+
+          window.dispatchEvent(
+            new CustomEvent(
+              "biso-sales-updated"
+            )
+          );
+
+          return;
+        }
+
+        /*
+         * La vente est maintenant dans Supabase.
+         */
+
+        saleData.sale_synced =
+          true;
+
+        /* ===================================================
+           DIMINUER STOCK SERVEUR
+        =================================================== */
+
+        const {
+          data:
+            updatedProducts,
+          error:
+            stockError,
         } = await supabase
           .from("products")
-          .select("id, stock")
+          .update({
+            stock:
+              stockAfter,
+          })
           .eq(
             "id",
             selectedProduct.id
@@ -2159,328 +2744,145 @@ export default function SalesPage() {
             "user_id",
             userId
           )
-          .maybeSingle();
-
-        if (
-          currentServerProductError ||
-          !currentServerProduct
-        ) {
-          await saveOfflineSale({
-            ...saleData,
-            sale_synced:
-              true,
-            stock_synced:
-              false,
-            synced:
-              false,
-          });
-
-          setSuccessOffline(
-            true
-          );
-
-          setShowSuccess(
-            true
-          );
-
-          setConnectionState(
-            "syncing"
-          );
-
-          setQuantity("");
-          setProductId("");
-          setSearchTerm("");
-
-          await refreshPendingSalesCount();
-
-          return;
-        }
-
-        if (
-          Number(
-            currentServerProduct.stock
-          ) !== stockAfter
-        ) {
-          await saveOfflineSale({
-            ...saleData,
-            sale_synced:
-              true,
-            stock_synced:
-              false,
-            synced:
-              false,
-          });
-
-          setSuccessOffline(
-            true
-          );
-
-          setShowSuccess(
-            true
-          );
-
-          setConnectionState(
-            "syncing"
-          );
-
-          setQuantity("");
-          setProductId("");
-          setSearchTerm("");
-
-          await refreshPendingSalesCount();
-
-          return;
-        }
-      }
-
-      /*
-       * Le stock est maintenant synchronisé.
-       */
-      saleData.stock_synced =
-        true;
-
-      saleData.synced =
-        true;
-
-      /*
-       * =====================================================
-       * IMPORTANT
-       *
-       * La vente est déjà complètement enregistrée
-       * sur Supabase.
-       *
-       * Nous pouvons donc mettre à jour le cache local
-       * et ne PAS laisser cette vente dans offline_sales.
-       * =====================================================
-       */
-
-      await saveLocalProduct({
-        ...selectedProduct,
-        stock:
-          stockAfter,
-        user_id:
-          userId,
-      });
-
-      /*
-       * Au cas où une copie locale aurait été créée
-       * par une tentative précédente avec le même ID,
-       * on la supprime.
-       */
-      try {
-        await removeOfflineSale(
-          saleData.id
-        );
-      } catch (removeError) {
-        console.warn(
-          "[BISO-COMMERCE] Aucune copie locale à supprimer ou suppression déjà effectuée :",
-          removeError
-        );
-      }
-
-      setProducts(
-        (current) =>
-          current.map(
-            (product) =>
-              product.id ===
-              selectedProduct.id
-                ? {
-                    ...product,
-                    stock:
-                      stockAfter,
-                  }
-                : product
+          .eq(
+            "stock",
+            stockBefore
           )
-      );
+          .select(
+            "id, stock"
+          );
 
-      /*
-       * Le compteur doit être recalculé après
-       * la suppression de IndexedDB.
-       */
-      await refreshPendingSalesCount();
+        /* ===================================================
+           ERREUR STOCK
+        =================================================== */
 
-      setIsOnline(true);
+        if (
+          stockError
+        ) {
+          console.error(
+            "[BISO-COMMERCE] Stock serveur non synchronisé :",
+            stockError
+          );
 
-      setConnectionState(
-        "online"
-      );
+          await saveOfflineSale(
+            {
+              ...saleData,
 
-      setSuccessOffline(
-        false
-      );
+              sale_synced:
+                true,
 
-      setShowSuccess(
-        true
-      );
+              stock_synced:
+                false,
 
-      setQuantity("");
-      setProductId("");
-      setSearchTerm("");
+              synced:
+                false,
+            }
+          );
 
-      window.dispatchEvent(
-        new CustomEvent(
-          "biso-products-updated"
-        )
-      );
+          const updatedProduct:
+            Product =
+            {
+              ...selectedProduct,
 
-      window.dispatchEvent(
-        new CustomEvent(
-          "biso-sales-updated"
-        )
-      );
+              stock:
+                stockAfter,
 
-      window.dispatchEvent(
-        new CustomEvent(
-          "biso-offline-sales-synced"
-        )
-      );
-    } catch (error) {
-      console.error(
-        "[BISO-COMMERCE] Erreur vente :",
-        error
-      );
+              user_id:
+                userId,
+            };
 
-      /*
-       * Si la connexion a réellement disparu
-       * pendant la vente, on la conserve hors connexion.
-       */
-      if (
-        typeof navigator !==
-          "undefined" &&
-        !navigator.onLine
-      ) {
-        try {
-          const qtyValue =
-            Number(quantity);
+          await saveLocalProduct(
+            updatedProduct
+          );
+
+          setProducts(
+            (current) =>
+              current.map(
+                (
+                  product
+                ) =>
+                  product.id ===
+                  updatedProduct.id
+                    ? updatedProduct
+                    : product
+              )
+          );
+
+          setSuccessOffline(
+            true
+          );
+
+          setShowSuccess(
+            true
+          );
+
+          setConnectionState(
+            "syncing"
+          );
+
+          setQuantity(
+            ""
+          );
+
+          setProductId(
+            ""
+          );
+
+          setSearchTerm(
+            ""
+          );
+
+          await refreshPendingSalesCount();
+
+          return;
+        }
+
+        /* ===================================================
+           AUCUNE LIGNE RETOURNÉE
+        =================================================== */
+
+        if (
+          !updatedProducts ||
+          updatedProducts.length ===
+            0
+        ) {
+          const {
+            data:
+              currentServerProduct,
+            error:
+              currentServerProductError,
+          } = await supabase
+            .from("products")
+            .select(
+              "id, stock"
+            )
+            .eq(
+              "id",
+              selectedProduct.id
+            )
+            .eq(
+              "user_id",
+              userId
+            )
+            .maybeSingle();
 
           if (
-            selectedProduct &&
-            Number.isInteger(
-              qtyValue
-            ) &&
-            qtyValue > 0 &&
-            qtyValue <=
-              Number(
-                selectedProduct.stock
-              )
+            currentServerProductError ||
+            !currentServerProduct
           ) {
-            const before =
-              Number(
-                selectedProduct.stock
-              );
-
-            const after =
-              Math.max(
-                0,
-                before -
-                  qtyValue
-              );
-
-            const prixVente =
-              Number(
-                selectedProduct.selling_price
-              );
-
-            const prixAchat =
-              Number(
-                selectedProduct.purchase_price
-              );
-
-            const offlineSale: OfflineSale =
+            await saveOfflineSale(
               {
-                id:
-                  typeof crypto !==
-                    "undefined" &&
-                  typeof crypto.randomUUID ===
-                    "function"
-                    ? crypto.randomUUID()
-                    : `${Date.now()}-${Math.random()
-                        .toString(36)
-                        .slice(2)}`,
-
-                user_id:
-                  userId,
-
-                product_id:
-                  selectedProduct.id,
-
-                product_name:
-                  selectedProduct.name,
-
-                quantity:
-                  qtyValue,
-
-                purchase_price:
-                  prixAchat,
-
-                selling_price:
-                  prixVente,
-
-                total_sale:
-                  prixVente *
-                  qtyValue,
-
-                profit:
-                  (
-                    prixVente -
-                    prixAchat
-                  ) *
-                  qtyValue,
-
-                currency:
-                  selectedProduct.currency,
-
-                created_at:
-                  new Date().toISOString(),
-
-                stock_before:
-                  before,
-
-                stock_after:
-                  after,
+                ...saleData,
 
                 sale_synced:
-                  false,
+                  true,
 
                 stock_synced:
                   false,
 
                 synced:
                   false,
-              };
-
-            await saveOfflineSale(
-              offlineSale
-            );
-
-            const updatedProduct: Product =
-              {
-                ...selectedProduct,
-                stock:
-                  after,
-                user_id:
-                  userId,
-              };
-
-            await saveLocalProduct(
-              updatedProduct
-            );
-
-            setProducts(
-              (current) =>
-                current.map(
-                  (product) =>
-                    product.id ===
-                    updatedProduct.id
-                      ? updatedProduct
-                      : product
-                )
-            );
-
-            setIsOnline(false);
-
-            setConnectionState(
-              "offline"
+              }
             );
 
             setSuccessOffline(
@@ -2491,37 +2893,475 @@ export default function SalesPage() {
               true
             );
 
-            setQuantity("");
-            setProductId("");
-            setSearchTerm("");
+            setConnectionState(
+              "syncing"
+            );
+
+            setQuantity(
+              ""
+            );
+
+            setProductId(
+              ""
+            );
+
+            setSearchTerm(
+              ""
+            );
 
             await refreshPendingSalesCount();
 
             return;
           }
-        } catch (offlineError) {
-          console.error(
-            "[BISO-COMMERCE] Sauvegarde offline échouée :",
-            offlineError
-          );
+
+          /*
+           * Le stock est déjà arrivé à la valeur attendue.
+           */
+
+          if (
+            Number(
+              currentServerProduct.stock
+            ) ===
+            stockAfter
+          ) {
+            saleData.stock_synced =
+              true;
+
+            saleData.synced =
+              true;
+          } else {
+            await saveOfflineSale(
+              {
+                ...saleData,
+
+                sale_synced:
+                  true,
+
+                stock_synced:
+                  false,
+
+                synced:
+                  false,
+              }
+            );
+
+            setSuccessOffline(
+              true
+            );
+
+            setShowSuccess(
+              true
+            );
+
+            setConnectionState(
+              "syncing"
+            );
+
+            setQuantity(
+              ""
+            );
+
+            setProductId(
+              ""
+            );
+
+            setSearchTerm(
+              ""
+            );
+
+            await refreshPendingSalesCount();
+
+            return;
+          }
+        } else {
+          /*
+           * Le stock a été mis à jour.
+           */
+
+          const returnedStock =
+            Number(
+              updatedProducts[0]
+                .stock
+            );
+
+          if (
+            returnedStock ===
+            stockAfter
+          ) {
+            saleData.stock_synced =
+              true;
+
+            saleData.synced =
+              true;
+          }
         }
+
+        /* ===================================================
+           VENTE COMPLÈTEMENT SYNCHRONISÉE
+        =================================================== */
+
+        if (
+          saleData.sale_synced ===
+            true &&
+          saleData.stock_synced ===
+            true
+        ) {
+          saleData.synced =
+            true;
+
+          /*
+           * Le produit local est mis à jour.
+           */
+
+          await saveLocalProduct(
+            {
+              ...selectedProduct,
+
+              stock:
+                stockAfter,
+
+              user_id:
+                userId,
+            }
+          );
+
+          /*
+           * Supprimer toute éventuelle copie locale.
+           */
+
+          await removeOfflineSale(
+            saleData.id
+          );
+
+          setProducts(
+            (current) =>
+              current.map(
+                (
+                  product
+                ) =>
+                  product.id ===
+                  selectedProduct.id
+                    ? {
+                        ...product,
+
+                        stock:
+                          stockAfter,
+                      }
+                    : product
+              )
+          );
+
+          await refreshPendingSalesCount();
+
+          setIsOnline(
+            true
+          );
+
+          setConnectionState(
+            "online"
+          );
+
+          setSuccessOffline(
+            false
+          );
+
+          setShowSuccess(
+            true
+          );
+
+          setQuantity(
+            ""
+          );
+
+          setProductId(
+            ""
+          );
+
+          setSearchTerm(
+            ""
+          );
+
+          window.dispatchEvent(
+            new CustomEvent(
+              "biso-products-updated"
+            )
+          );
+
+          window.dispatchEvent(
+            new CustomEvent(
+              "biso-sales-updated"
+            )
+          );
+
+          window.dispatchEvent(
+            new CustomEvent(
+              "biso-offline-sales-synced",
+              {
+                detail: {
+                  saleId:
+                    saleData.id,
+                  remaining:
+                    0,
+                },
+              }
+            )
+          );
+
+          return;
+        }
+
+        /*
+         * Par sécurité, conserver localement.
+         */
+
+        await saveOfflineSale(
+          saleData
+        );
+
+        await refreshPendingSalesCount();
+
+        setConnectionState(
+          "syncing"
+        );
+
+        setQuantity(
+          ""
+        );
+
+        setProductId(
+          ""
+        );
+
+        setSearchTerm(
+          ""
+        );
+      } catch (error) {
+        console.error(
+          "[BISO-COMMERCE] Erreur vente :",
+          error
+        );
+
+        /*
+         * Si Internet a réellement disparu,
+         * conserver la vente hors ligne.
+         */
+
+        if (
+          typeof navigator !==
+            "undefined" &&
+          !navigator.onLine
+        ) {
+          try {
+            const qtyValue =
+              Number(
+                quantity
+              );
+
+            if (
+              selectedProduct &&
+              Number.isInteger(
+                qtyValue
+              ) &&
+              qtyValue > 0 &&
+              qtyValue <=
+                Number(
+                  selectedProduct.stock
+                )
+            ) {
+              const before =
+                Number(
+                  selectedProduct.stock
+                );
+
+              const after =
+                Math.max(
+                  0,
+                  before -
+                    qtyValue
+                );
+
+              const prixVente =
+                Number(
+                  selectedProduct.selling_price
+                );
+
+              const prixAchat =
+                Number(
+                  selectedProduct.purchase_price
+                );
+
+              const offlineSale:
+                OfflineSale =
+                {
+                  id:
+                    typeof crypto !==
+                      "undefined" &&
+                    typeof crypto.randomUUID ===
+                      "function"
+                      ? crypto.randomUUID()
+                      : `${Date.now()}-${Math.random()
+                          .toString(
+                            36
+                          )
+                          .slice(
+                            2
+                          )}`,
+
+                  user_id:
+                    userId,
+
+                  product_id:
+                    selectedProduct.id,
+
+                  product_name:
+                    selectedProduct.name,
+
+                  quantity:
+                    qtyValue,
+
+                  purchase_price:
+                    prixAchat,
+
+                  selling_price:
+                    prixVente,
+
+                  total_sale:
+                    prixVente *
+                    qtyValue,
+
+                  profit:
+                    (
+                      prixVente -
+                      prixAchat
+                    ) *
+                    qtyValue,
+
+                  currency:
+                    selectedProduct.currency,
+
+                  created_at:
+                    new Date().toISOString(),
+
+                  stock_before:
+                    before,
+
+                  stock_after:
+                    after,
+
+                  sale_synced:
+                    false,
+
+                  stock_synced:
+                    false,
+
+                  synced:
+                    false,
+                };
+
+              await saveOfflineSale(
+                offlineSale
+              );
+
+              const updatedProduct:
+                Product =
+                {
+                  ...selectedProduct,
+
+                  stock:
+                    after,
+
+                  user_id:
+                    userId,
+                };
+
+              await saveLocalProduct(
+                updatedProduct
+              );
+
+              setProducts(
+                (current) =>
+                  current.map(
+                    (
+                      product
+                    ) =>
+                      product.id ===
+                      updatedProduct.id
+                        ? updatedProduct
+                        : product
+                  )
+              );
+
+              setIsOnline(
+                false
+              );
+
+              setConnectionState(
+                "offline"
+              );
+
+              setSuccessOffline(
+                true
+              );
+
+              setShowSuccess(
+                true
+              );
+
+              setQuantity(
+                ""
+              );
+
+              setProductId(
+                ""
+              );
+
+              setSearchTerm(
+                ""
+              );
+
+              await refreshPendingSalesCount();
+
+              window.dispatchEvent(
+                new CustomEvent(
+                  "biso-products-updated"
+                )
+              );
+
+              window.dispatchEvent(
+                new CustomEvent(
+                  "biso-sales-updated"
+                )
+              );
+
+              return;
+            }
+          } catch (
+            offlineError
+          ) {
+            console.error(
+              "[BISO-COMMERCE] Sauvegarde offline échouée :",
+              offlineError
+            );
+          }
+        }
+
+        alert(
+          "La vente n'a pas pu être enregistrée. Vérifiez votre connexion puis réessayez."
+        );
+
+        setConnectionState(
+          typeof navigator !==
+            "undefined" &&
+            navigator.onLine
+            ? "online"
+            : "offline"
+        );
+      } finally {
+        setLoading(
+          false
+        );
       }
-
-      alert(
-        "La vente n'a pas pu être enregistrée. Vérifiez votre connexion puis réessayez."
-      );
-
-      setConnectionState(
-        typeof navigator !==
-          "undefined" &&
-          navigator.onLine
-          ? "online"
-          : "offline"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   /* =========================================================
      AFFICHAGE
@@ -2595,7 +3435,9 @@ export default function SalesPage() {
                     sm:w-11
                   "
                 >
-                  <ShoppingCart size={20} />
+                  <ShoppingCart
+                    size={20}
+                  />
                 </div>
 
                 <h1
@@ -2624,15 +3466,18 @@ export default function SalesPage() {
                   sm:text-sm
                 "
               >
-                Enregistrez vos ventes rapidement
-                avec BISO-COMMERCE.
+                Enregistrez vos ventes
+                rapidement avec
+                BISO-COMMERCE.
               </p>
             </div>
 
             <button
               type="button"
               onClick={() =>
-                setShowGuide(!showGuide)
+                setShowGuide(
+                  !showGuide
+                )
               }
               className="
                 flex
@@ -2809,7 +3654,9 @@ export default function SalesPage() {
                   text-indigo-600
                 "
               >
-                <Sparkles size={19} />
+                <Sparkles
+                  size={19}
+                />
               </div>
 
               <h2
@@ -2942,7 +3789,9 @@ export default function SalesPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowGuide(false)
+                  setShowGuide(
+                    false
+                  )
                 }
                 className="
                   mt-2
@@ -3023,13 +3872,17 @@ export default function SalesPage() {
               />
 
               <input
-                value={searchTerm}
+                value={
+                  searchTerm
+                }
                 onChange={(e) => {
                   setSearchTerm(
                     e.target.value
                   );
 
-                  setProductId("");
+                  setProductId(
+                    ""
+                  );
                 }}
                 placeholder="Rechercher un produit..."
                 autoComplete="off"
@@ -3070,7 +3923,9 @@ export default function SalesPage() {
                     filteredProducts.map(
                       (p) => (
                         <button
-                          key={p.id}
+                          key={
+                            p.id
+                          }
                           type="button"
                           onClick={() => {
                             setProductId(
@@ -3121,17 +3976,24 @@ export default function SalesPage() {
                               "
                             >
                               <Package
-                                size={17}
+                                size={
+                                  17
+                                }
                               />
                             </div>
 
                             <span className="min-w-0 truncate text-sm font-semibold">
-                              {p.name}
+                              {
+                                p.name
+                              }
                             </span>
                           </div>
 
                           <span className="shrink-0 text-[10px] font-medium text-slate-400">
-                            Stock : {p.stock}
+                            Stock :{" "}
+                            {
+                              p.stock
+                            }
                           </span>
                         </button>
                       )
@@ -3163,12 +4025,17 @@ export default function SalesPage() {
                   />
 
                   <span className="min-w-0 truncate text-xs font-black text-indigo-700">
-                    {selectedProduct.name}
+                    {
+                      selectedProduct.name
+                    }
                   </span>
                 </div>
 
                 <span className="shrink-0 text-[10px] font-bold text-indigo-500">
-                  {selectedProduct.stock} en stock
+                  {
+                    selectedProduct.stock
+                  }{" "}
+                  en stock
                 </span>
               </div>
             )}
@@ -3202,11 +4069,14 @@ export default function SalesPage() {
             >
               <button
                 type="button"
-                onClick={decreaseQty}
+                onClick={
+                  decreaseQty
+                }
                 disabled={
                   !quantity ||
-                  Number(quantity) <=
-                    1
+                  Number(
+                    quantity
+                  ) <= 1
                 }
                 aria-label="Diminuer la quantité"
                 className="
@@ -3228,11 +4098,15 @@ export default function SalesPage() {
                   sm:w-[52px]
                 "
               >
-                <Minus size={18} />
+                <Minus
+                  size={18}
+                />
               </button>
 
               <input
-                ref={quantityInputRef}
+                ref={
+                  quantityInputRef
+                }
                 type="number"
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -3243,20 +4117,28 @@ export default function SalesPage() {
                     ? selectedProduct.stock
                     : undefined
                 }
-                value={quantity}
+                value={
+                  quantity
+                }
                 onChange={(e) => {
                   const value =
-                    e.target.value;
+                    e.target
+                      .value;
 
                   if (
-                    value === ""
+                    value ===
+                    ""
                   ) {
-                    setQuantity("");
+                    setQuantity(
+                      ""
+                    );
                     return;
                   }
 
                   const numericValue =
-                    Number(value);
+                    Number(
+                      value
+                    );
 
                   if (
                     !Number.isInteger(
@@ -3311,11 +4193,14 @@ export default function SalesPage() {
 
               <button
                 type="button"
-                onClick={increaseQty}
+                onClick={
+                  increaseQty
+                }
                 disabled={
                   !!selectedProduct &&
                   Number(
-                    quantity || 0
+                    quantity ||
+                      0
                   ) >=
                     Number(
                       selectedProduct.stock
@@ -3340,14 +4225,18 @@ export default function SalesPage() {
                   sm:w-[52px]
                 "
               >
-                <Plus size={18} />
+                <Plus
+                  size={18}
+                />
               </button>
             </div>
 
             {selectedProduct && (
               <p className="mt-2 text-center text-[10px] font-medium text-slate-400">
                 Maximum disponible :{" "}
-                {selectedProduct.stock}
+                {
+                  selectedProduct.stock
+                }
               </p>
             )}
           </div>
@@ -3357,9 +4246,13 @@ export default function SalesPage() {
           =================================================== */}
 
           {selectedProduct &&
-            Number(quantity) > 0 && (
+            Number(
+              quantity
+            ) > 0 && (
               <div
-                ref={summaryRef}
+                ref={
+                  summaryRef
+                }
                 className="
                   scroll-mt-6
                   overflow-hidden
@@ -3385,7 +4278,9 @@ export default function SalesPage() {
                       text-indigo-600
                     "
                   >
-                    <ShoppingCart size={18} />
+                    <ShoppingCart
+                      size={18}
+                    />
                   </div>
 
                   <p className="text-sm font-black text-indigo-800">
@@ -3418,7 +4313,9 @@ export default function SalesPage() {
                       text-slate-900
                     "
                   >
-                    {selectedProduct.name}
+                    {
+                      selectedProduct.name
+                    }
                   </span>
                 </div>
 
@@ -3428,7 +4325,9 @@ export default function SalesPage() {
                   </span>
 
                   <span className="text-xs font-black text-slate-900">
-                    {quantity}
+                    {
+                      quantity
+                    }
                   </span>
                 </div>
 
@@ -3441,7 +4340,9 @@ export default function SalesPage() {
                     {Number(
                       selectedProduct.selling_price
                     ).toLocaleString()}{" "}
-                    {selectedProduct.currency}
+                    {
+                      selectedProduct.currency
+                    }
                   </span>
                 </div>
 
@@ -3452,7 +4353,9 @@ export default function SalesPage() {
 
                   <p className="mt-1 break-words text-2xl font-black text-indigo-600 sm:text-3xl">
                     {totalPreview.toLocaleString()}{" "}
-                    {selectedProduct.currency}
+                    {
+                      selectedProduct.currency
+                    }
                   </p>
                 </div>
 
@@ -3477,8 +4380,12 @@ export default function SalesPage() {
 
                   <span>
                     Bénéfice estimé :{" "}
-                    {profitPreview.toLocaleString()}{" "}
-                    {selectedProduct.currency}
+                    {
+                      profitPreview.toLocaleString()
+                    }{" "}
+                    {
+                      selectedProduct.currency
+                    }
                   </span>
                 </div>
 
@@ -3509,7 +4416,9 @@ export default function SalesPage() {
                     <span>
                       Attention : stock restant{" "}
                       <strong>
-                        {stockAfterSale}
+                        {
+                          stockAfterSale
+                        }
                       </strong>
                     </span>
                   </div>
@@ -3523,7 +4432,9 @@ export default function SalesPage() {
 
           <button
             type="button"
-            onClick={saveSale}
+            onClick={
+              saveSale
+            }
             disabled={
               loading ||
               !selectedProduct ||
@@ -3564,7 +4475,9 @@ export default function SalesPage() {
               </>
             ) : (
               <>
-                <CheckCircle size={20} />
+                <CheckCircle
+                  size={20}
+                />
 
                 {isOnline
                   ? "Valider la vente"
@@ -3646,7 +4559,8 @@ export default function SalesPage() {
                     sm:text-2xl
                   "
                 >
-                  Vente enregistrée ✅
+                  Vente enregistrée
+                  ✅
                 </h2>
 
                 <p
