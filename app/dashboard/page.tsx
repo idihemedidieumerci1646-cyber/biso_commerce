@@ -2912,7 +2912,7 @@ export default function DashboardPage() {
 
           {!isOnline && (
             <p className="mt-3 rounded-xl bg-amber-500/10 p-2.5 text-[10px] font-semibold text-amber-300">
-              Le compteur des 30 jours continue même sans connexion.
+              
             </p>
           )}
 

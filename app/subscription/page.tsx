@@ -1790,9 +1790,7 @@ export default function SubscriptionPage() {
                 className="mt-0.5 shrink-0 text-amber-600"
               />
 
-              <p className="text-xs leading-5 text-amber-800">
-                Vous êtes hors connexion. Le statut et le compteur utilisent les dernières informations enregistrées sur cet appareil.
-              </p>
+              
             </div>
           )}
         </section>

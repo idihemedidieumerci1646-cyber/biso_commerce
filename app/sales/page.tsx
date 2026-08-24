@@ -1726,37 +1726,162 @@ export default function SalesPage() {
          SUCCÈS
       ===================================================== */
 
+     
       setIsOnline(true);
-      setConnectionState(
-        "online"
-      );
+      setConnectionState("online");
 
-      setSuccessOffline(
-        false
-      );
-
-      setShowSuccess(
-        true
-      );
+      setSuccessOffline(false);
+      setShowSuccess(true);
 
       setQuantity("");
       setProductId("");
       setSearchTerm("");
 
-      await refreshPendingSalesCount();
+      try {
+        await refreshPendingSalesCount();
+      } catch (refreshError) {
+        console.warn(
+          "Compteur des ventes en attente non actualisé :",
+          refreshError
+        );
+      }
     } catch (error) {
-      console.error(
-        "Erreur vente :",
-        error
-      );
+      console.error("Erreur vente :", error);
 
+      /*
+       * On essaie de conserver la vente localement
+       * uniquement si le téléphone est réellement
+       * hors connexion.
+       */
+      if (
+        typeof navigator !== "undefined" &&
+        !navigator.onLine
+      ) {
+        try {
+          if (selectedProduct) {
+            const qty = Number(quantity);
+
+            if (
+              Number.isInteger(qty) &&
+              qty > 0 &&
+              qty <= Number(selectedProduct.stock)
+            ) {
+              const prixVente = Number(
+                selectedProduct.selling_price
+              );
+
+              const prixAchat = Number(
+                selectedProduct.purchase_price
+              );
+
+              const saleData: OfflineSale = {
+                id:
+                  typeof crypto !== "undefined" &&
+                  typeof crypto.randomUUID === "function"
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random()
+                        .toString(36)
+                        .slice(2)}`,
+
+                user_id: userId,
+
+                product_id:
+                  selectedProduct.id,
+
+                product_name:
+                  selectedProduct.name,
+
+                quantity: qty,
+
+                purchase_price:
+                  prixAchat,
+
+                selling_price:
+                  prixVente,
+
+                total_sale:
+                  prixVente * qty,
+
+                profit:
+                  (prixVente - prixAchat) * qty,
+
+                currency:
+                  selectedProduct.currency,
+
+                created_at:
+                  new Date().toISOString(),
+
+                synced: false,
+              };
+
+              await saveOfflineSale(
+                saleData
+              );
+
+              const updatedProduct: Product = {
+                ...selectedProduct,
+                stock:
+                  Number(
+                    selectedProduct.stock
+                  ) - qty,
+                user_id: userId,
+              };
+
+              await saveLocalProduct(
+                updatedProduct
+              );
+
+              setProducts((current) =>
+                current.map((product) =>
+                  product.id ===
+                  updatedProduct.id
+                    ? updatedProduct
+                    : product
+                )
+              );
+
+              setIsOnline(false);
+              setConnectionState("offline");
+
+              setSuccessOffline(true);
+              setShowSuccess(true);
+
+              setQuantity("");
+              setProductId("");
+              setSearchTerm("");
+
+              try {
+                await refreshPendingSalesCount();
+              } catch (refreshError) {
+                console.warn(
+                  "Impossible d'actualiser le compteur :",
+                  refreshError
+                );
+              }
+
+              return;
+            }
+          }
+        } catch (offlineError) {
+          console.error(
+            "Erreur sauvegarde hors connexion :",
+            offlineError
+          );
+        }
+      }
+
+      /*
+       * Si on arrive ici, la vente n'a réellement
+       * pas pu être enregistrée.
+       */
       alert(
-        "Une erreur est survenue pendant l'enregistrement de la vente."
+        "La vente n'a pas pu être enregistrée. Veuillez réessayer."
       );
     } finally {
       setLoading(false);
     }
   };
+
 
   /* =========================================================
      AFFICHAGE
