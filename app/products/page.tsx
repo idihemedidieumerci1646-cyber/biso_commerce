@@ -73,7 +73,7 @@ const DB_NAME = "biso-commerce-products";
  * Le navigateur possède déjà une version 4.
  * Il ne faut jamais redescendre à 3.
  */
-const DB_VERSION = 5;
+const DB_VERSION = 7;
 
 const PRODUCTS_STORE = "products";
 const DELETE_QUEUE_STORE = "delete_queue";

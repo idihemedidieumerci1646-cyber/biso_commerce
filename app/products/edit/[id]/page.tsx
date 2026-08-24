@@ -67,7 +67,7 @@ type SuccessMessage =
 ========================================================= */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 5;
+const DB_VERSION = 7;
 
 const PRODUCTS_STORE = "products";
 const DELETE_QUEUE_STORE = "delete_queue";
@@ -3995,28 +3995,7 @@ export default function EditProductPage() {
 
             <div className="grid grid-cols-2 gap-2 p-5">
 
-              <button
-                type="button"
-                onClick={
-                  closeSuccessModal
-                }
-                className="
-                  min-h-[50px]
-                  rounded-2xl
-                  border
-                  border-slate-200
-                  bg-white
-                  px-4
-                  py-3
-                  text-sm
-                  font-black
-                  text-slate-700
-                  transition
-                  hover:bg-slate-50
-                "
-              >
-                OK
-              </button>
+              
 
               <button
                 type="button"
@@ -4041,7 +4020,7 @@ export default function EditProductPage() {
                   hover:bg-indigo-700
                 "
               >
-                Produits
+                OK
                 <ArrowRight
                   size={16}
                 />
