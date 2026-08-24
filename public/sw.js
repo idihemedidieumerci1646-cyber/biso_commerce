@@ -1,11 +1,18 @@
 
-const CACHE_NAME = "biso-commerce-v2";
+const CACHE_NAME = "biso-commerce-v3";
 
 const APP_SHELL = [
   "/",
   "/dashboard",
+  "/sales",
+  "/products",
+  "/products/add",
+  "/debts",
+  "/subscription",
+  "/assistant",
+  "/reports",
+  "/expenses",
   "/manifest.json",
-  "/icon.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -14,6 +21,7 @@ self.addEventListener("install", (event) => {
       for (const url of APP_SHELL) {
         try {
           await cache.add(url);
+          console.log("Mis en cache :", url);
         } catch (error) {
           console.warn(
             "Impossible de mettre en cache :",
@@ -45,20 +53,19 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const request = event.request;
 
-  // On ne traite que les requêtes GET
   if (request.method !== "GET") {
     return;
   }
 
   // ============================================================
-  // PAGES
+  // NAVIGATION / PAGES
   // ============================================================
 
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response && response.ok) {
+          if (response && response.status === 200) {
             const responseClone = response.clone();
 
             caches.open(CACHE_NAME).then((cache) => {
@@ -69,22 +76,21 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(async () => {
-          // Si Internet est coupé, essayer d'abord
-          // la page demandée.
+          // Page exacte déjà visitée
           const cachedPage = await caches.match(request);
 
           if (cachedPage) {
             return cachedPage;
           }
 
-          // Sinon ouvrir le Dashboard déjà enregistré.
+          // Sinon essayer le Dashboard
           const dashboard = await caches.match("/dashboard");
 
           if (dashboard) {
             return dashboard;
           }
 
-          // Dernier secours : page d'accueil.
+          // Dernier secours
           const home = await caches.match("/");
 
           if (home) {
@@ -96,21 +102,18 @@ self.addEventListener("fetch", (event) => {
               <!DOCTYPE html>
               <html lang="fr">
                 <head>
-                  <meta charset="UTF-8" />
+                  <meta charset="UTF-8">
                   <meta
                     name="viewport"
                     content="width=device-width, initial-scale=1"
-                  />
+                  >
                   <title>BISO-COMMERCE</title>
                 </head>
+
                 <body>
                   <h2>BISO-COMMERCE</h2>
                   <p>
-                    Vous êtes hors connexion.
-                  </p>
-                  <p>
-                    Veuillez vous reconnecter à Internet
-                    pour charger l'application.
+                    L'application est hors connexion.
                   </p>
                 </body>
               </html>
@@ -118,7 +121,8 @@ self.addEventListener("fetch", (event) => {
             {
               status: 200,
               headers: {
-                "Content-Type": "text/html; charset=utf-8",
+                "Content-Type":
+                  "text/html; charset=utf-8",
               },
             }
           );
@@ -129,7 +133,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // ============================================================
-  // AUTRES FICHIERS : CACHE FIRST
+  // AUTRES RESSOURCES
   // ============================================================
 
   event.respondWith(
@@ -163,4 +167,3 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
-
