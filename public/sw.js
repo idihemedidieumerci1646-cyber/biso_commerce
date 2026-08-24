@@ -1,4 +1,4 @@
-const CACHE_NAME = "biso-commerce-v3";
+const CACHE_NAME = "biso-commerce-v2";
 
 const APP_SHELL = [
   "/",
@@ -23,17 +23,10 @@ self.addEventListener("install", (event) => {
     caches.open(CACHE_NAME).then(async (cache) => {
       for (const url of APP_SHELL) {
         try {
-          const response = await fetch(url, {
-            cache: "no-store",
-          });
-
-          if (response.ok) {
-            await cache.put(url, response);
-          }
+          await cache.add(url);
         } catch (error) {
           console.warn(
-            "[BISO-COMMERCE] Cache impossible :",
-            url,
+            `[BISO-COMMERCE] Impossible de mettre en cache : ${url}`,
             error
           );
         }
@@ -50,22 +43,16 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((cacheNames) => {
-        return Promise.all(
-          cacheNames
-            .filter(
-              (cacheName) =>
-                cacheName !== CACHE_NAME
-            )
-            .map((cacheName) =>
-              caches.delete(cacheName)
-            )
-        );
-      })
-      .then(() => self.clients.claim())
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames
+          .filter((cacheName) => cacheName !== CACHE_NAME)
+          .map((cacheName) => caches.delete(cacheName))
+      )
+    )
   );
+
+  self.clients.claim();
 });
 
 /* =========================================================
@@ -82,319 +69,145 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
 
   /*
-   * Ne gérer que notre propre domaine.
-   */
+    On ne gère que les requêtes de notre propre application.
+  */
   if (url.origin !== self.location.origin) {
     return;
   }
 
-  /* =======================================================
-     JAVASCRIPT / CSS / CHUNKS NEXT.JS
-     
-     IMPORTANT :
-     On NE fait PAS cache-first ici.
+  /*
+    ========================================================
+    NAVIGATION DES PAGES
+    ========================================================
 
-     Next.js génère des fichiers avec des noms/chunks
-     qui peuvent changer après un nouveau build.
-     
-     On privilégie donc Internet.
-     Si Internet est impossible, on essaie le cache.
-  ======================================================= */
+    Exemple :
 
-  if (
-    request.destination === "script" ||
-    request.destination === "style" ||
-    request.destination === "worker"
-  ) {
-    event.respondWith(
-      fetch(request, {
-        cache: "no-store",
-      })
-        .then((response) => {
-          return response;
-        })
-        .catch(async () => {
-          const cached =
-            await caches.match(request);
+    /dashboard
+    /products
+    /products/add
+    /products/edit/123
+    /sales
 
-          if (cached) {
-            return cached;
-          }
+    On essaie Internet en premier.
 
-          return new Response("", {
-            status: 503,
-          });
-        })
-    );
+    Si Internet fonctionne :
+      → on affiche la nouvelle page
+      → on la met en cache
 
-    return;
-  }
-
-  /* =======================================================
-     IMAGES / FONTS
-     
-     Cache first acceptable ici.
-  ======================================================= */
-
-  if (
-    request.destination === "image" ||
-    request.destination === "font"
-  ) {
-    event.respondWith(
-      caches
-        .match(request)
-        .then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-
-          return fetch(request)
-            .then((response) => {
-              if (
-                response &&
-                response.ok &&
-                response.type === "basic"
-              ) {
-                const clone =
-                  response.clone();
-
-                caches
-                  .open(CACHE_NAME)
-                  .then((cache) => {
-                    cache.put(
-                      request,
-                      clone
-                    );
-                  });
-              }
-
-              return response;
-            })
-            .catch(() => {
-              return new Response("", {
-                status: 503,
-              });
-            });
-        })
-    );
-
-    return;
-  }
-
-  /* =======================================================
-     MANIFEST
-  ======================================================= */
-
-  if (request.destination === "manifest") {
-    event.respondWith(
-      fetch(request, {
-        cache: "no-store",
-      })
-        .then((response) => {
-          if (
-            response &&
-            response.ok
-          ) {
-            const clone =
-              response.clone();
-
-            caches
-              .open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(
-                  request,
-                  clone
-                );
-              });
-          }
-
-          return response;
-        })
-        .catch(async () => {
-          const cached =
-            await caches.match(request);
-
-          if (cached) {
-            return cached;
-          }
-
-          return new Response("", {
-            status: 503,
-          });
-        })
-    );
-
-    return;
-  }
-
-  /* =======================================================
-     NAVIGATION / PAGES
-     
-     Internet d'abord.
-     
-     Si Internet :
-       nouvelle page
-     
-     Si pas Internet :
-       page déjà visitée
-  ======================================================= */
+    Si Internet ne fonctionne pas :
+      → on utilise le cache
+  */
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request, {
-        cache: "no-store",
-      })
+      fetch(request)
         .then((response) => {
-          if (
-            response &&
-            response.ok
-          ) {
-            const clone =
-              response.clone();
+          if (response && response.ok) {
+            const responseClone = response.clone();
 
-            caches
-              .open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(
-                  request,
-                  clone
-                );
-              });
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
           }
 
           return response;
         })
         .catch(async () => {
-          /* 1. URL exacte */
-          const exactMatch =
-            await caches.match(request);
+          /*
+            1. Chercher exactement l'URL demandée.
+
+            Exemple :
+            /products/edit/abc123
+          */
+
+          const exactMatch = await caches.match(request);
 
           if (exactMatch) {
             return exactMatch;
           }
 
-          /* 2. Chemin sans paramètres */
-          const pathMatch =
-            await caches.match(
-              new Request(url.pathname)
-            );
+          /*
+            2. Si la page dynamique n'est pas encore
+               directement dans le cache, essayer de trouver
+               une page HTML déjà mise en cache.
+          */
 
-          if (pathMatch) {
-            return pathMatch;
+          const cachedRoot = await caches.match("/");
+
+          if (cachedRoot) {
+            return cachedRoot;
           }
 
-          /* 3. Accueil */
-          const home =
-            await caches.match("/");
+          /*
+            3. Dernière possibilité :
+               dashboard.
+          */
 
-          if (home) {
-            return home;
+          const cachedDashboard =
+            await caches.match("/dashboard");
+
+          if (cachedDashboard) {
+            return cachedDashboard;
           }
 
-          /* 4. Dashboard */
-          const dashboard =
-            await caches.match(
-              "/dashboard"
-            );
-
-          if (dashboard) {
-            return dashboard;
-          }
-
-          /* 5. Écran hors connexion */
           return new Response(
             `
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
-  <title>BISO-COMMERCE</title>
+              <!DOCTYPE html>
+              <html lang="fr">
+                <head>
+                  <meta charset="UTF-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                  <title>BISO-COMMERCE</title>
+                  <style>
+                    body {
+                      margin: 0;
+                      min-height: 100vh;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      background: #f5f7fb;
+                      font-family: Arial, sans-serif;
+                      color: #0f172a;
+                    }
 
-  <style>
-    * {
-      box-sizing: border-box;
-    }
+                    .box {
+                      width: calc(100% - 32px);
+                      max-width: 420px;
+                      padding: 28px;
+                      background: white;
+                      border-radius: 24px;
+                      text-align: center;
+                      box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+                    }
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      background: #f5f7fb;
-      font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
-      color: #0f172a;
-    }
+                    h1 {
+                      margin: 0 0 10px;
+                      font-size: 22px;
+                    }
 
-    .box {
-      width: 100%;
-      max-width: 420px;
-      padding: 28px;
-      background: #ffffff;
-      border-radius: 24px;
-      text-align: center;
-      box-shadow:
-        0 10px 40px
-        rgba(15, 23, 42, 0.08);
-    }
+                    p {
+                      margin: 0;
+                      color: #64748b;
+                      line-height: 1.6;
+                    }
+                  </style>
+                </head>
 
-    .icon {
-      width: 58px;
-      height: 58px;
-      margin: 0 auto 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 18px;
-      background: #eef2ff;
-      color: #4f46e5;
-      font-size: 26px;
-    }
-
-    h1 {
-      margin: 0 0 10px;
-      font-size: 22px;
-      font-weight: 800;
-    }
-
-    p {
-      margin: 0;
-      color: #64748b;
-      line-height: 1.6;
-      font-size: 14px;
-    }
-  </style>
-</head>
-
-<body>
-  <div class="box">
-    <div class="icon">☁</div>
-
-    <h1>Mode hors connexion</h1>
-
-    <p>
-      Cette page n'est pas encore disponible
-      hors connexion.
-      Connectez-vous une première fois à Internet
-      pour la charger.
-    </p>
-  </div>
-</body>
-</html>
+                <body>
+                  <div class="box">
+                    <h1>Mode hors connexion</h1>
+                    <p>
+                      Cette page n'est pas encore disponible hors connexion.
+                      Connectez-vous une première fois à Internet pour la charger.
+                    </p>
+                  </div>
+                </body>
+              </html>
             `,
             {
               status: 503,
               headers: {
-                "Content-Type":
-                  "text/html; charset=utf-8",
+                "Content-Type": "text/html; charset=utf-8",
               },
             }
           );
@@ -404,59 +217,115 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  /* =======================================================
-     AUTRES REQUÊTES
-     
-     Network first
-  ======================================================= */
+  /*
+    ========================================================
+    FICHIERS JS / CSS / IMAGES / MANIFEST
+    ========================================================
+
+    Stratégie :
+      CACHE FIRST
+
+    Si le fichier existe dans le cache :
+      → utilisation immédiate
+
+    Sinon :
+      → Internet
+      → puis sauvegarde dans le cache
+  */
+
+  if (
+    request.destination === "script" ||
+    request.destination === "style" ||
+    request.destination === "image" ||
+    request.destination === "font" ||
+    request.destination === "manifest"
+  ) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        return fetch(request)
+          .then((response) => {
+            if (
+              response &&
+              response.status === 200 &&
+              response.type === "basic"
+            ) {
+              const responseClone =
+                response.clone();
+
+              caches.open(CACHE_NAME).then(
+                (cache) => {
+                  cache.put(
+                    request,
+                    responseClone
+                  );
+                }
+              );
+            }
+
+            return response;
+          })
+          .catch(() => {
+            return new Response("", {
+              status: 503,
+            });
+          });
+      })
+    );
+
+    return;
+  }
+
+  /*
+    ========================================================
+    AUTRES REQUÊTES
+    ========================================================
+
+    Network First :
+      Internet → cache si Internet échoue.
+  */
 
   event.respondWith(
     fetch(request)
       .then((response) => {
         if (
           response &&
-          response.ok &&
+          response.status === 200 &&
           response.type === "basic"
         ) {
-          const clone =
+          const responseClone =
             response.clone();
 
-          caches
-            .open(CACHE_NAME)
-            .then((cache) => {
+          caches.open(CACHE_NAME).then(
+            (cache) => {
               cache.put(
                 request,
-                clone
+                responseClone
               );
-            });
+            }
+          );
         }
 
         return response;
       })
-      .catch(async () => {
-        const cached =
-          await caches.match(request);
-
-        if (cached) {
-          return cached;
-        }
-
-        return new Response("", {
-          status: 503,
-        });
+      .catch(() => {
+        return caches.match(request);
       })
   );
 });
 
 /* =========================================================
    MESSAGE
+   Permet de forcer la mise à jour du Service Worker.
 ========================================================= */
 
 self.addEventListener("message", (event) => {
   if (
     event.data &&
-    event.data.type ===
-      "SKIP_WAITING"
+    event.data.type === "SKIP_WAITING"
   ) {
     self.skipWaiting();
   }
