@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
@@ -13,99 +13,1343 @@ import {
   RefreshCcw,
   XCircle,
   Boxes,
+  Wifi,
+  WifiOff,
+  Loader2,
 } from "lucide-react";
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 type Product = {
   id: string;
+  user_id?: string;
   name: string;
   stock: number;
   unit: string;
+  created_at?: string;
 };
 
-export default function LowStockPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+type PendingDelete = {
+  id: string;
+  userId: string;
+  createdAt: number;
+};
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
+/* =========================================================
+   INDEXED DB
+========================================================= */
 
-  async function loadProducts() {
-    setLoading(true);
+/*
+  IMPORTANT :
 
-    const phone = localStorage.getItem("phone");
+  Cette page utilise exactement la même base locale
+  que la page /products.
 
-    if (!phone) {
-      setLoading(false);
-      return;
+  Base :
+  biso-commerce-products
+
+  Version :
+  4
+
+  Store produits :
+  products
+
+  Store suppressions :
+  delete_queue
+*/
+
+const DB_NAME = "biso-commerce-products";
+const DB_VERSION = 5;
+
+const PRODUCTS_STORE = "products";
+const DELETE_QUEUE_STORE = "delete_queue";
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+/* =========================================================
+   OUVRIR INDEXED DB
+========================================================= */
+
+function openProductsDB(): Promise<IDBDatabase> {
+  if (typeof window === "undefined") {
+    return Promise.reject(
+      new Error(
+        "IndexedDB est disponible uniquement dans le navigateur."
+      )
+    );
+  }
+
+  if (!("indexedDB" in window)) {
+    return Promise.reject(
+      new Error(
+        "IndexedDB n'est pas supporté par ce navigateur."
+      )
+    );
+  }
+
+  if (dbPromise) {
+    return dbPromise;
+  }
+
+  dbPromise = new Promise<IDBDatabase>(
+    (resolve, reject) => {
+      const request = indexedDB.open(
+        DB_NAME,
+        DB_VERSION
+      );
+
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        const transaction = request.transaction;
+
+        if (!transaction) {
+          return;
+        }
+
+        /* =====================================================
+           STORE PRODUITS
+        ===================================================== */
+
+        let productsStore: IDBObjectStore;
+
+        if (
+          !db.objectStoreNames.contains(
+            PRODUCTS_STORE
+          )
+        ) {
+          productsStore =
+            db.createObjectStore(
+              PRODUCTS_STORE,
+              {
+                keyPath: "id",
+              }
+            );
+        } else {
+          productsStore =
+            transaction.objectStore(
+              PRODUCTS_STORE
+            );
+        }
+
+        if (
+          !productsStore.indexNames.contains(
+            "user_id"
+          )
+        ) {
+          productsStore.createIndex(
+            "user_id",
+            "user_id",
+            {
+              unique: false,
+            }
+          );
+        }
+
+        if (
+          !productsStore.indexNames.contains(
+            "created_at"
+          )
+        ) {
+          productsStore.createIndex(
+            "created_at",
+            "created_at",
+            {
+              unique: false,
+            }
+          );
+        }
+
+        /* =====================================================
+           STORE SUPPRESSIONS
+        ===================================================== */
+
+        let deleteStore: IDBObjectStore;
+
+        if (
+          !db.objectStoreNames.contains(
+            DELETE_QUEUE_STORE
+          )
+        ) {
+          deleteStore =
+            db.createObjectStore(
+              DELETE_QUEUE_STORE,
+              {
+                keyPath: "id",
+              }
+            );
+        } else {
+          deleteStore =
+            transaction.objectStore(
+              DELETE_QUEUE_STORE
+            );
+        }
+
+        if (
+          !deleteStore.indexNames.contains(
+            "userId"
+          )
+        ) {
+          deleteStore.createIndex(
+            "userId",
+            "userId",
+            {
+              unique: false,
+            }
+          );
+        }
+
+        if (
+          !deleteStore.indexNames.contains(
+            "createdAt"
+          )
+        ) {
+          deleteStore.createIndex(
+            "createdAt",
+            "createdAt",
+            {
+              unique: false,
+            }
+          );
+        }
+      };
+
+      request.onsuccess = () => {
+        const db = request.result;
+
+        /*
+          IMPORTANT :
+          On ne fait PAS db.close() après chaque transaction.
+          Cela évite l'erreur :
+          "The database connection is closing."
+        */
+
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = null;
+        };
+
+        resolve(db);
+      };
+
+      request.onerror = () => {
+        dbPromise = null;
+
+        reject(
+          request.error ||
+            new Error(
+              "Impossible d'ouvrir la base locale des produits."
+            )
+        );
+      };
+
+      request.onblocked = () => {
+        console.warn(
+          "La mise à jour IndexedDB est bloquée. Fermez les autres onglets BISO-COMMERCE."
+        );
+      };
     }
+  );
 
-    const { data: user } = await supabase
+  return dbPromise;
+}
+
+/* =========================================================
+   UTILITAIRE
+========================================================= */
+
+function normalizeProduct(
+  product: any
+): Product {
+  return {
+    id: String(product?.id || ""),
+    user_id: product?.user_id
+      ? String(product.user_id)
+      : undefined,
+    name: String(
+      product?.name ||
+        product?.product_name ||
+        "Produit sans nom"
+    ),
+    stock:
+      Number(product?.stock) || 0,
+    unit: String(
+      product?.unit || "unité"
+    ),
+    created_at:
+      product?.created_at ||
+      undefined,
+  };
+}
+
+/* =========================================================
+   USER ID
+========================================================= */
+
+function getStoredUserId(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const saved =
+    localStorage.getItem("user_id");
+
+  return saved ? String(saved) : null;
+}
+
+/* =========================================================
+   RÉCUPÉRER USER ID AVEC PHONE
+========================================================= */
+
+async function resolveUserId(): Promise<
+  string | null
+> {
+  const existing =
+    getStoredUserId();
+
+  if (existing) {
+    return existing;
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    !navigator.onLine
+  ) {
+    return null;
+  }
+
+  const phone =
+    typeof window !== "undefined"
+      ? localStorage.getItem("phone")
+      : null;
+
+  if (!phone) {
+    return null;
+  }
+
+  try {
+    const {
+      data: user,
+      error,
+    } = await supabase
       .from("users")
       .select("id")
       .eq("phone", phone)
       .single();
 
-    if (!user) {
-      setLoading(false);
-      return;
+    if (
+      error ||
+      !user?.id
+    ) {
+      return null;
     }
 
-    const { data } = await supabase
-      .from("products")
-      .select("*")
-      .eq("user_id", user.id);
+    const userId =
+      String(user.id);
 
-    setProducts(
-      (data || []).map((p) => ({
-        id: p.id,
-        name: p.name || p.product_name,
-        stock: Number(p.stock) || 0,
-        unit: p.unit || "unité",
-      }))
+    localStorage.setItem(
+      "user_id",
+      userId
     );
 
-    setLoading(false);
+    return userId;
+  } catch (error) {
+    console.error(
+      "Erreur récupération utilisateur :",
+      error
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   LIRE PRODUITS DU CACHE
+========================================================= */
+
+async function getCachedProducts(
+  userId: string
+): Promise<Product[]> {
+  const db =
+    await openProductsDB();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          PRODUCTS_STORE,
+          "readonly"
+        );
+
+      const store =
+        transaction.objectStore(
+          PRODUCTS_STORE
+        );
+
+      const request =
+        store.getAll();
+
+      request.onsuccess = () => {
+        const all =
+          (request.result || []) as any[];
+
+        const products =
+          all
+            .map(
+              normalizeProduct
+            )
+            .filter(
+              (product) =>
+                String(
+                  product.user_id || ""
+                ) ===
+                String(userId)
+            )
+            .sort(
+              (a, b) => {
+                const dateA =
+                  a.created_at
+                    ? new Date(
+                        a.created_at
+                      ).getTime()
+                    : 0;
+
+                const dateB =
+                  b.created_at
+                    ? new Date(
+                        b.created_at
+                      ).getTime()
+                    : 0;
+
+                return (
+                  dateB - dateA
+                );
+              }
+            );
+
+        resolve(products);
+      };
+
+      request.onerror = () => {
+        reject(
+          request.error ||
+            new Error(
+              "Impossible de lire les produits locaux."
+            )
+        );
+      };
+    }
+  );
+}
+
+/* =========================================================
+   SUPPRIMER PRODUIT DU CACHE
+========================================================= */
+
+async function removeCachedProduct(
+  id: string
+): Promise<void> {
+  const db =
+    await openProductsDB();
+
+  await new Promise<void>(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          PRODUCTS_STORE,
+          "readwrite"
+        );
+
+      transaction
+        .objectStore(
+          PRODUCTS_STORE
+        )
+        .delete(id);
+
+      transaction.oncomplete = () =>
+        resolve();
+
+      transaction.onerror = () =>
+        reject(
+          transaction.error ||
+            new Error(
+              "Impossible de supprimer le produit localement."
+            )
+        );
+
+      transaction.onabort = () =>
+        reject(
+          transaction.error ||
+            new Error(
+              "La suppression locale a été interrompue."
+            )
+        );
+    }
+  );
+}
+
+/* =========================================================
+   FILE DE SUPPRESSION
+========================================================= */
+
+async function addDeleteToQueue(
+  item: PendingDelete
+): Promise<void> {
+  const db =
+    await openProductsDB();
+
+  await new Promise<void>(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          DELETE_QUEUE_STORE,
+          "readwrite"
+        );
+
+      transaction
+        .objectStore(
+          DELETE_QUEUE_STORE
+        )
+        .put(item);
+
+      transaction.oncomplete = () =>
+        resolve();
+
+      transaction.onerror = () =>
+        reject(
+          transaction.error ||
+            new Error(
+              "Impossible d'enregistrer la suppression hors connexion."
+            )
+        );
+    }
+  );
+}
+
+/* =========================================================
+   LIRE FILE SUPPRESSION
+========================================================= */
+
+async function getDeleteQueue(): Promise<
+  PendingDelete[]
+> {
+  const db =
+    await openProductsDB();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          DELETE_QUEUE_STORE,
+          "readonly"
+        );
+
+      const request =
+        transaction
+          .objectStore(
+            DELETE_QUEUE_STORE
+          )
+          .getAll();
+
+      request.onsuccess = () => {
+        resolve(
+          (request.result ||
+            []) as PendingDelete[]
+        );
+      };
+
+      request.onerror = () => {
+        reject(
+          request.error ||
+            new Error(
+              "Impossible de lire la file de suppression."
+            )
+        );
+      };
+    }
+  );
+}
+
+/* =========================================================
+   RETIRER DE LA FILE
+========================================================= */
+
+async function removeFromDeleteQueue(
+  id: string
+): Promise<void> {
+  const db =
+    await openProductsDB();
+
+  await new Promise<void>(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          DELETE_QUEUE_STORE,
+          "readwrite"
+        );
+
+      transaction
+        .objectStore(
+          DELETE_QUEUE_STORE
+        )
+        .delete(id);
+
+      transaction.oncomplete = () =>
+        resolve();
+
+      transaction.onerror = () =>
+        reject(
+          transaction.error ||
+            new Error(
+              "Impossible de terminer la suppression."
+            )
+        );
+    }
+  );
+}
+
+/* =========================================================
+   SYNCHRONISER SUPPRESSIONS
+========================================================= */
+
+async function syncPendingDeletes(): Promise<void> {
+  if (
+    typeof window === "undefined" ||
+    !navigator.onLine
+  ) {
+    return;
   }
 
-  async function handleDelete(id: string) {
-    const confirmDelete = confirm("Supprimer ce produit ?");
+  const userId =
+    await resolveUserId();
 
-    if (!confirmDelete) return;
+  if (!userId) {
+    return;
+  }
 
-    const phone = localStorage.getItem("phone");
+  let queue: PendingDelete[] = [];
 
-    if (!phone) return;
+  try {
+    queue =
+      await getDeleteQueue();
+  } catch (error) {
+    console.error(
+      "Erreur lecture queue :",
+      error
+    );
 
-    const { data: user } = await supabase
-      .from("users")
-      .select("id")
-      .eq("phone", phone)
-      .single();
+    return;
+  }
 
-    if (!user) return;
+  const userQueue =
+    queue.filter(
+      (item) =>
+        String(
+          item.userId
+        ) ===
+        String(userId)
+    );
 
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
+  for (
+    const item of userQueue
+  ) {
+    try {
+      const {
+        error,
+      } = await supabase
+        .from("products")
+        .delete()
+        .eq(
+          "id",
+          item.id
+        )
+        .eq(
+          "user_id",
+          userId
+        );
 
-    if (error) {
-      alert("Erreur suppression");
+      if (error) {
+        throw error;
+      }
+
+      await removeFromDeleteQueue(
+        item.id
+      );
+    } catch (error) {
+      console.error(
+        "Erreur synchronisation suppression produit :",
+        error
+      );
+    }
+  }
+}
+
+/* =========================================================
+   CHARGER / SYNCHRONISER
+========================================================= */
+
+async function fetchProductsFromServer(
+  userId: string
+): Promise<Product[]> {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .select("*")
+    .eq("user_id", userId)
+    .order(
+      "created_at",
+      {
+        ascending: false,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return (
+    (data || []) as any[]
+  )
+    .map(
+      normalizeProduct
+    )
+    .filter(
+      (product) =>
+        product.id
+    );
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
+
+export default function LowStockPage() {
+  const [products, setProducts] =
+    useState<Product[]>(
+      []
+    );
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [isOnline, setIsOnline] =
+    useState(true);
+
+  const [syncing, setSyncing] =
+    useState(false);
+
+  const [deletingId, setDeletingId] =
+    useState<string | null>(
+      null
+    );
+
+  const [message, setMessage] =
+    useState<string | null>(
+      null
+    );
+
+  /* =========================================================
+     CHARGER PRODUITS
+  ========================================================= */
+
+  const loadProducts =
+    useCallback(
+      async (
+        fullLoading = true
+      ) => {
+        if (fullLoading) {
+          setLoading(true);
+        }
+
+        try {
+          const userId =
+            getStoredUserId();
+
+          /*
+            --------------------------------------------------
+            IMPORTANT :
+            Si user_id existe, on affiche d'abord
+            le cache local.
+            --------------------------------------------------
+          */
+
+          if (userId) {
+            try {
+              const cached =
+                await getCachedProducts(
+                  userId
+                );
+
+              setProducts(
+                cached
+              );
+            } catch (cacheError) {
+              console.error(
+                "Erreur lecture cache :",
+                cacheError
+              );
+            }
+          }
+
+          /*
+            --------------------------------------------------
+            HORS CONNEXION
+            --------------------------------------------------
+          */
+
+          if (!navigator.onLine) {
+            setIsOnline(false);
+            setLoading(false);
+            return;
+          }
+
+          /*
+            --------------------------------------------------
+            UTILISATEUR
+            --------------------------------------------------
+          */
+
+          const resolvedUserId =
+            await resolveUserId();
+
+          if (!resolvedUserId) {
+            setMessage(
+              "Utilisateur non identifié. Connectez-vous à Internet une fois pour charger votre compte."
+            );
+
+            setLoading(false);
+            return;
+          }
+
+          /*
+            --------------------------------------------------
+            SUPPRESSION EN ATTENTE
+            --------------------------------------------------
+          */
+
+          setSyncing(true);
+
+          await syncPendingDeletes();
+
+          /*
+            --------------------------------------------------
+            SERVEUR
+            --------------------------------------------------
+          */
+
+          const serverProducts =
+            await fetchProductsFromServer(
+              resolvedUserId
+            );
+
+          /*
+            --------------------------------------------------
+            FILTRER LES SUPPRESSIONS
+            --------------------------------------------------
+          */
+
+          const queue =
+            await getDeleteQueue();
+
+          const pendingIds =
+            new Set(
+              queue
+                .filter(
+                  (item) =>
+                    String(
+                      item.userId
+                    ) ===
+                    String(
+                      resolvedUserId
+                    )
+                )
+                .map(
+                  (item) =>
+                    item.id
+                )
+            );
+
+          const visibleServerProducts =
+            serverProducts.filter(
+              (product) =>
+                !pendingIds.has(
+                  product.id
+                )
+            );
+
+          /*
+            --------------------------------------------------
+            METTRE À JOUR LE CACHE
+            --------------------------------------------------
+          */
+
+          const db =
+            await openProductsDB();
+
+          await new Promise<void>(
+            (
+              resolve,
+              reject
+            ) => {
+              const transaction =
+                db.transaction(
+                  PRODUCTS_STORE,
+                  "readwrite"
+                );
+
+              const store =
+                transaction.objectStore(
+                  PRODUCTS_STORE
+                );
+
+              for (
+                const product of visibleServerProducts
+              ) {
+                store.put(
+                  product
+                );
+              }
+
+              transaction.oncomplete =
+                () =>
+                  resolve();
+
+              transaction.onerror =
+                () =>
+                  reject(
+                    transaction.error ||
+                      new Error(
+                        "Impossible de mettre à jour le cache."
+                      )
+                  );
+            }
+          );
+
+          /*
+            --------------------------------------------------
+            NETTOYAGE DU CACHE
+            --------------------------------------------------
+          */
+
+          const cached =
+            await getCachedProducts(
+              resolvedUserId
+            );
+
+          const serverIds =
+            new Set(
+              visibleServerProducts.map(
+                (product) =>
+                  product.id
+              )
+            );
+
+          for (
+            const product of cached
+          ) {
+            if (
+              !serverIds.has(
+                product.id
+              )
+            ) {
+              const waiting =
+                pendingIds.has(
+                  product.id
+                );
+
+              if (!waiting) {
+                await removeCachedProduct(
+                  product.id
+                );
+              }
+            }
+          }
+
+          /*
+            --------------------------------------------------
+            AFFICHAGE FINAL
+            --------------------------------------------------
+          */
+
+          const finalProducts =
+            visibleServerProducts.map(
+              (product) =>
+                normalizeProduct(
+                  product
+                )
+            );
+
+          setProducts(
+            finalProducts
+          );
+
+          setMessage(null);
+        } catch (error) {
+          console.error(
+            "Erreur chargement stock faible :",
+            error
+          );
+
+          /*
+            Le cache reste affiché.
+          */
+
+          if (!navigator.onLine) {
+            setIsOnline(false);
+          } else {
+            setMessage(
+              "Impossible de synchroniser le stock. Les données déjà présentes sur cet appareil restent disponibles."
+            );
+          }
+        } finally {
+          setSyncing(false);
+          setLoading(false);
+        }
+      },
+      []
+    );
+
+  /* =========================================================
+     INITIALISATION
+  ========================================================= */
+
+  useEffect(() => {
+    setIsOnline(
+      navigator.onLine
+    );
+
+    void loadProducts(
+      true
+    );
+  }, [loadProducts]);
+
+  /* =========================================================
+     RETOUR INTERNET
+  ========================================================= */
+
+  useEffect(() => {
+    const handleOnline =
+      async () => {
+        setIsOnline(true);
+        setSyncing(true);
+
+        setMessage(
+          "Connexion rétablie. Synchronisation du stock en cours..."
+        );
+
+        try {
+          await loadProducts(
+            false
+          );
+
+          setMessage(
+            "Stock synchronisé avec succès."
+          );
+        } catch (error) {
+          console.error(
+            error
+          );
+        } finally {
+          setSyncing(false);
+        }
+      };
+
+    const handleOffline =
+      () => {
+        setIsOnline(false);
+
+        setMessage(
+          "Vous êtes hors connexion. Le stock enregistré sur cet appareil reste disponible."
+        );
+      };
+
+    window.addEventListener(
+      "online",
+      handleOnline
+    );
+
+    window.addEventListener(
+      "offline",
+      handleOffline
+    );
+
+    return () => {
+      window.removeEventListener(
+        "online",
+        handleOnline
+      );
+
+      window.removeEventListener(
+        "offline",
+        handleOffline
+      );
+    };
+  }, [loadProducts]);
+
+  /* =========================================================
+     ÉCOUTER LES CHANGEMENTS PRODUITS
+  ========================================================= */
+
+  useEffect(() => {
+    const handleProductsUpdated =
+      async () => {
+        try {
+          const userId =
+            getStoredUserId();
+
+          if (!userId) {
+            return;
+          }
+
+          const cached =
+            await getCachedProducts(
+              userId
+            );
+
+          setProducts(
+            cached
+          );
+        } catch (error) {
+          console.error(
+            "Erreur actualisation locale :",
+            error
+          );
+        }
+      };
+
+    window.addEventListener(
+      "biso-products-updated",
+      handleProductsUpdated
+    );
+
+    window.addEventListener(
+      "biso-product-added",
+      handleProductsUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "biso-products-updated",
+        handleProductsUpdated
+      );
+
+      window.removeEventListener(
+        "biso-product-added",
+        handleProductsUpdated
+      );
+    };
+  }, []);
+
+  /* =========================================================
+     ACTUALISER
+  ========================================================= */
+
+  const refreshProducts =
+    async () => {
+      if (refreshing) {
+        return;
+      }
+
+      setRefreshing(true);
+
+      try {
+        await loadProducts(
+          false
+        );
+      } finally {
+        setRefreshing(false);
+      }
+    };
+
+  /* =========================================================
+     SUPPRESSION
+  ========================================================= */
+
+  async function handleDelete(
+    id: string
+  ) {
+    const product =
+      products.find(
+        (item) =>
+          item.id === id
+      );
+
+    if (!product) {
       return;
     }
 
-    loadProducts();
+    const confirmDelete =
+      window.confirm(
+        `Voulez-vous vraiment supprimer « ${product.name} » ?\n\nCette action est irréversible.`
+      );
+
+    if (!confirmDelete) {
+      return;
+    }
+
+    const userId =
+      getStoredUserId();
+
+    if (!userId) {
+      setMessage(
+        "Utilisateur non identifié."
+      );
+
+      return;
+    }
+
+    setDeletingId(id);
+
+    /*
+      ------------------------------------------------------
+      SUPPRESSION OPTIMISTE
+      ------------------------------------------------------
+    */
+
+    try {
+      setProducts(
+        (current) =>
+          current.filter(
+            (item) =>
+              item.id !== id
+          )
+      );
+
+      await removeCachedProduct(
+        id
+      );
+
+      /*
+        ----------------------------------------------------
+        HORS CONNEXION
+        ----------------------------------------------------
+      */
+
+      if (!navigator.onLine) {
+        await addDeleteToQueue(
+          {
+            id,
+            userId,
+            createdAt:
+              Date.now(),
+          }
+        );
+
+        setMessage(
+          `« ${product.name} » a été supprimé de cet appareil. La suppression sera synchronisée dès que la connexion reviendra.`
+        );
+
+        return;
+      }
+
+      /*
+        ----------------------------------------------------
+        EN LIGNE
+        ----------------------------------------------------
+      */
+
+      const {
+        error,
+      } = await supabase
+        .from("products")
+        .delete()
+        .eq(
+          "id",
+          id
+        )
+        .eq(
+          "user_id",
+          userId
+        );
+
+      if (error) {
+        /*
+          Restaurer localement
+          en cas d'échec.
+        */
+
+        const db =
+          await openProductsDB();
+
+        await new Promise<void>(
+          (
+            resolve,
+            reject
+          ) => {
+            const transaction =
+              db.transaction(
+                PRODUCTS_STORE,
+                "readwrite"
+              );
+
+            transaction
+              .objectStore(
+                PRODUCTS_STORE
+              )
+              .put(product);
+
+            transaction.oncomplete =
+              () =>
+                resolve();
+
+            transaction.onerror =
+              () =>
+                reject(
+                  transaction.error
+                );
+          }
+        );
+
+        setProducts(
+          (current) => [
+            product,
+            ...current,
+          ]
+        );
+
+        throw error;
+      }
+
+      setMessage(
+        `« ${product.name} » a été supprimé définitivement.`
+      );
+    } catch (error) {
+      console.error(
+        "Erreur suppression produit :",
+        error
+      );
+
+      setMessage(
+        "Impossible de supprimer ce produit."
+      );
+    } finally {
+      setDeletingId(null);
+    }
   }
 
-  const outOfStock = products.filter(
-    (p) => p.stock <= 0
-  );
+  /* =========================================================
+     STATISTIQUES
+  ========================================================= */
 
-  const almostEmpty = products.filter(
-    (p) => p.stock > 0 && p.stock <= 5
-  );
+  const outOfStock =
+    products.filter(
+      (p) =>
+        Number(p.stock) <=
+        0
+    );
+
+  const almostEmpty =
+    products.filter(
+      (p) =>
+        Number(p.stock) > 0 &&
+        Number(p.stock) <= 5
+    );
 
   return (
     <main
@@ -132,6 +1376,7 @@ export default function LowStockPage() {
           min-w-0
         "
       >
+
         {/* =========================================================
             HEADER
         ========================================================= */}
@@ -164,25 +1409,71 @@ export default function LowStockPage() {
               sm:justify-between
             "
           >
+
             <div className="min-w-0">
-              <div
-                className="
-                  mb-4
-                  flex
-                  h-11
-                  w-11
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  bg-indigo-50
-                  sm:h-12
-                  sm:w-12
-                "
-              >
-                <AlertTriangle
-                  className="text-indigo-600"
-                  size={24}
-                />
+
+              <div className="mb-4 flex items-center gap-3">
+
+                <div
+                  className="
+                    flex
+                    h-11
+                    w-11
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-2xl
+                    bg-indigo-50
+                    sm:h-12
+                    sm:w-12
+                  "
+                >
+                  <AlertTriangle
+                    className="text-indigo-600"
+                    size={24}
+                  />
+                </div>
+
+                <div
+                  className={`
+                    flex
+                    min-h-[36px]
+                    items-center
+                    gap-2
+                    rounded-xl
+                    px-3
+                    text-[10px]
+                    font-black
+                    ${
+                      syncing
+                        ? "bg-indigo-50 text-indigo-600"
+                        : isOnline
+                        ? "bg-emerald-50 text-emerald-600"
+                        : "bg-amber-50 text-amber-600"
+                    }
+                  `}
+                >
+                  {syncing ? (
+                    <>
+                      <Loader2
+                        size={14}
+                        className="animate-spin"
+                      />
+                      Synchronisation
+                    </>
+                  ) : isOnline ? (
+                    <>
+                      <Wifi size={14} />
+                      En ligne
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff size={14} />
+                      Hors connexion
+                    </>
+                  )}
+                </div>
+
               </div>
 
               <h1
@@ -212,44 +1503,168 @@ export default function LowStockPage() {
                 Retrouvez rapidement les produits à
                 réapprovisionner avant de perdre des ventes.
               </p>
+
             </div>
 
-            <Link
-              href="/products"
-              className="
-                flex
-                min-h-[46px]
-                w-full
-                shrink-0
-                items-center
-                justify-center
-                gap-2
-                rounded-2xl
-                bg-indigo-600
-                px-5
-                py-3
-                text-sm
-                font-black
-                text-white
-                shadow-sm
-                transition
-                hover:bg-indigo-700
-                active:scale-[0.98]
-                sm:w-auto
-                sm:py-3.5
-              "
-            >
-              <Package size={18} />
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
 
-              <span>Produits</span>
-            </Link>
+              <button
+                type="button"
+                onClick={refreshProducts}
+                disabled={refreshing}
+                className="
+                  flex
+                  min-h-[46px]
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-2xl
+                  border
+                  border-slate-200
+                  bg-slate-50
+                  px-4
+                  py-3
+                  text-xs
+                  font-black
+                  text-slate-700
+                  shadow-sm
+                  transition
+                  hover:bg-slate-100
+                  disabled:opacity-50
+                  sm:text-sm
+                "
+              >
+                <RefreshCcw
+                  size={16}
+                  className={
+                    refreshing
+                      ? "animate-spin"
+                      : ""
+                  }
+                />
+
+                Actualiser
+              </button>
+
+              <Link
+                href="/products"
+                className="
+                  flex
+                  min-h-[46px]
+                  shrink-0
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-2xl
+                  bg-indigo-600
+                  px-5
+                  py-3
+                  text-xs
+                  font-black
+                  text-white
+                  shadow-sm
+                  transition
+                  hover:bg-indigo-700
+                  active:scale-[0.98]
+                  sm:text-sm
+                "
+              >
+                <Package size={18} />
+
+                <span>
+                  Produits
+                </span>
+              </Link>
+
+            </div>
           </div>
         </div>
 
         {/* =========================================================
+            MESSAGE
+        ========================================================= */}
+
+        {message && (
+          <div
+            className={`
+              mb-5
+              flex
+              items-start
+              gap-3
+              rounded-2xl
+              border
+              p-4
+              shadow-sm
+              ${
+                !isOnline
+                  ? "border-amber-100 bg-amber-50"
+                  : "border-indigo-100 bg-indigo-50"
+              }
+            `}
+          >
+
+            <div
+              className={`
+                flex
+                h-9
+                w-9
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                ${
+                  !isOnline
+                    ? "bg-amber-100 text-amber-600"
+                    : "bg-white text-indigo-600"
+                }
+              `}
+            >
+              {!isOnline ? (
+                <WifiOff size={17} />
+              ) : (
+                <AlertTriangle size={17} />
+              )}
+            </div>
+
+            <p
+              className={`
+                flex-1
+                text-xs
+                font-bold
+                leading-5
+                ${
+                  !isOnline
+                    ? "text-amber-800"
+                    : "text-indigo-800"
+                }
+              `}
+            >
+              {message}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                setMessage(null)
+              }
+              className="
+                rounded-lg
+                p-1
+                text-slate-400
+                transition
+                hover:bg-white
+                hover:text-slate-700
+              "
+              aria-label="Fermer"
+            >
+              ×
+            </button>
+
+          </div>
+        )}
+
+        {/* =========================================================
             RESUME STOCK
-            MOBILE = 1 COLONNE
-            TABLETTE / PC = 2 COLONNES
         ========================================================= */}
 
         <div
@@ -265,9 +1680,8 @@ export default function LowStockPage() {
             sm:gap-4
           "
         >
-          {/* =====================================================
-              RUPTURE
-          ===================================================== */}
+
+          {/* RUPTURE */}
 
           <div
             className="
@@ -374,9 +1788,7 @@ export default function LowStockPage() {
             </p>
           </div>
 
-          {/* =====================================================
-              PRESQUE FINI
-          ===================================================== */}
+          {/* PRESQUE FINI */}
 
           <div
             className="
@@ -553,9 +1965,6 @@ export default function LowStockPage() {
 
             {/* =====================================================
                 PRODUITS EN RUPTURE + PRESQUE EPUISES
-
-                MOBILE : 1 COLONNE
-                TABLETTE / PC : 2 COLONNES
             ===================================================== */}
 
             {(outOfStock.length > 0 ||
@@ -571,12 +1980,12 @@ export default function LowStockPage() {
                   sm:gap-5
                 "
               >
-                {/* =================================================
-                    PRODUITS EN RUPTURE
-                ================================================= */}
+
+                {/* RUPTURE */}
 
                 {outOfStock.length > 0 && (
                   <section className="min-w-0">
+
                     <div
                       className="
                         mb-3
@@ -588,6 +1997,7 @@ export default function LowStockPage() {
                         sm:gap-3
                       "
                     >
+
                       <div
                         className="
                           flex
@@ -609,6 +2019,7 @@ export default function LowStockPage() {
                       </div>
 
                       <div className="min-w-0">
+
                         <h2
                           className="
                             break-words
@@ -634,28 +2045,42 @@ export default function LowStockPage() {
                         >
                           Ces produits ne sont plus disponibles.
                         </p>
+
                       </div>
                     </div>
 
                     <div className="space-y-3 sm:space-y-4">
-                      {outOfStock.map((p) => (
-                        <ProductCard
-                          key={p.id}
-                          product={p}
-                          danger
-                          onDelete={handleDelete}
-                        />
-                      ))}
+
+                      {outOfStock.map(
+                        (p) => (
+                          <ProductCard
+                            key={
+                              p.id
+                            }
+                            product={
+                              p
+                            }
+                            danger
+                            deleting={
+                              deletingId ===
+                              p.id
+                            }
+                            onDelete={
+                              handleDelete
+                            }
+                          />
+                        )
+                      )}
+
                     </div>
                   </section>
                 )}
 
-                {/* =================================================
-                    PRODUITS PRESQUE ÉPUISÉS
-                ================================================= */}
+                {/* PRESQUE ÉPUISÉS */}
 
                 {almostEmpty.length > 0 && (
                   <section className="min-w-0">
+
                     <div
                       className="
                         mb-3
@@ -667,6 +2092,7 @@ export default function LowStockPage() {
                         sm:gap-3
                       "
                     >
+
                       <div
                         className="
                           flex
@@ -688,6 +2114,7 @@ export default function LowStockPage() {
                       </div>
 
                       <div className="min-w-0">
+
                         <h2
                           className="
                             break-words
@@ -713,17 +2140,32 @@ export default function LowStockPage() {
                         >
                           Pensez à les réapprovisionner.
                         </p>
+
                       </div>
                     </div>
 
                     <div className="space-y-3 sm:space-y-4">
-                      {almostEmpty.map((p) => (
-                        <ProductCard
-                          key={p.id}
-                          product={p}
-                          onDelete={handleDelete}
-                        />
-                      ))}
+
+                      {almostEmpty.map(
+                        (p) => (
+                          <ProductCard
+                            key={
+                              p.id
+                            }
+                            product={
+                              p
+                            }
+                            deleting={
+                              deletingId ===
+                              p.id
+                            }
+                            onDelete={
+                              handleDelete
+                            }
+                          />
+                        )
+                      )}
+
                     </div>
                   </section>
                 )}
@@ -752,6 +2194,7 @@ export default function LowStockPage() {
                     sm:p-8
                   "
                 >
+
                   <div
                     className="
                       mx-auto
@@ -822,8 +2265,10 @@ export default function LowStockPage() {
 
                     <ArrowRight size={17} />
                   </Link>
+
                 </div>
               )}
+
           </div>
         )}
       </div>
@@ -838,11 +2283,15 @@ export default function LowStockPage() {
 function ProductCard({
   product,
   danger = false,
+  deleting = false,
   onDelete,
 }: {
   product: Product;
   danger?: boolean;
-  onDelete: (id: string) => void;
+  deleting?: boolean;
+  onDelete: (
+    id: string
+  ) => void;
 }) {
   return (
     <div
@@ -862,11 +2311,11 @@ function ProductCard({
         sm:p-5
       "
     >
-      {/* =========================================================
-          INFORMATIONS PRODUIT
-      ========================================================= */}
+
+      {/* INFORMATIONS */}
 
       <div className="min-w-0">
+
         <div
           className="
             flex
@@ -876,6 +2325,7 @@ function ProductCard({
             gap-2
           "
         >
+
           <div
             className="
               flex
@@ -886,6 +2336,7 @@ function ProductCard({
               sm:gap-3
             "
           >
+
             <div
               className="
                 flex
@@ -912,6 +2363,7 @@ function ProductCard({
             </div>
 
             <div className="min-w-0 flex-1">
+
               <h3
                 className="
                   break-words
@@ -937,12 +2389,11 @@ function ProductCard({
               >
                 Gestion du stock
               </p>
+
             </div>
           </div>
 
-          {/* =====================================================
-              STATUT
-          ===================================================== */}
+          {/* STATUT */}
 
           <span
             className={`
@@ -967,11 +2418,10 @@ function ProductCard({
               ? "RUPTURE"
               : "FAIBLE"}
           </span>
+
         </div>
 
-        {/* =========================================================
-            STOCK
-        ========================================================= */}
+        {/* STOCK */}
 
         <div
           className={`
@@ -990,6 +2440,7 @@ function ProductCard({
             }
           `}
         >
+
           <p
             className="
               text-[9px]
@@ -1013,6 +2464,7 @@ function ProductCard({
               sm:gap-2
             "
           >
+
             <span
               className={`
                 text-2xl
@@ -1046,6 +2498,7 @@ function ProductCard({
             >
               {product.unit}
             </span>
+
           </div>
 
           <p
@@ -1059,12 +2512,11 @@ function ProductCard({
           >
             Quantité actuellement disponible
           </p>
+
         </div>
       </div>
 
-      {/* =========================================================
-          MESSAGE
-      ========================================================= */}
+      {/* MESSAGE */}
 
       <div
         className={`
@@ -1087,6 +2539,7 @@ function ProductCard({
           }
         `}
       >
+
         {danger ? (
           <XCircle
             size={16}
@@ -1128,10 +2581,7 @@ function ProductCard({
         </p>
       </div>
 
-      {/* =========================================================
-          ACTIONS
-          MOBILE : TOUJOURS LISIBLES
-      ========================================================= */}
+      {/* ACTIONS */}
 
       <div
         className="
@@ -1145,12 +2595,18 @@ function ProductCard({
           sm:gap-3
         "
       >
+
         {/* SUPPRIMER */}
 
         <button
           type="button"
           onClick={() =>
-            onDelete(product.id)
+            onDelete(
+              product.id
+            )
+          }
+          disabled={
+            deleting
           }
           className="
             flex
@@ -1170,6 +2626,8 @@ function ProductCard({
             transition
             hover:bg-red-700
             active:scale-[0.98]
+            disabled:cursor-not-allowed
+            disabled:opacity-60
             sm:gap-2
             sm:rounded-2xl
             sm:px-4
@@ -1177,18 +2635,29 @@ function ProductCard({
             sm:text-sm
           "
         >
-          <Trash2
-            size={15}
-            className="
-              shrink-0
-              sm:h-[17px]
-              sm:w-[17px]
-            "
-          />
+
+          {deleting ? (
+            <Loader2
+              size={15}
+              className="animate-spin"
+            />
+          ) : (
+            <Trash2
+              size={15}
+              className="
+                shrink-0
+                sm:h-[17px]
+                sm:w-[17px]
+              "
+            />
+          )}
 
           <span className="truncate">
-            Supprimer
+            {deleting
+              ? "Suppression..."
+              : "Supprimer"}
           </span>
+
         </button>
 
         {/* RÉAPPROVISIONNER */}
@@ -1221,6 +2690,7 @@ function ProductCard({
             sm:text-sm
           "
         >
+
           <span className="truncate">
             Réapprovisionner
           </span>
@@ -1233,6 +2703,7 @@ function ProductCard({
               sm:w-[17px]
             "
           />
+
         </Link>
       </div>
     </div>

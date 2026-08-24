@@ -16,516 +16,1403 @@ import {
   User,
   Phone,
   ArrowRight,
+  Wifi,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
 
+/* ================================================================
+   TYPES
+================================================================ */
 
-// ================================================================
-// TYPES
-// ================================================================
+type SubscriptionStatus =
+  | "active"
+  | "expired"
+  | "pending";
 
-type SubscriptionStatus = "active" | "expired" | "pending";
+type CachedSubscription = {
+  id: string | null;
+  user_id: string;
+  full_name: string;
+  phone: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_active: boolean;
+  status: string;
+  created_at?: string | null;
+  saved_at: string;
+};
 
+/* ================================================================
+   CACHE LOCAL
+================================================================ */
 
-// ================================================================
-// PAGE
-// ================================================================
+const SUBSCRIPTION_CACHE_PREFIX =
+  "biso-subscription-cache-";
+
+const USER_CACHE_PREFIX =
+  "biso-subscription-user-";
+
+function getSubscriptionCacheKey(
+  userId: string
+) {
+  return `${SUBSCRIPTION_CACHE_PREFIX}${userId}`;
+}
+
+function getUserCacheKey(
+  userId: string
+) {
+  return `${USER_CACHE_PREFIX}${userId}`;
+}
+
+/* ================================================================
+   SAUVEGARDE CACHE ABONNEMENT
+================================================================ */
+
+function saveSubscriptionCache(
+  userId: string,
+  subscription: CachedSubscription
+) {
+  if (
+    typeof window === "undefined"
+  ) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      getSubscriptionCacheKey(userId),
+      JSON.stringify(
+        subscription
+      )
+    );
+  } catch (error) {
+    console.error(
+      "Erreur sauvegarde abonnement local :",
+      error
+    );
+  }
+}
+
+/* ================================================================
+   LECTURE CACHE ABONNEMENT
+================================================================ */
+
+function getSubscriptionCache(
+  userId: string
+): CachedSubscription | null {
+  if (
+    typeof window === "undefined"
+  ) {
+    return null;
+  }
+
+  try {
+    const raw =
+      localStorage.getItem(
+        getSubscriptionCacheKey(userId)
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed =
+      JSON.parse(raw);
+
+    if (!parsed) {
+      return null;
+    }
+
+    return parsed as CachedSubscription;
+  } catch (error) {
+    console.error(
+      "Erreur lecture abonnement local :",
+      error
+    );
+
+    return null;
+  }
+}
+
+/* ================================================================
+   SAUVEGARDE UTILISATEUR
+================================================================ */
+
+function saveUserCache(
+  userId: string,
+  fullName: string,
+  phone: string
+) {
+  if (
+    typeof window === "undefined"
+  ) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      getUserCacheKey(userId),
+      JSON.stringify({
+        id: userId,
+        full_name: fullName,
+        phone,
+        saved_at:
+          new Date().toISOString(),
+      })
+    );
+  } catch (error) {
+    console.error(
+      "Erreur cache utilisateur :",
+      error
+    );
+  }
+}
+
+/* ================================================================
+   LECTURE UTILISATEUR
+================================================================ */
+
+function getUserCache(
+  userId: string
+) {
+  if (
+    typeof window === "undefined"
+  ) {
+    return null;
+  }
+
+  try {
+    const raw =
+      localStorage.getItem(
+        getUserCacheKey(userId)
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    return JSON.parse(raw) as {
+      id: string;
+      full_name: string;
+      phone: string;
+      saved_at: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ================================================================
+   CALCUL DES JOURS
+================================================================ */
+
+function calculateUsage(
+  startDate: string | null,
+  endDate: string | null
+) {
+  const now =
+    new Date();
+
+  if (!startDate) {
+    return {
+      daysUsed: 0,
+      daysLeft: 30,
+      expired: false,
+    };
+  }
+
+  const start =
+    new Date(startDate);
+
+  const end = endDate
+    ? new Date(endDate)
+    : new Date(
+        start.getTime() +
+          30 *
+            24 *
+            60 *
+            60 *
+            1000
+      );
+
+  if (
+    Number.isNaN(
+      start.getTime()
+    )
+  ) {
+    return {
+      daysUsed: 0,
+      daysLeft: 30,
+      expired: false,
+    };
+  }
+
+  const diff =
+    now.getTime() -
+    start.getTime();
+
+  let daysUsed =
+    Math.floor(
+      diff /
+        (
+          1000 *
+          60 *
+          60 *
+          24
+        )
+    );
+
+  if (daysUsed < 0) {
+    daysUsed = 0;
+  }
+
+  daysUsed = Math.min(
+    30,
+    daysUsed
+  );
+
+  const daysLeft =
+    Math.max(
+      0,
+      30 - daysUsed
+    );
+
+  const expired =
+    end <= now ||
+    daysLeft <= 0;
+
+  return {
+    daysUsed,
+    daysLeft,
+    expired,
+  };
+}
+
+/* ================================================================
+   PAGE
+================================================================ */
 
 export default function SubscriptionPage() {
+  /* ============================================================== */
+  /* STATES                                                        */
+  /* ============================================================== */
 
-  // ==============================================================
-  // STATES
-  // ==============================================================
+  const [
+    subscription,
+    setSubscription,
+  ] = useState<CachedSubscription | null>(
+    null
+  );
 
-  const [subscription, setSubscription] = useState<any>(null);
+  const [
+    daysUsed,
+    setDaysUsed,
+  ] = useState(0);
 
-  const [daysUsed, setDaysUsed] = useState(0);
+  const [
+    daysLeft,
+    setDaysLeft,
+  ] = useState(30);
 
-  const [daysLeft, setDaysLeft] = useState(30);
+  const [
+    status,
+    setStatus,
+  ] = useState<SubscriptionStatus>(
+    "active"
+  );
 
-  const [status, setStatus] =
-    useState<SubscriptionStatus>("active");
+  const [
+    fullName,
+    setFullName,
+  ] = useState("");
 
-  const [fullName, setFullName] = useState("");
+  const [
+    phone,
+    setPhone,
+  ] = useState("");
 
-  const [phone, setPhone] = useState("");
+  const [
+    showConfirmation,
+    setShowConfirmation,
+  ] = useState(false);
 
-  const [showConfirmation, setShowConfirmation] =
-    useState(false);
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
 
-  const [loading, setLoading] = useState(false);
+  const [
+    loadingSubscription,
+    setLoadingSubscription,
+  ] = useState(true);
 
+  const [
+    isOnline,
+    setIsOnline,
+  ] = useState(true);
 
-  // ==============================================================
-  // CHARGEMENT
-  // ==============================================================
+  /* ============================================================== */
+  /* ÉTAT INTERNET                                                  */
+  /* ============================================================== */
 
   useEffect(() => {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
 
-    loadSubscription();
+    setIsOnline(
+      navigator.onLine
+    );
 
+    const handleOnline =
+      () => {
+        setIsOnline(true);
+
+        /*
+          Dès que la connexion revient,
+          on recharge les informations serveur.
+        */
+
+        window.setTimeout(() => {
+          void loadSubscription();
+        }, 300);
+      };
+
+    const handleOffline =
+      () => {
+        setIsOnline(false);
+
+        /*
+          Recalcul immédiat à partir du cache.
+        */
+
+        const userId =
+          localStorage.getItem(
+            "user_id"
+          );
+
+        if (userId) {
+          const cached =
+            getSubscriptionCache(
+              userId
+            );
+
+          if (cached) {
+            applySubscriptionLocally(
+              cached
+            );
+          }
+        }
+      };
+
+    window.addEventListener(
+      "online",
+      handleOnline
+    );
+
+    window.addEventListener(
+      "offline",
+      handleOffline
+    );
+
+    return () => {
+      window.removeEventListener(
+        "online",
+        handleOnline
+      );
+
+      window.removeEventListener(
+        "offline",
+        handleOffline
+      );
+    };
   }, []);
 
+  /* ============================================================== */
+  /* COMPTEUR TEMPS RÉEL                                            */
+  /* ============================================================== */
 
-  // ==============================================================
-  // CHARGER L'ABONNEMENT
-  // ==============================================================
+  useEffect(() => {
+    const timer =
+      window.setInterval(() => {
+        if (!subscription) {
+          return;
+        }
 
-  const loadSubscription = async () => {
+        const usage =
+          calculateUsage(
+            subscription.start_date,
+            subscription.end_date
+          );
 
-    try {
-
-      const phoneStorage =
-        localStorage.getItem("phone");
-
-      if (!phoneStorage) {
-
-        setStatus("expired");
-
-        return;
-
-      }
-
-
-      // ------------------------------------------------------------
-      // CHERCHER L'UTILISATEUR
-      // ------------------------------------------------------------
-
-      const {
-        data: user,
-        error: userError,
-      } = await supabase
-        .from("users")
-        .select("id, full_name, phone")
-        .eq("phone", phoneStorage)
-        .maybeSingle();
-
-
-      if (userError) {
-
-        console.error(
-          "Erreur utilisateur :",
-          userError
+        setDaysUsed(
+          usage.daysUsed
         );
 
-        setStatus("expired");
+        setDaysLeft(
+          usage.daysLeft
+        );
+
+        /*
+          On ne change pas automatiquement
+          pending en expired.
+        */
+
+        if (
+          subscription.status ===
+          "pending"
+        ) {
+          setStatus("pending");
+          return;
+        }
+
+        const active =
+          subscription.is_active ===
+            true &&
+          !usage.expired;
+
+        setStatus(
+          active
+            ? "active"
+            : "expired"
+        );
+      }, 60_000);
+
+    return () => {
+      window.clearInterval(
+        timer
+      );
+    };
+  }, [
+    subscription,
+  ]);
+
+  /* ============================================================== */
+  /* CHARGEMENT INITIAL                                             */
+  /* ============================================================== */
+
+  useEffect(() => {
+    void loadSubscription();
+  }, []);
+
+  /* ============================================================== */
+  /* APPLIQUER ABONNEMENT LOCAL                                    */
+  /* ============================================================== */
+
+  function applySubscriptionLocally(
+    data: CachedSubscription
+  ) {
+    setSubscription(data);
+
+    if (
+      data.full_name
+    ) {
+      setFullName(
+        data.full_name
+      );
+    }
+
+    if (data.phone) {
+      setPhone(
+        data.phone
+      );
+    }
+
+    const usage =
+      calculateUsage(
+        data.start_date,
+        data.end_date
+      );
+
+    setDaysUsed(
+      usage.daysUsed
+    );
+
+    setDaysLeft(
+      usage.daysLeft
+    );
+
+    if (
+      data.status ===
+      "pending"
+    ) {
+      setStatus("pending");
+      return;
+    }
+
+    const active =
+      data.is_active ===
+        true &&
+      !usage.expired;
+
+    setStatus(
+      active
+        ? "active"
+        : "expired"
+    );
+  }
+
+  /* ============================================================== */
+  /* CHARGER ABONNEMENT                                             */
+  /* ============================================================== */
+
+  async function loadSubscription() {
+    setLoadingSubscription(
+      true
+    );
+
+    try {
+      const phoneStorage =
+        localStorage.getItem(
+          "phone"
+        );
+
+      let userId =
+        localStorage.getItem(
+          "user_id"
+        );
+
+      /*
+        ============================================================
+        HORS CONNEXION
+        ============================================================
+      */
+
+      if (
+        !navigator.onLine
+      ) {
+        if (
+          userId
+        ) {
+          const cached =
+            getSubscriptionCache(
+              userId
+            );
+
+          if (cached) {
+            applySubscriptionLocally(
+              cached
+            );
+
+            setLoadingSubscription(
+              false
+            );
+
+            return;
+          }
+
+          const cachedUser =
+            getUserCache(
+              userId
+            );
+
+          if (cachedUser) {
+            setFullName(
+              cachedUser.full_name
+            );
+
+            setPhone(
+              cachedUser.phone
+            );
+          }
+        }
+
+        /*
+          Aucun cache :
+          on garde la page accessible.
+        */
+
+        setStatus(
+          "active"
+        );
+
+        setDaysUsed(0);
+        setDaysLeft(30);
+
+        setLoadingSubscription(
+          false
+        );
 
         return;
-
       }
 
+      /*
+        ============================================================
+        EN LIGNE : RÉCUPÉRER USER
+        ============================================================
+      */
+
+      if (
+        !phoneStorage &&
+        !userId
+      ) {
+        setStatus(
+          "expired"
+        );
+
+        setLoadingSubscription(
+          false
+        );
+
+        return;
+      }
+
+      let user: {
+        id: string;
+        full_name?: string | null;
+        phone?: string | null;
+      } | null = null;
+
+      /*
+        Priorité au user_id déjà connu.
+      */
+
+      if (
+        userId
+      ) {
+        const {
+          data,
+        } =
+          await supabase
+            .from(
+              "users"
+            )
+            .select(
+              "id, full_name, phone"
+            )
+            .eq(
+              "id",
+              userId
+            )
+            .maybeSingle();
+
+        if (data) {
+          user = data;
+        }
+      }
+
+      /*
+        Sinon recherche par téléphone.
+      */
+
+      if (
+        !user &&
+        phoneStorage
+      ) {
+        const {
+          data,
+          error,
+        } =
+          await supabase
+            .from(
+              "users"
+            )
+            .select(
+              "id, full_name, phone"
+            )
+            .eq(
+              "phone",
+              phoneStorage
+            )
+            .maybeSingle();
+
+        if (
+          error
+        ) {
+          console.error(
+            "Erreur utilisateur :",
+            error
+          );
+        }
+
+        if (data) {
+          user = data;
+        }
+      }
 
       if (!user) {
+        /*
+          Si serveur inaccessible mais cache disponible.
+        */
 
-        setStatus("expired");
+        if (
+          userId
+        ) {
+          const cached =
+            getSubscriptionCache(
+              userId
+            );
+
+          if (cached) {
+            applySubscriptionLocally(
+              cached
+            );
+
+            setLoadingSubscription(
+              false
+            );
+
+            return;
+          }
+        }
+
+        setStatus(
+          "expired"
+        );
+
+        setLoadingSubscription(
+          false
+        );
 
         return;
-
       }
 
+      userId =
+        String(
+          user.id
+        );
 
-      // ------------------------------------------------------------
-      // REMPLIR AUTOMATIQUEMENT LES INFORMATIONS
-      // ------------------------------------------------------------
+      localStorage.setItem(
+        "user_id",
+        userId
+      );
 
-      if (user.full_name) {
+      const resolvedName =
+        user.full_name ||
+        fullName ||
+        "";
 
-        setFullName(user.full_name);
+      const resolvedPhone =
+        user.phone ||
+        phoneStorage ||
+        phone ||
+        "";
 
-      }
+      setFullName(
+        resolvedName
+      );
 
-      if (user.phone) {
+      setPhone(
+        resolvedPhone
+      );
 
-        setPhone(user.phone);
+      saveUserCache(
+        userId,
+        resolvedName,
+        resolvedPhone
+      );
 
-      }
-
-
-      // ------------------------------------------------------------
-      // CHERCHER L'ABONNEMENT
-      // ------------------------------------------------------------
+      /*
+        ============================================================
+        RÉCUPÉRER ABONNEMENT
+        ============================================================
+      */
 
       const {
         data,
         error,
-      } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", {
-          ascending: false,
-        })
-        .limit(1)
-        .maybeSingle();
+      } =
+        await supabase
+          .from(
+            "subscriptions"
+          )
+          .select("*")
+          .eq(
+            "user_id",
+            userId
+          )
+          .order(
+            "created_at",
+            {
+              ascending:
+                false,
+            }
+          )
+          .limit(1)
+          .maybeSingle();
 
-
-      if (error) {
-
+      if (
+        error
+      ) {
         console.error(
           "Erreur abonnement :",
           error
         );
 
-        setStatus("expired");
+        const cached =
+          getSubscriptionCache(
+            userId
+          );
 
-        return;
+        if (cached) {
+          applySubscriptionLocally(
+            cached
+          );
 
-      }
+          setLoadingSubscription(
+            false
+          );
 
-
-      if (!data) {
-
-        setStatus("expired");
-
-        return;
-
-      }
-
-
-      setSubscription(data);
-
-
-      // ------------------------------------------------------------
-      // CALCUL DES JOURS
-      // ------------------------------------------------------------
-
-      const now = new Date();
-
-      const start = data.start_date
-        ? new Date(data.start_date)
-        : null;
-
-
-      let used = 0;
-
-
-      if (start) {
-
-        const diff =
-          now.getTime() -
-          start.getTime();
-
-
-        used = Math.floor(
-          diff /
-          (
-            1000 *
-            60 *
-            60 *
-            24
-          )
-        );
-
-
-        if (used < 0) {
-
-          used = 0;
-
+          return;
         }
 
+        setStatus(
+          "expired"
+        );
+
+        setLoadingSubscription(
+          false
+        );
+
+        return;
       }
 
+      if (!data) {
+        setSubscription(
+          null
+        );
 
-      const left = Math.max(
-        0,
-        30 - used
+        setStatus(
+          "expired"
+        );
+
+        setDaysUsed(
+          30
+        );
+
+        setDaysLeft(0);
+
+        setLoadingSubscription(
+          false
+        );
+
+        return;
+      }
+
+      const normalized: CachedSubscription =
+        {
+          id:
+            data.id
+              ? String(
+                  data.id
+                )
+              : null,
+
+          user_id:
+            userId,
+
+          full_name:
+            data.full_name ||
+            resolvedName,
+
+          phone:
+            data.phone ||
+            resolvedPhone,
+
+          start_date:
+            data.start_date ||
+            null,
+
+          end_date:
+            data.end_date ||
+            null,
+
+          is_active:
+            data.is_active ===
+            true,
+
+          status:
+            data.status ||
+            "",
+
+          created_at:
+            data.created_at ||
+            null,
+
+          saved_at:
+            new Date().toISOString(),
+        };
+
+      /*
+        Sauvegarder immédiatement
+        pour le prochain hors connexion.
+      */
+
+      saveSubscriptionCache(
+        userId,
+        normalized
       );
 
-
-      setDaysUsed(used);
-
-      setDaysLeft(left);
-
-
-      // ------------------------------------------------------------
-      // STATUT
-      // ------------------------------------------------------------
-
-      if (data.status === "pending") {
-
-        setStatus("pending");
-
-      }
-
-      else if (
-        data.is_active === true ||
-        data.status === "trial"
-      ) {
-
-        setStatus("active");
-
-      }
-
-      else {
-
-        setStatus("expired");
-
-      }
-
-    }
-
-    catch (error) {
-
+      applySubscriptionLocally(
+        normalized
+      );
+    } catch (error) {
       console.error(
         "Erreur chargement abonnement :",
         error
       );
 
-      setStatus("expired");
+      /*
+        Dernier recours :
+        utiliser le cache.
+      */
 
+      const userId =
+        localStorage.getItem(
+          "user_id"
+        );
+
+      if (
+        userId
+      ) {
+        const cached =
+          getSubscriptionCache(
+            userId
+          );
+
+        if (cached) {
+          applySubscriptionLocally(
+            cached
+          );
+
+          setLoadingSubscription(
+            false
+          );
+
+          return;
+        }
+      }
+
+      /*
+        Même en erreur réseau,
+        ne pas bloquer l'ouverture
+        inutilement.
+      */
+
+      setStatus(
+        "active"
+      );
+
+      setLoadingSubscription(
+        false
+      );
+
+      return;
+    } finally {
+      setLoadingSubscription(
+        false
+      );
     }
+  }
 
-  };
-
-
-  // ==============================================================
-  // WHATSAPP
-  // ==============================================================
+  /* ============================================================== */
+  /* WHATSAPP                                                       */
+  /* ============================================================== */
 
   const openWhatsApp = (
     message: string
   ) => {
-
     const url =
       "https://wa.me/243994864173?text=" +
-      encodeURIComponent(message);
-
+      encodeURIComponent(
+        message
+      );
 
     window.open(
       url,
       "_blank",
       "noopener,noreferrer"
     );
-
   };
 
+  /* ============================================================== */
+  /* DEMANDE DE RENOUVELLEMENT                                     */
+  /* ============================================================== */
 
-  // ==============================================================
-  // DEMANDE DE RENOUVELLEMENT
-  // ==============================================================
-
-  const handleRenew = async () => {
-
-    // ------------------------------------------------------------
-    // VALIDATION
-    // ------------------------------------------------------------
-
-    if (
-      !fullName.trim() ||
-      !phone.trim()
-    ) {
-
-      alert(
-        "Veuillez remplir votre nom et votre numéro."
-      );
-
-      return;
-
-    }
-
-
-    if (loading) {
-
-      return;
-
-    }
-
-
-    setLoading(true);
-
-
-    try {
-
-      const phoneStorage =
-        localStorage.getItem("phone");
-
-
-      if (!phoneStorage) {
-
+  const handleRenew =
+    async () => {
+      if (
+        !fullName.trim() ||
+        !phone.trim()
+      ) {
         alert(
-          "Votre session utilisateur est introuvable."
+          "Veuillez remplir votre nom et votre numéro."
         );
-
-        setLoading(false);
 
         return;
-
       }
 
-
-      // ----------------------------------------------------------
-      // UTILISATEUR
-      // ----------------------------------------------------------
-
-      const {
-        data: user,
-        error: userError,
-      } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone", phoneStorage)
-        .maybeSingle();
-
-
-      if (userError) {
-
-        console.error(
-          "Erreur utilisateur :",
-          userError
-        );
-
+      if (
+        !navigator.onLine
+      ) {
         alert(
-          "Impossible de récupérer votre compte."
+          "Vous êtes hors connexion. Connectez-vous à Internet pour envoyer la demande de renouvellement."
         );
-
-        setLoading(false);
 
         return;
-
       }
 
-
-      if (!user) {
-
-        alert(
-          "Utilisateur introuvable."
-        );
-
-        setLoading(false);
-
+      if (loading) {
         return;
-
       }
 
+      setLoading(true);
 
-      // ----------------------------------------------------------
-      // VERIFIER L'ABONNEMENT
-      // ----------------------------------------------------------
+      try {
+        const phoneStorage =
+          localStorage.getItem(
+            "phone"
+          );
 
-      if (!subscription?.id) {
+        let userId =
+          localStorage.getItem(
+            "user_id"
+          );
 
-        alert(
-          "Aucun abonnement trouvé pour votre compte."
-        );
+        if (
+          !phoneStorage &&
+          !userId
+        ) {
+          alert(
+            "Votre session utilisateur est introuvable."
+          );
 
-        setLoading(false);
+          return;
+        }
 
-        return;
+        /*
+          ========================================================
+          USER
+          ========================================================
+        */
 
-      }
+        let userIdFinal =
+          userId;
 
+        if (
+          !userIdFinal &&
+          phoneStorage
+        ) {
+          const {
+            data: user,
+            error:
+              userError,
+          } =
+            await supabase
+              .from(
+                "users"
+              )
+              .select(
+                "id"
+              )
+              .eq(
+                "phone",
+                phoneStorage
+              )
+              .maybeSingle();
 
-      // ----------------------------------------------------------
-      // METTRE EN ATTENTE
-      // ----------------------------------------------------------
+          if (
+            userError
+          ) {
+            console.error(
+              "Erreur utilisateur :",
+              userError
+            );
 
-      const {
-        error: updateError,
-      } = await supabase
-        .from("subscriptions")
-        .update({
+            alert(
+              "Impossible de récupérer votre compte."
+            );
 
-          full_name:
-            fullName.trim(),
+            return;
+          }
 
-          phone:
-            phone.trim(),
+          if (!user) {
+            alert(
+              "Utilisateur introuvable."
+            );
 
-          status:
-            "pending",
+            return;
+          }
 
-          user_id:
-            user.id,
+          userIdFinal =
+            String(
+              user.id
+            );
 
-        })
-        .eq(
-          "id",
-          subscription.id
-        )
-        .eq(
-          "user_id",
-          user.id
-        );
+          localStorage.setItem(
+            "user_id",
+            userIdFinal
+          );
+        }
 
+        if (
+          !userIdFinal
+        ) {
+          alert(
+            "Utilisateur non identifié."
+          );
 
-      if (updateError) {
+          return;
+        }
 
-        console.error(
-          "Erreur mise à jour abonnement :",
+        /*
+          ========================================================
+          ABONNEMENT
+          ========================================================
+        */
+
+        let subscriptionId =
+          subscription?.id;
+
+        /*
+          Si le cache n'a pas d'id,
+          on récupère celui du serveur.
+        */
+
+        if (
+          !subscriptionId
+        ) {
+          const {
+            data,
+            error,
+          } =
+            await supabase
+              .from(
+                "subscriptions"
+              )
+              .select(
+                "id"
+              )
+              .eq(
+                "user_id",
+                userIdFinal
+              )
+              .order(
+                "created_at",
+                {
+                  ascending:
+                    false,
+                }
+              )
+              .limit(1)
+              .maybeSingle();
+
+          if (
+            error
+          ) {
+            console.error(
+              "Erreur recherche abonnement :",
+              error
+            );
+
+            alert(
+              "Impossible de retrouver votre abonnement."
+            );
+
+            return;
+          }
+
+          subscriptionId =
+            data?.id
+              ? String(
+                  data.id
+                )
+              : null;
+        }
+
+        if (
+          !subscriptionId
+        ) {
+          alert(
+            "Aucun abonnement trouvé pour votre compte."
+          );
+
+          return;
+        }
+
+        /*
+          ========================================================
+          METTRE EN ATTENTE
+          ========================================================
+        */
+
+        const {
+          data:
+            updatedSubscription,
+          error:
+            updateError,
+        } =
+          await supabase
+            .from(
+              "subscriptions"
+            )
+            .update({
+              full_name:
+                fullName.trim(),
+
+              phone:
+                phone.trim(),
+
+              status:
+                "pending",
+
+              user_id:
+                userIdFinal,
+            })
+            .eq(
+              "id",
+              subscriptionId
+            )
+            .eq(
+              "user_id",
+              userIdFinal
+            )
+            .select("*")
+            .maybeSingle();
+
+        if (
           updateError
+        ) {
+          console.error(
+            "Erreur mise à jour abonnement :",
+            updateError
+          );
+
+          alert(
+            "Une erreur est survenue lors de l'envoi de la demande."
+          );
+
+          return;
+        }
+
+        /*
+          ========================================================
+          CACHE IMMÉDIAT
+          ========================================================
+        */
+
+        const localUpdated: CachedSubscription =
+          {
+            id:
+              subscriptionId,
+
+            user_id:
+              userIdFinal,
+
+            full_name:
+              fullName.trim(),
+
+            phone:
+              phone.trim(),
+
+            start_date:
+              updatedSubscription?.start_date ||
+              subscription?.start_date ||
+              null,
+
+            end_date:
+              updatedSubscription?.end_date ||
+              subscription?.end_date ||
+              null,
+
+            is_active:
+              updatedSubscription
+                ?.is_active ??
+              subscription?.is_active ??
+              false,
+
+            status:
+              "pending",
+
+            created_at:
+              updatedSubscription
+                ?.created_at ||
+              subscription?.created_at ||
+              null,
+
+            saved_at:
+              new Date().toISOString(),
+          };
+
+        saveSubscriptionCache(
+          userIdFinal,
+          localUpdated
+        );
+
+        setSubscription(
+          localUpdated
+        );
+
+        setStatus(
+          "pending"
+        );
+
+        setShowConfirmation(
+          true
+        );
+      } catch (error) {
+        console.error(
+          "Erreur renouvellement :",
+          error
         );
 
         alert(
-          "Une erreur est survenue lors de l'envoi de la demande."
+          "Une erreur inattendue est survenue."
         );
-
-        setLoading(false);
-
-        return;
-
+      } finally {
+        setLoading(
+          false
+        );
       }
+    };
 
-
-      // ----------------------------------------------------------
-      // METTRE À JOUR L'ÉTAT LOCAL
-      // ----------------------------------------------------------
-
-      setSubscription({
-        ...subscription,
-        full_name:
-          fullName.trim(),
-        phone:
-          phone.trim(),
-        status:
-          "pending",
-      });
-
-
-      setStatus("pending");
-
-      setShowConfirmation(true);
-
-
-    }
-
-    catch (error) {
-
-      console.error(
-        "Erreur renouvellement :",
-        error
-      );
-
-      alert(
-        "Une erreur inattendue est survenue."
-      );
-
-    }
-
-
-    setLoading(false);
-
-  };
-
-
-  // ==============================================================
-  // POURCENTAGE
-  // ==============================================================
+  /* ============================================================== */
+  /* POURCENTAGE                                                     */
+  /* ============================================================== */
 
   const usagePercentage =
     Math.min(
       100,
       Math.max(
         0,
-        (daysUsed / 30) * 100
+        (
+          daysUsed /
+          30
+        ) *
+          100
       )
     );
 
+  /* ============================================================== */
+  /* AFFICHAGE CHARGEMENT                                           */
+  /* ============================================================== */
 
-  // ==============================================================
-  // JSX
-  // ==============================================================
+  if (
+    loadingSubscription
+  ) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4">
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-sm">
+          <RefreshCw
+            size={19}
+            className="animate-spin text-indigo-600"
+          />
+
+          Chargement de votre abonnement...
+        </div>
+      </main>
+    );
+  }
+
+  /* ============================================================== */
+  /* JSX                                                             */
+  /* ============================================================== */
 
   return (
-
     <main
       className="
         min-h-screen
@@ -537,15 +1424,13 @@ export default function SubscriptionPage() {
         sm:py-10
       "
     >
-
       <div
         className="
-          max-w-2xl
           mx-auto
+          max-w-2xl
           space-y-5
         "
       >
-
 
         {/* ========================================================
             HEADER
@@ -553,15 +1438,14 @@ export default function SubscriptionPage() {
 
         <section
           className="
-            bg-white
             rounded-[26px]
             border
             border-slate-200/80
+            bg-white
             p-6
             shadow-[0_8px_30px_rgba(15,23,42,0.05)]
           "
         >
-
           <div
             className="
               flex
@@ -569,30 +1453,25 @@ export default function SubscriptionPage() {
               gap-4
             "
           >
-
             <div
               className="
-                w-12
-                h-12
-                rounded-2xl
-                bg-indigo-600
                 flex
+                h-12
+                w-12
                 items-center
                 justify-center
+                rounded-2xl
+                bg-indigo-600
                 shadow-[0_8px_18px_rgba(79,70,229,0.18)]
               "
             >
-
               <Crown
                 size={23}
                 className="text-white"
               />
-
             </div>
 
-
             <div>
-
               <h1
                 className="
                   text-2xl
@@ -606,43 +1485,67 @@ export default function SubscriptionPage() {
 
               <p
                 className="
+                  mt-1
                   text-sm
                   text-slate-500
-                  mt-1
                 "
               >
                 Votre espace abonnement
               </p>
-
             </div>
-
           </div>
 
+          {/* INTERNET */}
+
+          <div className="mt-5">
+            <div
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black ${
+                isOnline
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-amber-50 text-amber-700"
+              }`}
+            >
+              {isOnline ? (
+                <>
+                  <Wifi
+                    size={14}
+                  />
+                  En ligne
+                </>
+              ) : (
+                <>
+                  <WifiOff
+                    size={14}
+                  />
+                  Hors connexion
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* PLAN */}
 
           <div
             className="
               mt-6
               rounded-2xl
-              bg-indigo-50
               border
               border-indigo-100
+              bg-indigo-50
               p-5
             "
           >
-
             <div
               className="
                 flex
                 flex-col
+                gap-4
                 sm:flex-row
                 sm:items-center
                 sm:justify-between
-                gap-4
               "
             >
-
               <div>
-
                 <p
                   className="
                     text-xs
@@ -655,31 +1558,27 @@ export default function SubscriptionPage() {
                   Abonnement mensuel
                 </p>
 
-
                 <p
                   className="
+                    mt-1
                     text-base
                     font-black
                     text-slate-900
-                    mt-1
                   "
                 >
                   Gérez votre commerce simplement
                 </p>
 
-
                 <p
                   className="
+                    mt-1
                     text-sm
                     text-slate-500
-                    mt-1
                   "
                 >
                   Stock, ventes, dettes et bénéfices.
                 </p>
-
               </div>
-
 
               <div
                 className="
@@ -688,7 +1587,6 @@ export default function SubscriptionPage() {
                   sm:text-right
                 "
               >
-
                 <p
                   className="
                     text-3xl
@@ -707,15 +1605,10 @@ export default function SubscriptionPage() {
                 >
                   / mois
                 </p>
-
               </div>
-
             </div>
-
           </div>
-
         </section>
-
 
         {/* ========================================================
             STATUT
@@ -723,15 +1616,14 @@ export default function SubscriptionPage() {
 
         <section
           className="
-            bg-white
             rounded-[26px]
             border
             border-slate-200/80
+            bg-white
             p-6
             shadow-[0_8px_30px_rgba(15,23,42,0.05)]
           "
         >
-
           <div
             className="
               flex
@@ -740,9 +1632,7 @@ export default function SubscriptionPage() {
               gap-4
             "
           >
-
             <div>
-
               <p
                 className="
                   text-sm
@@ -753,7 +1643,6 @@ export default function SubscriptionPage() {
                 Statut de l'abonnement
               </p>
 
-
               <h2
                 className="
                   mt-2
@@ -762,20 +1651,19 @@ export default function SubscriptionPage() {
                   text-slate-900
                 "
               >
-
-                {status === "active"
+                {status ===
+                "active"
                   ? "Actif"
-                  : status === "pending"
+                  : status ===
+                    "pending"
                   ? "En vérification"
                   : "Expiré"}
-
               </h2>
-
 
               <div className="mt-2">
 
-                {status === "active" && (
-
+                {status ===
+                  "active" && (
                   <span
                     className="
                       inline-flex
@@ -790,25 +1678,21 @@ export default function SubscriptionPage() {
                       text-emerald-700
                     "
                   >
-
                     <span
                       className="
-                        w-2
                         h-2
+                        w-2
                         rounded-full
                         bg-emerald-500
                       "
                     />
 
                     Abonnement actif
-
                   </span>
-
                 )}
 
-
-                {status === "pending" && (
-
+                {status ===
+                  "pending" && (
                   <span
                     className="
                       inline-flex
@@ -823,18 +1707,16 @@ export default function SubscriptionPage() {
                       text-amber-700
                     "
                   >
-
-                    <Clock3 size={14} />
+                    <Clock3
+                      size={14}
+                    />
 
                     Paiement en vérification
-
                   </span>
-
                 )}
 
-
-                {status === "expired" && (
-
+                {status ===
+                  "expired" && (
                   <span
                     className="
                       inline-flex
@@ -849,68 +1731,71 @@ export default function SubscriptionPage() {
                       text-slate-600
                     "
                   >
-
-                    <ShieldCheck size={14} />
+                    <ShieldCheck
+                      size={14}
+                    />
 
                     Abonnement expiré
-
                   </span>
-
                 )}
 
               </div>
-
             </div>
-
 
             <div
               className={`
-                w-14
-                h-14
-                rounded-2xl
                 flex
+                h-14
+                w-14
+                shrink-0
                 items-center
                 justify-center
-                shrink-0
+                rounded-2xl
                 ${
-                  status === "active"
+                  status ===
+                  "active"
                     ? "bg-emerald-50"
-                    : status === "pending"
+                    : status ===
+                      "pending"
                     ? "bg-amber-50"
                     : "bg-slate-100"
                 }
               `}
             >
-
-              {status === "active" ? (
-
+              {status ===
+              "active" ? (
                 <CheckCircle2
                   size={28}
                   className="text-emerald-600"
                 />
-
-              ) : status === "pending" ? (
-
+              ) : status ===
+                "pending" ? (
                 <Clock3
                   size={28}
                   className="text-amber-600"
                 />
-
               ) : (
-
                 <ShieldCheck
                   size={28}
                   className="text-slate-500"
                 />
-
               )}
-
             </div>
-
           </div>
 
-        </section>
+          {!isOnline && (
+            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-4">
+              <WifiOff
+                size={18}
+                className="mt-0.5 shrink-0 text-amber-600"
+              />
 
+              <p className="text-xs leading-5 text-amber-800">
+                Vous êtes hors connexion. Le statut et le compteur utilisent les dernières informations enregistrées sur cet appareil.
+              </p>
+            </div>
+          )}
+        </section>
 
         {/* ========================================================
             COMPTEUR
@@ -918,15 +1803,14 @@ export default function SubscriptionPage() {
 
         <section
           className="
-            bg-white
             rounded-[26px]
             border
             border-slate-200/80
+            bg-white
             p-6
             shadow-[0_8px_30px_rgba(15,23,42,0.05)]
           "
         >
-
           <div
             className="
               flex
@@ -935,7 +1819,6 @@ export default function SubscriptionPage() {
               gap-4
             "
           >
-
             <div
               className="
                 flex
@@ -943,29 +1826,24 @@ export default function SubscriptionPage() {
                 gap-3
               "
             >
-
               <div
                 className="
-                  w-10
-                  h-10
-                  rounded-xl
-                  bg-indigo-50
                   flex
+                  h-10
+                  w-10
                   items-center
                   justify-center
+                  rounded-xl
+                  bg-indigo-50
                 "
               >
-
                 <CalendarDays
                   size={20}
                   className="text-indigo-600"
                 />
-
               </div>
 
-
               <div>
-
                 <h3
                   className="
                     font-black
@@ -977,25 +1855,21 @@ export default function SubscriptionPage() {
 
                 <p
                   className="
+                    mt-0.5
                     text-xs
                     text-slate-500
-                    mt-0.5
                   "
                 >
                   Période de 30 jours
                 </p>
-
               </div>
-
             </div>
-
 
             <div
               className="
                 text-right
               "
             >
-
               <p
                 className="
                   text-xl
@@ -1015,22 +1889,18 @@ export default function SubscriptionPage() {
               >
                 jours restants
               </p>
-
             </div>
-
           </div>
-
 
           <div
             className="
               mt-6
               h-3
+              overflow-hidden
               rounded-full
               bg-slate-100
-              overflow-hidden
             "
           >
-
             <div
               className="
                 h-full
@@ -1044,9 +1914,7 @@ export default function SubscriptionPage() {
                   `${usagePercentage}%`,
               }}
             />
-
           </div>
-
 
           <div
             className="
@@ -1059,7 +1927,6 @@ export default function SubscriptionPage() {
               text-slate-500
             "
           >
-
             <span>
               {daysUsed} jours utilisés
             </span>
@@ -1067,11 +1934,20 @@ export default function SubscriptionPage() {
             <span>
               30 jours
             </span>
-
           </div>
 
-        </section>
+          {!isOnline && (
+            <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+              <p className="text-xs font-black text-indigo-700">
+                Mode hors connexion
+              </p>
 
+              <p className="mt-1 text-[11px] leading-5 text-indigo-700/80">
+                Le compteur continue de fonctionner sans Internet en se basant sur la date de début enregistrée localement.
+              </p>
+            </div>
+          )}
+        </section>
 
         {/* ========================================================
             COMMENT PAYER
@@ -1079,15 +1955,14 @@ export default function SubscriptionPage() {
 
         <section
           className="
-            bg-white
             rounded-[26px]
             border
             border-slate-200/80
+            bg-white
             p-6
             shadow-[0_8px_30px_rgba(15,23,42,0.05)]
           "
         >
-
           <div
             className="
               flex
@@ -1095,29 +1970,24 @@ export default function SubscriptionPage() {
               gap-3
             "
           >
-
             <div
               className="
-                w-11
-                h-11
-                rounded-2xl
-                bg-indigo-50
                 flex
+                h-11
+                w-11
                 items-center
                 justify-center
+                rounded-2xl
+                bg-indigo-50
               "
             >
-
               <CreditCard
                 size={21}
                 className="text-indigo-600"
               />
-
             </div>
 
-
             <div>
-
               <h3
                 className="
                   text-lg
@@ -1136,11 +2006,8 @@ export default function SubscriptionPage() {
               >
                 Suivez simplement ces étapes.
               </p>
-
             </div>
-
           </div>
-
 
           <div
             className="
@@ -1148,7 +2015,6 @@ export default function SubscriptionPage() {
               space-y-3
             "
           >
-
             {[
               "Envoyez 5$ par Mobile Money.",
               "Gardez votre preuve de paiement.",
@@ -1156,8 +2022,10 @@ export default function SubscriptionPage() {
               "Envoyez la capture sur WhatsApp.",
               "Attendez la validation de l'administration.",
             ].map(
-              (text, index) => (
-
+              (
+                text,
+                index
+              ) => (
                 <div
                   key={index}
                   className="
@@ -1165,31 +2033,29 @@ export default function SubscriptionPage() {
                     items-center
                     gap-3
                     rounded-2xl
-                    bg-slate-50
                     border
                     border-slate-100
+                    bg-slate-50
                     p-4
                   "
                 >
-
                   <div
                     className="
-                      w-8
-                      h-8
-                      rounded-xl
-                      bg-indigo-600
-                      text-white
                       flex
+                      h-8
+                      w-8
+                      shrink-0
                       items-center
                       justify-center
+                      rounded-xl
+                      bg-indigo-600
                       text-xs
                       font-black
-                      shrink-0
+                      text-white
                     "
                   >
                     {index + 1}
                   </div>
-
 
                   <p
                     className="
@@ -1200,16 +2066,11 @@ export default function SubscriptionPage() {
                   >
                     {text}
                   </p>
-
                 </div>
-
               )
             )}
-
           </div>
-
         </section>
-
 
         {/* ========================================================
             MOYENS DE PAIEMENT
@@ -1217,15 +2078,14 @@ export default function SubscriptionPage() {
 
         <section
           className="
-            bg-white
             rounded-[26px]
             border
             border-slate-200/80
+            bg-white
             p-6
             shadow-[0_8px_30px_rgba(15,23,42,0.05)]
           "
         >
-
           <div
             className="
               flex
@@ -1233,29 +2093,24 @@ export default function SubscriptionPage() {
               gap-3
             "
           >
-
             <div
               className="
-                w-11
-                h-11
-                rounded-2xl
-                bg-indigo-50
                 flex
+                h-11
+                w-11
                 items-center
                 justify-center
+                rounded-2xl
+                bg-indigo-50
               "
             >
-
               <Smartphone
                 size={21}
                 className="text-indigo-600"
               />
-
             </div>
 
-
             <div>
-
               <h3
                 className="
                   text-lg
@@ -1274,19 +2129,10 @@ export default function SubscriptionPage() {
               >
                 Choisissez votre moyen Mobile Money.
               </p>
-
             </div>
-
           </div>
 
-
-          <div
-            className="
-              mt-6
-              space-y-3
-            "
-          >
-
+          <div className="mt-6 space-y-3">
 
             {/* AIRTEL */}
 
@@ -1299,7 +2145,6 @@ export default function SubscriptionPage() {
                 p-5
               "
             >
-
               <div
                 className="
                   flex
@@ -1308,9 +2153,7 @@ export default function SubscriptionPage() {
                   gap-3
                 "
               >
-
                 <div>
-
                   <p
                     className="
                       font-black
@@ -1322,23 +2165,21 @@ export default function SubscriptionPage() {
 
                   <p
                     className="
+                      mt-1
                       text-xs
                       text-slate-500
-                      mt-1
                     "
                   >
                     DIEUMERCI IDI
                   </p>
-
                 </div>
-
 
                 <span
                   className="
                     rounded-xl
-                    bg-white
                     border
                     border-slate-200
+                    bg-white
                     px-3
                     py-2
                     text-xs
@@ -1348,9 +2189,7 @@ export default function SubscriptionPage() {
                 >
                   Airtel
                 </span>
-
               </div>
-
 
               <p
                 className="
@@ -1362,9 +2201,7 @@ export default function SubscriptionPage() {
               >
                 +243 994 864 173
               </p>
-
             </div>
-
 
             {/* ORANGE */}
 
@@ -1377,7 +2214,6 @@ export default function SubscriptionPage() {
                 p-5
               "
             >
-
               <div
                 className="
                   flex
@@ -1386,9 +2222,7 @@ export default function SubscriptionPage() {
                   gap-3
                 "
               >
-
                 <div>
-
                   <p
                     className="
                       font-black
@@ -1400,23 +2234,21 @@ export default function SubscriptionPage() {
 
                   <p
                     className="
+                      mt-1
                       text-xs
                       text-slate-500
-                      mt-1
                     "
                   >
                     DIEUMERCI IDI
                   </p>
-
                 </div>
-
 
                 <span
                   className="
                     rounded-xl
-                    bg-white
                     border
                     border-slate-200
+                    bg-white
                     px-3
                     py-2
                     text-xs
@@ -1426,9 +2258,7 @@ export default function SubscriptionPage() {
                 >
                   Orange
                 </span>
-
               </div>
-
 
               <p
                 className="
@@ -1440,9 +2270,7 @@ export default function SubscriptionPage() {
               >
                 +243 891 618 812
               </p>
-
             </div>
-
 
             {/* M-PESA */}
 
@@ -1455,7 +2283,6 @@ export default function SubscriptionPage() {
                 p-5
               "
             >
-
               <div
                 className="
                   flex
@@ -1464,9 +2291,7 @@ export default function SubscriptionPage() {
                   gap-3
                 "
               >
-
                 <div>
-
                   <p
                     className="
                       font-black
@@ -1478,23 +2303,21 @@ export default function SubscriptionPage() {
 
                   <p
                     className="
+                      mt-1
                       text-xs
                       text-slate-500
-                      mt-1
                     "
                   >
                     DIEUMERCI IDI
                   </p>
-
                 </div>
-
 
                 <span
                   className="
                     rounded-xl
-                    bg-white
                     border
                     border-slate-200
+                    bg-white
                     px-3
                     py-2
                     text-xs
@@ -1504,9 +2327,7 @@ export default function SubscriptionPage() {
                 >
                   Vodacom
                 </span>
-
               </div>
-
 
               <p
                 className="
@@ -1518,29 +2339,25 @@ export default function SubscriptionPage() {
               >
                 +243 810 168 651
               </p>
-
             </div>
 
           </div>
-
         </section>
 
-
         {/* ========================================================
-            DEMANDE D'ACTIVATION
+            DEMANDE ACTIVATION
         ======================================================== */}
 
         <section
           className="
-            bg-white
             rounded-[26px]
             border
             border-slate-200/80
+            bg-white
             p-6
             shadow-[0_8px_30px_rgba(15,23,42,0.05)]
           "
         >
-
           <div
             className="
               flex
@@ -1548,30 +2365,25 @@ export default function SubscriptionPage() {
               gap-3
             "
           >
-
             <div
               className="
-                w-11
-                h-11
-                rounded-2xl
-                bg-indigo-50
                 flex
+                h-11
+                w-11
+                shrink-0
                 items-center
                 justify-center
-                shrink-0
+                rounded-2xl
+                bg-indigo-50
               "
             >
-
               <Sparkles
                 size={20}
                 className="text-indigo-600"
               />
-
             </div>
 
-
             <div>
-
               <h3
                 className="
                   text-lg
@@ -1584,48 +2396,65 @@ export default function SubscriptionPage() {
 
               <p
                 className="
+                  mt-1
                   text-sm
                   text-slate-500
-                  mt-1
                 "
               >
                 Après votre paiement, remplissez vos informations.
               </p>
-
             </div>
-
           </div>
 
+          {!isOnline && (
+            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-4">
+
+              <WifiOff
+                size={18}
+                className="mt-0.5 shrink-0 text-amber-600"
+              />
+
+              <div>
+                <p className="text-xs font-black text-amber-800">
+                  Demande indisponible hors connexion
+                </p>
+
+                <p className="mt-1 text-[11px] leading-5 text-amber-700">
+                  Vous pouvez consulter votre abonnement sans Internet. Pour envoyer une demande de renouvellement, reconnectez-vous.
+                </p>
+              </div>
+
+            </div>
+          )}
 
           <div
             className="
-              space-y-4
               mt-6
+              space-y-4
             "
           >
 
             {/* NOM */}
 
             <div>
-
               <label
                 className="
+                  mb-2
                   block
                   text-sm
                   font-bold
                   text-slate-700
-                  mb-2
                 "
               >
                 Nom complet
               </label>
-
 
               <div className="relative">
 
                 <User
                   size={18}
                   className="
+                    pointer-events-none
                     absolute
                     left-4
                     top-1/2
@@ -1633,61 +2462,60 @@ export default function SubscriptionPage() {
                     text-slate-400
                   "
                 />
-
 
                 <input
                   type="text"
                   placeholder="Votre nom complet"
                   value={fullName}
                   onChange={(e) =>
-                    setFullName(e.target.value)
+                    setFullName(
+                      e.target.value
+                    )
                   }
                   className="
-                    w-full
                     h-14
-                    pl-12
-                    pr-4
+                    w-full
                     rounded-2xl
-                    bg-slate-50
                     border
                     border-slate-200
+                    bg-slate-50
+                    pl-12
+                    pr-4
                     text-slate-900
-                    placeholder:text-slate-400
                     outline-none
                     transition
+                    placeholder:text-slate-400
                     focus:border-indigo-500
+                    focus:bg-white
                     focus:ring-4
                     focus:ring-indigo-500/10
                   "
                 />
 
               </div>
-
             </div>
-
 
             {/* TELEPHONE */}
 
             <div>
-
               <label
                 className="
+                  mb-2
                   block
                   text-sm
                   font-bold
                   text-slate-700
-                  mb-2
                 "
               >
                 Numéro de téléphone
               </label>
-
 
               <div className="relative">
 
                 <Phone
                   size={18}
                   className="
+                    pointer-events-none
                     absolute
                     left-4
                     top-1/2
@@ -1696,61 +2524,65 @@ export default function SubscriptionPage() {
                   "
                 />
 
-
                 <input
                   type="tel"
                   placeholder="Votre numéro de téléphone"
                   value={phone}
                   onChange={(e) =>
-                    setPhone(e.target.value)
+                    setPhone(
+                      e.target.value
+                    )
                   }
                   className="
-                    w-full
                     h-14
-                    pl-12
-                    pr-4
+                    w-full
                     rounded-2xl
-                    bg-slate-50
                     border
                     border-slate-200
+                    bg-slate-50
+                    pl-12
+                    pr-4
                     text-slate-900
-                    placeholder:text-slate-400
                     outline-none
                     transition
+                    placeholder:text-slate-400
                     focus:border-indigo-500
+                    focus:bg-white
                     focus:ring-4
                     focus:ring-indigo-500/10
                   "
                 />
 
               </div>
-
             </div>
-
 
             {/* BOUTON */}
 
             <button
-              onClick={handleRenew}
-              disabled={loading}
+              type="button"
+              onClick={
+                handleRenew
+              }
+              disabled={
+                loading ||
+                !isOnline
+              }
               className="
-                w-full
                 h-14
+                w-full
                 rounded-2xl
                 bg-indigo-600
+                font-black
+                text-white
+                shadow-[0_8px_20px_rgba(79,70,229,0.18)]
+                transition
                 hover:bg-indigo-700
                 active:scale-[0.99]
-                text-white
-                font-black
-                transition
-                shadow-[0_8px_20px_rgba(79,70,229,0.18)]
-                disabled:opacity-60
                 disabled:cursor-not-allowed
+                disabled:opacity-50
               "
             >
-
               {loading ? (
-
                 <span
                   className="
                     flex
@@ -1759,25 +2591,21 @@ export default function SubscriptionPage() {
                     gap-2
                   "
                 >
-
                   <span
                     className="
-                      w-5
                       h-5
+                      w-5
+                      animate-spin
+                      rounded-full
                       border-2
                       border-white/30
                       border-t-white
-                      rounded-full
-                      animate-spin
                     "
                   />
 
                   Enregistrement...
-
                 </span>
-
-              ) : (
-
+              ) : !isOnline ? (
                 <span
                   className="
                     flex
@@ -1786,40 +2614,52 @@ export default function SubscriptionPage() {
                     gap-2
                   "
                 >
+                  <WifiOff
+                    size={20}
+                  />
 
-                  <CheckCircle2 size={20} />
+                  Connexion requise
+                </span>
+              ) : (
+                <span
+                  className="
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                  "
+                >
+                  <CheckCircle2
+                    size={20}
+                  />
 
                   Envoyer pour vérification
 
-                  <ArrowRight size={18} />
-
+                  <ArrowRight
+                    size={18}
+                  />
                 </span>
-
               )}
-
             </button>
 
           </div>
-
         </section>
-
 
         {/* ========================================================
             PAIEMENT EN VERIFICATION
         ======================================================== */}
 
-        {status === "pending" && (
-
+        {status ===
+          "pending" && (
           <section
             className="
-              bg-amber-50
+              rounded-[26px]
               border
               border-amber-200
-              rounded-[26px]
+              bg-amber-50
               p-6
             "
           >
-
             <div
               className="
                 flex
@@ -1827,79 +2667,64 @@ export default function SubscriptionPage() {
                 gap-4
               "
             >
-
               <div
                 className="
-                  w-11
-                  h-11
-                  rounded-2xl
-                  bg-amber-100
                   flex
+                  h-11
+                  w-11
+                  shrink-0
                   items-center
                   justify-center
-                  shrink-0
+                  rounded-2xl
+                  bg-amber-100
                 "
               >
-
                 <Clock3
                   size={21}
                   className="text-amber-600"
                 />
-
               </div>
 
-
               <div>
-
                 <h3
                   className="
-                    font-black
                     text-lg
+                    font-black
                     text-amber-900
                   "
                 >
                   Paiement en vérification
                 </h3>
 
-
                 <p
                   className="
-                    text-sm
-                    text-amber-800/80
                     mt-1
+                    text-sm
                     leading-6
+                    text-amber-800/80
                   "
                 >
-                  Votre demande a bien été envoyée.
-                  L'administration va vérifier votre paiement
-                  avant d'activer votre abonnement.
+                  Votre demande a bien été envoyée. L'administration va vérifier votre paiement avant d'activer votre abonnement.
                 </p>
-
               </div>
-
             </div>
-
           </section>
-
         )}
-
 
         {/* ========================================================
             WHATSAPP
         ======================================================== */}
 
         {showConfirmation && (
-
           <section
             className="
-              bg-emerald-50
+              rounded-[26px]
               border
               border-emerald-200
-              rounded-[26px]
+              bg-emerald-50
               p-6
             "
           >
-
             <div
               className="
                 flex
@@ -1907,27 +2732,23 @@ export default function SubscriptionPage() {
                 gap-4
               "
             >
-
               <div
                 className="
-                  w-11
-                  h-11
-                  rounded-2xl
-                  bg-emerald-100
                   flex
+                  h-11
+                  w-11
+                  shrink-0
                   items-center
                   justify-center
-                  shrink-0
+                  rounded-2xl
+                  bg-emerald-100
                 "
               >
-
                 <MessageCircle
                   size={21}
                   className="text-emerald-600"
                 />
-
               </div>
-
 
               <div className="flex-1">
 
@@ -1941,22 +2762,19 @@ export default function SubscriptionPage() {
                   Envoyer la preuve de paiement
                 </h3>
 
-
                 <p
                   className="
-                    text-sm
-                    text-emerald-800/80
                     mt-1
+                    text-sm
                     leading-6
+                    text-emerald-800/80
                   "
                 >
-                  Envoyez votre capture de paiement sur
-                  WhatsApp afin que l'administration puisse
-                  vérifier votre demande.
+                  Envoyez votre capture de paiement sur WhatsApp afin que l'administration puisse vérifier votre demande.
                 </p>
 
-
                 <button
+                  type="button"
                   onClick={() =>
                     openWhatsApp(
                       `Bonjour DIEUMERCI IDI (PDG),
@@ -1972,51 +2790,46 @@ Je vous envoie la preuve du paiement.`
                   }
                   className="
                     mt-5
-                    w-full
-                    h-14
-                    rounded-2xl
-                    bg-emerald-600
-                    hover:bg-emerald-700
-                    text-white
-                    font-black
                     flex
+                    h-14
+                    w-full
                     items-center
                     justify-center
                     gap-2
+                    rounded-2xl
+                    bg-emerald-600
+                    font-black
+                    text-white
                     transition
+                    hover:bg-emerald-700
                   "
                 >
-
-                  <MessageCircle size={21} />
+                  <MessageCircle
+                    size={21}
+                  />
 
                   Envoyer la capture sur WhatsApp
-
                 </button>
 
               </div>
-
             </div>
-
           </section>
-
         )}
 
-
         {/* ========================================================
-            PROPOSER UNE IDEE
+            PROPOSER UNE IDÉE
         ======================================================== */}
 
         <section
           className="
-            bg-white
             rounded-[26px]
             border
             border-slate-200/80
+            bg-white
             p-6
             shadow-[0_8px_30px_rgba(15,23,42,0.05)]
           "
         >
-
           <div
             className="
               flex
@@ -2024,30 +2837,25 @@ Je vous envoie la preuve du paiement.`
               gap-4
             "
           >
-
             <div
               className="
-                w-11
-                h-11
-                rounded-2xl
-                bg-indigo-50
                 flex
+                h-11
+                w-11
+                shrink-0
                 items-center
                 justify-center
-                shrink-0
+                rounded-2xl
+                bg-indigo-50
               "
             >
-
               <Sparkles
                 size={20}
                 className="text-indigo-600"
               />
-
             </div>
 
-
             <div>
-
               <h3
                 className="
                   text-lg
@@ -2058,25 +2866,21 @@ Je vous envoie la preuve du paiement.`
                 Proposer une idée
               </h3>
 
-
               <p
                 className="
-                  text-sm
-                  text-slate-500
                   mt-1
+                  text-sm
                   leading-6
+                  text-slate-500
                 "
               >
-                Une suggestion pour améliorer
-                Biso-Commerce ?
+                Une suggestion pour améliorer Biso-Commerce ?
               </p>
-
             </div>
-
           </div>
 
-
           <button
+            type="button"
             onClick={() =>
               openWhatsApp(
                 `Bonjour DIEUMERCI IDI (PDG),
@@ -2086,29 +2890,27 @@ Je voudrais proposer une amélioration pour Biso-Commerce.`
             }
             className="
               mt-5
-              w-full
-              h-14
-              rounded-2xl
-              bg-slate-900
-              hover:bg-slate-800
-              text-white
-              font-black
               flex
+              h-14
+              w-full
               items-center
               justify-center
               gap-2
+              rounded-2xl
+              bg-slate-900
+              font-black
+              text-white
               transition
+              hover:bg-slate-800
             "
           >
-
-            <MessageCircle size={20} />
+            <MessageCircle
+              size={20}
+            />
 
             Envoyer une proposition
-
           </button>
-
         </section>
-
 
         {/* ========================================================
             SECURITE
@@ -2116,14 +2918,13 @@ Je voudrais proposer une amélioration pour Biso-Commerce.`
 
         <section
           className="
-            bg-indigo-50
+            rounded-[26px]
             border
             border-indigo-100
-            rounded-[26px]
+            bg-indigo-50
             p-6
           "
         >
-
           <div
             className="
               flex
@@ -2131,31 +2932,26 @@ Je voudrais proposer une amélioration pour Biso-Commerce.`
               gap-4
             "
           >
-
             <div
               className="
-                w-11
-                h-11
-                rounded-2xl
-                bg-white
                 flex
+                h-11
+                w-11
+                shrink-0
                 items-center
                 justify-center
-                shrink-0
+                rounded-2xl
+                bg-white
                 shadow-sm
               "
             >
-
               <ShieldCheck
                 size={21}
                 className="text-indigo-600"
               />
-
             </div>
 
-
             <div>
-
               <h3
                 className="
                   font-black
@@ -2165,26 +2961,19 @@ Je voudrais proposer une amélioration pour Biso-Commerce.`
                 Paiement sécurisé
               </h3>
 
-
               <p
                 className="
-                  text-sm
-                  text-slate-600
                   mt-1
+                  text-sm
                   leading-6
+                  text-slate-600
                 "
               >
-                Conservez toujours votre preuve de paiement.
-                Votre abonnement sera activé après vérification
-                par l'administration.
+                Conservez toujours votre preuve de paiement. Votre abonnement sera activé après vérification par l'administration.
               </p>
-
             </div>
-
           </div>
-
         </section>
-
 
         {/* ========================================================
             FOOTER
@@ -2192,11 +2981,10 @@ Je voudrais proposer une amélioration pour Biso-Commerce.`
 
         <footer
           className="
-            text-center
             py-8
+            text-center
           "
         >
-
           <div
             className="
               inline-flex
@@ -2204,26 +2992,22 @@ Je voudrais proposer une amélioration pour Biso-Commerce.`
               gap-2
             "
           >
-
             <div
               className="
-                w-9
-                h-9
-                rounded-xl
-                bg-indigo-600
                 flex
+                h-9
+                w-9
                 items-center
                 justify-center
+                rounded-xl
+                bg-indigo-600
               "
             >
-
               <Crown
                 size={18}
                 className="text-white"
               />
-
             </div>
-
 
             <span
               className="
@@ -2233,49 +3017,41 @@ Je voudrais proposer une amélioration pour Biso-Commerce.`
             >
               Biso-Commerce
             </span>
-
           </div>
-
 
           <p
             className="
+              mt-3
               text-sm
               font-bold
               text-indigo-600
-              mt-3
             "
           >
             IDI HEMEDI DIEUMERCI (PDG)
           </p>
 
-
           <p
             className="
+              mt-1
               text-xs
               text-slate-400
-              mt-1
             "
           >
             KINSHASA, RDC
           </p>
 
-
           <p
             className="
+              mt-4
               text-xs
               text-slate-400
-              mt-4
             "
           >
             Gestion simple • Rapide • Professionnelle 😊
           </p>
-
         </footer>
 
       </div>
-
     </main>
-
   );
-
 }
