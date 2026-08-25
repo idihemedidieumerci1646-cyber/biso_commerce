@@ -50,7 +50,7 @@ type LocalProduct = {
 ============================================================ */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 8;
+const DB_VERSION = 10;
 const STORE_NAME = "products";
 
 /* ============================================================

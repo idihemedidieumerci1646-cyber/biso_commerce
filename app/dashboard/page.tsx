@@ -757,6 +757,106 @@ export default function DashboardPage() {
       null
     );
 
+      /* =========================================================
+     CHARGER LES VENTES POUR LE DASHBOARD
+  ========================================================= */
+
+  const loadDashboardSales =
+    useCallback(async () => {
+      const userId =
+        userIdRef.current ||
+        localStorage.getItem("user_id");
+
+      if (!userId) {
+        return;
+      }
+
+      try {
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("sales")
+          .select(`
+            id,
+            user_id,
+            product_id,
+            product_name,
+            quantity,
+            purchase_price,
+            selling_price,
+            total_sale,
+            profit,
+            currency,
+            created_at
+          `)
+          .eq(
+            "user_id",
+            userId
+          )
+          .order(
+            "created_at",
+            {
+              ascending: false,
+            }
+          );
+
+        if (error) {
+          console.error(
+            "[BISO-COMMERCE] Erreur chargement ventes Dashboard :",
+            error
+          );
+
+          return;
+        }
+
+        setSales(
+          (data || []) as Sale[]
+        );
+
+      } catch (error) {
+        console.error(
+          "[BISO-COMMERCE] Erreur ventes Dashboard :",
+          error
+        );
+      }
+    }, []);
+
+    useEffect(() => {
+  void loadDashboardSales();
+
+  const handleSalesUpdated = () => {
+    void loadDashboardSales();
+  };
+
+  const handleOfflineSalesSynced = () => {
+    void loadDashboardSales();
+  };
+
+  window.addEventListener(
+    "biso-sales-updated",
+    handleSalesUpdated
+  );
+
+  window.addEventListener(
+    "biso-offline-sales-synced",
+    handleOfflineSalesSynced
+  );
+
+  return () => {
+    window.removeEventListener(
+      "biso-sales-updated",
+      handleSalesUpdated
+    );
+
+    window.removeEventListener(
+      "biso-offline-sales-synced",
+      handleOfflineSalesSynced
+    );
+  };
+}, [loadDashboardSales]);
+
+
   /* ============================================================
      HORLOGE
   ============================================================ */
@@ -2858,10 +2958,10 @@ export default function DashboardPage() {
                 )
               : "—"}
 
-            {!isOnline &&
-              " • hors connexion"}
-          </p>
-        </GlassCard>
+           {!isOnline &&
+  " • Hors connexion — Synchronisation automatique dès le retour de la connexion."}
+</p>
+</GlassCard>
 
         {/* ========================================================
             ABONNEMENT

@@ -50,27 +50,21 @@ type OfflineSale = {
   profit: number;
   currency: string;
   created_at: string;
-
   stock_before: number;
   stock_after: number;
-
   sale_synced: boolean;
   stock_synced: boolean;
   synced: boolean;
 };
 
-type ConnectionState =
-  | "online"
-  | "offline"
-  | "syncing";
+type ConnectionState = "online" | "offline" | "syncing";
 
 /* =========================================================
    INDEXED DB
 ========================================================= */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 8;
-
+const DB_VERSION = 10;
 const PRODUCTS_STORE = "products";
 const OFFLINE_SALES_STORE = "offline_sales";
 const DELETE_QUEUE_STORE = "delete_queue";
@@ -92,17 +86,12 @@ function openSalesDB(): Promise<IDBDatabase> {
 
     if (!("indexedDB" in window)) {
       reject(
-        new Error(
-          "IndexedDB n'est pas supporté par ce navigateur."
-        )
+        new Error("IndexedDB n'est pas supporté par ce navigateur.")
       );
       return;
     }
 
-    const request = indexedDB.open(
-      DB_NAME,
-      DB_VERSION
-    );
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -110,164 +99,70 @@ function openSalesDB(): Promise<IDBDatabase> {
 
       if (!transaction) return;
 
-      /* =====================================================
-         PRODUITS
-      ===================================================== */
-
       let productsStore: IDBObjectStore;
 
-      if (
-        !db.objectStoreNames.contains(
-          PRODUCTS_STORE
-        )
-      ) {
-        productsStore =
-          db.createObjectStore(
-            PRODUCTS_STORE,
-            {
-              keyPath: "id",
-            }
-          );
+      if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {
+        productsStore = db.createObjectStore(PRODUCTS_STORE, {
+          keyPath: "id",
+        });
       } else {
-        productsStore =
-          transaction.objectStore(
-            PRODUCTS_STORE
-          );
+        productsStore = transaction.objectStore(PRODUCTS_STORE);
       }
 
-      if (
-        !productsStore.indexNames.contains(
-          "user_id"
-        )
-      ) {
-        productsStore.createIndex(
-          "user_id",
-          "user_id",
-          {
-            unique: false,
-          }
-        );
+      if (!productsStore.indexNames.contains("user_id")) {
+        productsStore.createIndex("user_id", "user_id", {
+          unique: false,
+        });
       }
 
-      if (
-        !productsStore.indexNames.contains(
-          "created_at"
-        )
-      ) {
-        productsStore.createIndex(
-          "created_at",
-          "created_at",
-          {
-            unique: false,
-          }
-        );
+      if (!productsStore.indexNames.contains("created_at")) {
+        productsStore.createIndex("created_at", "created_at", {
+          unique: false,
+        });
       }
 
-      if (
-        !productsStore.indexNames.contains(
-          "synced"
-        )
-      ) {
-        productsStore.createIndex(
-          "synced",
-          "synced",
-          {
-            unique: false,
-          }
-        );
+      if (!productsStore.indexNames.contains("synced")) {
+        productsStore.createIndex("synced", "synced", {
+          unique: false,
+        });
       }
-
-      /* =====================================================
-         VENTES HORS CONNEXION
-      ===================================================== */
 
       let salesStore: IDBObjectStore;
 
-      if (
-        !db.objectStoreNames.contains(
-          OFFLINE_SALES_STORE
-        )
-      ) {
-        salesStore =
-          db.createObjectStore(
-            OFFLINE_SALES_STORE,
-            {
-              keyPath: "id",
-            }
-          );
+      if (!db.objectStoreNames.contains(OFFLINE_SALES_STORE)) {
+        salesStore = db.createObjectStore(OFFLINE_SALES_STORE, {
+          keyPath: "id",
+        });
       } else {
-        salesStore =
-          transaction.objectStore(
-            OFFLINE_SALES_STORE
-          );
+        salesStore = transaction.objectStore(OFFLINE_SALES_STORE);
       }
 
-      if (
-        !salesStore.indexNames.contains(
-          "user_id"
-        )
-      ) {
-        salesStore.createIndex(
-          "user_id",
-          "user_id",
-          {
-            unique: false,
-          }
-        );
+      if (!salesStore.indexNames.contains("user_id")) {
+        salesStore.createIndex("user_id", "user_id", {
+          unique: false,
+        });
       }
 
-      if (
-        !salesStore.indexNames.contains(
-          "synced"
-        )
-      ) {
-        salesStore.createIndex(
-          "synced",
-          "synced",
-          {
-            unique: false,
-          }
-        );
+      if (!salesStore.indexNames.contains("synced")) {
+        salesStore.createIndex("synced", "synced", {
+          unique: false,
+        });
       }
 
-      if (
-        !salesStore.indexNames.contains(
-          "created_at"
-        )
-      ) {
-        salesStore.createIndex(
-          "created_at",
-          "created_at",
-          {
-            unique: false,
-          }
-        );
+      if (!salesStore.indexNames.contains("created_at")) {
+        salesStore.createIndex("created_at", "created_at", {
+          unique: false,
+        });
       }
 
-      /* =====================================================
-         FILE DE SUPPRESSION
-      ===================================================== */
+      if (!db.objectStoreNames.contains(DELETE_QUEUE_STORE)) {
+        const deleteStore = db.createObjectStore(DELETE_QUEUE_STORE, {
+          keyPath: "id",
+        });
 
-      if (
-        !db.objectStoreNames.contains(
-          DELETE_QUEUE_STORE
-        )
-      ) {
-        const deleteStore =
-          db.createObjectStore(
-            DELETE_QUEUE_STORE,
-            {
-              keyPath: "id",
-            }
-          );
-
-        deleteStore.createIndex(
-          "userId",
-          "userId",
-          {
-            unique: false,
-          }
-        );
+        deleteStore.createIndex("userId", "userId", {
+          unique: false,
+        });
       }
     };
 
@@ -284,16 +179,12 @@ function openSalesDB(): Promise<IDBDatabase> {
     request.onerror = () => {
       reject(
         request.error ||
-          new Error(
-            "Impossible d'ouvrir IndexedDB."
-          )
+          new Error("Impossible d'ouvrir IndexedDB.")
       );
     };
 
     request.onblocked = () => {
-      console.warn(
-        "[BISO-COMMERCE] IndexedDB bloquée."
-      );
+      console.warn("[BISO-COMMERCE] IndexedDB bloquée.");
     };
   });
 }
@@ -313,27 +204,18 @@ async function getLocalProducts(
       "readonly"
     );
 
-    const store =
-      transaction.objectStore(
-        PRODUCTS_STORE
-      );
-
-    const request =
-      store.getAll();
+    const store = transaction.objectStore(PRODUCTS_STORE);
+    const request = store.getAll();
 
     request.onsuccess = () => {
       db.close();
 
-      const all =
-        (request.result || []) as Product[];
+      const all = (request.result || []) as Product[];
 
-      const products =
-        all.filter(
-          (product) =>
-            String(
-              product.user_id || ""
-            ) === String(userId)
-        );
+      const products = all.filter(
+        (product) =>
+          String(product.user_id || "") === String(userId)
+      );
 
       products.sort((a, b) =>
         (a.name || "").localeCompare(
@@ -398,12 +280,40 @@ async function saveLocalProduct(
 
       reject(
         transaction.error ||
-          new Error(
-            "Transaction locale interrompue."
-          )
+          new Error("Transaction locale interrompue.")
       );
     };
   });
+}
+
+async function ensureLocalStock(
+  productId: string,
+  stockAfter: number,
+  userId: string
+) {
+  try {
+    const locals = await getLocalProducts(userId);
+
+    const existing = locals.find(
+      (p) => p.id === productId
+    );
+
+    if (
+      existing &&
+      Number(existing.stock) !== Number(stockAfter)
+    ) {
+      await saveLocalProduct({
+        ...existing,
+        stock: stockAfter,
+        user_id: userId,
+      });
+    }
+  } catch (e) {
+    console.warn(
+      "[BISO-COMMERCE] ensureLocalStock",
+      e
+    );
+  }
 }
 
 /* =========================================================
@@ -417,52 +327,30 @@ async function saveOfflineSale(
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(
-      [
-        PRODUCTS_STORE,
-        OFFLINE_SALES_STORE,
-      ],
+      [PRODUCTS_STORE, OFFLINE_SALES_STORE],
       "readwrite"
     );
 
     const productsStore =
-      transaction.objectStore(
-        PRODUCTS_STORE
-      );
+      transaction.objectStore(PRODUCTS_STORE);
 
     const salesStore =
-      transaction.objectStore(
-        OFFLINE_SALES_STORE
-      );
+      transaction.objectStore(OFFLINE_SALES_STORE);
 
     salesStore.put(sale);
 
     const productRequest =
-      productsStore.get(
-        sale.product_id
-      );
+      productsStore.get(sale.product_id);
 
     productRequest.onsuccess = () => {
       const product =
-        productRequest.result as
-          | Product
-          | undefined;
+        productRequest.result as Product | undefined;
 
-      if (!product) {
-        transaction.abort();
-        return;
-      }
+      if (!product) return;
 
-      const currentStock =
-        Number(product.stock);
+      const currentStock = Number(product.stock);
 
-      /*
-       * La vente possède déjà stock_after.
-       * On ne diminue donc jamais deux fois.
-       */
-      if (
-        currentStock !==
-        sale.stock_after
-      ) {
+      if (currentStock !== sale.stock_after) {
         productsStore.put({
           ...product,
           stock: sale.stock_after,
@@ -470,9 +358,7 @@ async function saveOfflineSale(
       }
     };
 
-    productRequest.onerror = () => {
-      transaction.abort();
-    };
+    productRequest.onerror = () => {};
 
     transaction.oncomplete = () => {
       db.close();
@@ -519,107 +405,62 @@ async function getPendingOfflineSales(
     );
 
     const store =
-      transaction.objectStore(
-        OFFLINE_SALES_STORE
-      );
+      transaction.objectStore(OFFLINE_SALES_STORE);
 
-    const request =
-      store.getAll();
+    const request = store.getAll();
 
     request.onsuccess = () => {
       db.close();
 
-      const all =
-        (request.result || []) as OfflineSale[];
+      const all = (request.result || []) as OfflineSale[];
 
-      /*
-       * IMPORTANT :
-       *
-       * Une ancienne vente peut avoir :
-       *
-       * sale_synced = true
-       * stock_synced = true
-       * synced = false
-       *
-       * Elle est pourtant complètement terminée.
-       *
-       * On ne la considère donc plus comme pending.
-       */
+      const pending = all
+        .filter((sale) => {
+          if (
+            String(sale.user_id) !==
+            String(userId)
+          ) {
+            return false;
+          }
 
-      const pending =
-        all
-          .filter((sale) => {
-            if (
-              String(sale.user_id) !==
-              String(userId)
-            ) {
-              return false;
-            }
+          const completelySynced =
+            sale.synced === true ||
+            (sale.sale_synced === true &&
+              sale.stock_synced === true);
 
-            const completelySynced =
-              sale.synced === true ||
-              (
-                sale.sale_synced === true &&
-                sale.stock_synced === true
-              );
+          return !completelySynced;
+        })
+        .map((sale) => ({
+          ...sale,
+          stock_before: Number.isFinite(
+            Number(sale.stock_before)
+          )
+            ? Number(sale.stock_before)
+            : 0,
 
-            return !completelySynced;
-          })
-          .map((sale) => ({
-            ...sale,
+          stock_after: Number.isFinite(
+            Number(sale.stock_after)
+          )
+            ? Number(sale.stock_after)
+            : Math.max(
+                0,
+                Number(sale.stock_before || 0) -
+                  Number(sale.quantity || 0)
+              ),
 
-            stock_before:
-              Number.isFinite(
-                Number(
-                  sale.stock_before
-                )
-              )
-                ? Number(
-                    sale.stock_before
-                  )
-                : 0,
+          sale_synced:
+            sale.sale_synced === true,
 
-            stock_after:
-              Number.isFinite(
-                Number(
-                  sale.stock_after
-                )
-              )
-                ? Number(
-                    sale.stock_after
-                  )
-                : Math.max(
-                    0,
-                    Number(
-                      sale.stock_before ||
-                        0
-                    ) -
-                      Number(
-                        sale.quantity ||
-                          0
-                      )
-                  ),
+          stock_synced:
+            sale.stock_synced === true,
 
-            sale_synced:
-              sale.sale_synced ===
-              true,
-
-            stock_synced:
-              sale.stock_synced ===
-              true,
-
-            synced:
-              sale.synced === true,
-          }));
+          synced: sale.synced === true,
+        }));
 
       pending.sort(
         (a, b) =>
-          new Date(
-            a.created_at
-          ).getTime() -
-          new Date(
-            b.created_at
-          ).getTime()
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
       );
 
       resolve(pending);
@@ -639,8 +480,7 @@ async function getPendingOfflineSales(
 }
 
 /* =========================================================
-   LIRE TOUTES LES VENTES LOCALES
-   Utilisé pour nettoyer les anciennes ventes déjà terminées.
+   TOUTES LES VENTES LOCALES
 ========================================================= */
 
 async function getAllOfflineSales(
@@ -655,25 +495,19 @@ async function getAllOfflineSales(
     );
 
     const store =
-      transaction.objectStore(
-        OFFLINE_SALES_STORE
-      );
+      transaction.objectStore(OFFLINE_SALES_STORE);
 
-    const request =
-      store.getAll();
+    const request = store.getAll();
 
     request.onsuccess = () => {
       db.close();
 
-      const all =
-        (request.result || []) as OfflineSale[];
+      const all = (request.result || []) as OfflineSale[];
 
       resolve(
         all.filter(
           (sale) =>
-            String(
-              sale.user_id
-            ) === String(userId)
+            String(sale.user_id) === String(userId)
         )
       );
     };
@@ -692,7 +526,7 @@ async function getAllOfflineSales(
 }
 
 /* =========================================================
-   METTRE À JOUR UNE VENTE LOCALE
+   METTRE À JOUR VENTE LOCALE
 ========================================================= */
 
 async function updateOfflineSale(
@@ -707,9 +541,7 @@ async function updateOfflineSale(
     );
 
     transaction
-      .objectStore(
-        OFFLINE_SALES_STORE
-      )
+      .objectStore(OFFLINE_SALES_STORE)
       .put(sale);
 
     transaction.oncomplete = () => {
@@ -757,9 +589,7 @@ async function removeOfflineSale(
     );
 
     transaction
-      .objectStore(
-        OFFLINE_SALES_STORE
-      )
+      .objectStore(OFFLINE_SALES_STORE)
       .delete(saleId);
 
     transaction.oncomplete = () => {
@@ -783,49 +613,39 @@ async function removeOfflineSale(
 
       reject(
         transaction.error ||
-          new Error(
-            "Suppression locale interrompue."
-          )
+          new Error("Suppression locale interrompue.")
       );
     };
   });
 }
 
 /* =========================================================
-   NETTOYER LES ANCIENNES VENTES DÉJÀ SYNCHRONISÉES
+   NETTOYAGE DES VENTES SYNCHRONISÉES
 ========================================================= */
 
 async function cleanupCompletedOfflineSales(
   userId: string
 ): Promise<number> {
   try {
-    const all =
-      await getAllOfflineSales(
-        userId
-      );
+    const all = await getAllOfflineSales(userId);
 
     let removed = 0;
 
     for (const sale of all) {
       const alreadyComplete =
         sale.synced === true ||
-        (
-          sale.sale_synced === true &&
-          sale.stock_synced === true
-        );
+        (sale.sale_synced === true &&
+          sale.stock_synced === true);
 
       if (alreadyComplete) {
-        await removeOfflineSale(
-          sale.id
-        );
-
+        await removeOfflineSale(sale.id);
         removed++;
       }
     }
 
     if (removed > 0) {
       console.log(
-        `[BISO-COMMERCE] ${removed} ancienne(s) vente(s) synchronisée(s) supprimée(s) de la file locale.`
+        `[BISO-COMMERCE] ${removed} ancienne(s) vente(s) synchronisée(s) supprimée(s)`
       );
     }
 
@@ -855,25 +675,22 @@ async function syncOneOfflineSale(
   }
 
   try {
-    const stockBefore =
-      Number(sale.stock_before);
+    const stockBefore = Number(
+      sale.stock_before
+    );
 
-    const stockAfter =
-      Number(sale.stock_after);
+    const stockAfter = Number(
+      sale.stock_after
+    );
 
-    const quantity =
-      Number(sale.quantity);
+    const quantity = Number(
+      sale.quantity
+    );
 
     if (
-      !Number.isFinite(
-        stockBefore
-      ) ||
-      !Number.isFinite(
-        stockAfter
-      ) ||
-      !Number.isInteger(
-        quantity
-      ) ||
+      !Number.isFinite(stockBefore) ||
+      !Number.isFinite(stockAfter) ||
+      !Number.isInteger(quantity) ||
       quantity <= 0
     ) {
       console.error(
@@ -884,9 +701,9 @@ async function syncOneOfflineSale(
       return false;
     }
 
-    /* =====================================================
-       1. VÉRIFIER LA VENTE SERVEUR
-    ===================================================== */
+    /* -------------------------------------------------------
+       VÉRIFIER SI LA VENTE EXISTE DÉJÀ
+    ------------------------------------------------------- */
 
     const {
       data: existingSale,
@@ -895,10 +712,7 @@ async function syncOneOfflineSale(
       .from("sales")
       .select("id")
       .eq("id", sale.id)
-      .eq(
-        "user_id",
-        sale.user_id
-      )
+      .eq("user_id", sale.user_id)
       .maybeSingle();
 
     if (existingSaleError) {
@@ -910,36 +724,24 @@ async function syncOneOfflineSale(
       return false;
     }
 
-    /* =====================================================
-       2. CRÉER LA VENTE SI ELLE N'EXISTE PAS
-    ===================================================== */
+    /* -------------------------------------------------------
+       CRÉER LA VENTE SI ELLE N'EXISTE PAS
+    ------------------------------------------------------- */
 
     if (!existingSale) {
-      const {
-        error: saleError,
-      } = await supabase
-        .from("sales")
-        .insert({
+      const { error: saleError } =
+        await supabase.from("sales").insert({
           id: sale.id,
           user_id: sale.user_id,
-          product_id:
-            sale.product_id,
-          product_name:
-            sale.product_name,
-          quantity:
-            sale.quantity,
-          purchase_price:
-            sale.purchase_price,
-          selling_price:
-            sale.selling_price,
-          total_sale:
-            sale.total_sale,
-          profit:
-            sale.profit,
-          currency:
-            sale.currency,
-          created_at:
-            sale.created_at,
+          product_id: sale.product_id,
+          product_name: sale.product_name,
+          quantity: sale.quantity,
+          purchase_price: sale.purchase_price,
+          selling_price: sale.selling_price,
+          total_sale: sale.total_sale,
+          profit: sale.profit,
+          currency: sale.currency,
+          created_at: sale.created_at,
         });
 
       if (saleError) {
@@ -948,21 +750,9 @@ async function syncOneOfflineSale(
           saleError
         );
 
-        /*
-         * IMPORTANT :
-         * On garde la vente locale.
-         *
-         * Au prochain essai, le système vérifiera
-         * d'abord si Supabase l'a finalement reçue.
-         */
-
         return false;
       }
     }
-
-    /*
-     * À partir d'ici, la vente existe côté serveur.
-     */
 
     sale.sale_synced = true;
 
@@ -971,26 +761,18 @@ async function syncOneOfflineSale(
       sale_synced: true,
     });
 
-    /* =====================================================
-       3. LIRE LE STOCK SERVEUR
-    ===================================================== */
+    /* -------------------------------------------------------
+       RÉCUPÉRER LE STOCK SERVEUR
+    ------------------------------------------------------- */
 
     const {
       data: serverProduct,
       error: productError,
     } = await supabase
       .from("products")
-      .select(
-        "id, stock"
-      )
-      .eq(
-        "id",
-        sale.product_id
-      )
-      .eq(
-        "user_id",
-        sale.user_id
-      )
+      .select("id, stock")
+      .eq("id", sale.product_id)
+      .eq("user_id", sale.user_id)
       .maybeSingle();
 
     if (productError) {
@@ -1011,19 +793,13 @@ async function syncOneOfflineSale(
       return false;
     }
 
-    const serverStock =
-      Number(
-        serverProduct.stock
-      );
+    const serverStock = Number(
+      serverProduct.stock
+    );
 
-    /* =====================================================
-       4. CAS LE PLUS IMPORTANT
-       
-       Vente déjà dans Supabase
-       ET stock déjà synchronisé.
-       
-       On supprime immédiatement la copie locale.
-    ===================================================== */
+    /* -------------------------------------------------------
+       VENTE ET STOCK DÉJÀ SYNCHRONISÉS
+    ------------------------------------------------------- */
 
     if (
       existingSale &&
@@ -1034,24 +810,20 @@ async function syncOneOfflineSale(
         sale.id
       );
 
-      sale.sale_synced = true;
-      sale.stock_synced = true;
-      sale.synced = true;
+      await ensureLocalStock(
+        sale.product_id,
+        stockAfter,
+        sale.user_id
+      );
 
-      await removeOfflineSale(
-        sale.id
+      await removeOfflineSale(sale.id);
+
+      window.dispatchEvent(
+        new CustomEvent("biso-products-updated")
       );
 
       window.dispatchEvent(
-        new CustomEvent(
-          "biso-products-updated"
-        )
-      );
-
-      window.dispatchEvent(
-        new CustomEvent(
-          "biso-sales-updated"
-        )
+        new CustomEvent("biso-sales-updated")
       );
 
       window.dispatchEvent(
@@ -1069,56 +841,34 @@ async function syncOneOfflineSale(
       return true;
     }
 
-    /* =====================================================
-       5. STOCK DÉJÀ SYNCHRONISÉ
-    ===================================================== */
+    /* -------------------------------------------------------
+       STOCK DÉJÀ AU BON NIVEAU
+    ------------------------------------------------------- */
 
-    if (
-      serverStock ===
-      stockAfter
-    ) {
-      sale.stock_synced =
-        true;
+    if (serverStock === stockAfter) {
+      sale.stock_synced = true;
     }
 
-    /* =====================================================
-       6. STOCK PAS ENCORE SYNCHRONISÉ
-    ===================================================== */
+    /* -------------------------------------------------------
+       STOCK SERVEUR = STOCK AVANT
+       DONC ON PEUT APPLIQUER LA VENTE
+    ------------------------------------------------------- */
 
-    else if (
-      serverStock ===
-      stockBefore
-    ) {
+    else if (serverStock === stockBefore) {
       const {
-        data:
-          updatedProducts,
-        error:
-          stockUpdateError,
+        data: updatedProducts,
+        error: stockUpdateError,
       } = await supabase
         .from("products")
         .update({
-          stock:
-            stockAfter,
+          stock: stockAfter,
         })
-        .eq(
-          "id",
-          sale.product_id
-        )
-        .eq(
-          "user_id",
-          sale.user_id
-        )
-        .eq(
-          "stock",
-          stockBefore
-        )
-        .select(
-          "id, stock"
-        );
+        .eq("id", sale.product_id)
+        .eq("user_id", sale.user_id)
+        .eq("stock", stockBefore)
+        .select("id, stock");
 
-      if (
-        stockUpdateError
-      ) {
+      if (stockUpdateError) {
         console.error(
           "[BISO-COMMERCE] Mise à jour stock :",
           stockUpdateError
@@ -1127,35 +877,22 @@ async function syncOneOfflineSale(
         return false;
       }
 
-      /*
-       * Aucun résultat.
-       *
-       * Cela signifie probablement qu'un autre appareil
-       * a déjà modifié le stock.
-       */
+      /* -----------------------------------------------------
+         CONFLIT / AUCUNE LIGNE MODIFIÉE
+      ----------------------------------------------------- */
+
       if (
         !updatedProducts ||
-        updatedProducts.length ===
-          0
+        updatedProducts.length === 0
       ) {
         const {
-          data:
-            retryProduct,
-          error:
-            retryError,
+          data: retryProduct,
+          error: retryError,
         } = await supabase
           .from("products")
-          .select(
-            "id, stock"
-          )
-          .eq(
-            "id",
-            sale.product_id
-          )
-          .eq(
-            "user_id",
-            sale.user_id
-          )
+          .select("id, stock")
+          .eq("id", sale.product_id)
+          .eq("user_id", sale.user_id)
           .maybeSingle();
 
         if (
@@ -1171,68 +908,55 @@ async function syncOneOfflineSale(
         }
 
         if (
-          Number(
-            retryProduct.stock
-          ) === stockAfter
+          Number(retryProduct.stock) ===
+          stockAfter
         ) {
-          sale.stock_synced =
-            true;
+          sale.stock_synced = true;
         } else {
           console.warn(
             "[BISO-COMMERCE] Conflit de stock :",
             {
-              produit:
-                sale.product_name,
-              stockAvant:
-                stockBefore,
-              stockAprès:
-                stockAfter,
-              stockServeur:
-                retryProduct.stock,
+              produit: sale.product_name,
+              stockAvant: stockBefore,
+              stockAprès: stockAfter,
+              stockServeur: retryProduct.stock,
             }
           );
 
           return false;
         }
       } else {
-        const returnedStock =
-          Number(
-            updatedProducts[0]
-              .stock
-          );
+        const returnedStock = Number(
+          updatedProducts[0].stock
+        );
 
         if (
-          returnedStock !==
-          stockAfter
+          returnedStock !== stockAfter
         ) {
           console.error(
             "[BISO-COMMERCE] Stock incorrect après mise à jour :",
             {
-              attendu:
-                stockAfter,
-              serveur:
-                returnedStock,
+              attendu: stockAfter,
+              serveur: returnedStock,
             }
           );
 
           return false;
         }
 
-        sale.stock_synced =
-          true;
+        sale.stock_synced = true;
       }
     }
 
-    /* =====================================================
-       7. STOCK INATTENDU
-    ===================================================== */
+    /* -------------------------------------------------------
+       STOCK SERVEUR INATTENDU
+    ------------------------------------------------------- */
 
     else {
       console.warn(
         "[BISO-COMMERCE] Stock serveur différent de l'état attendu.",
         {
-          produit:
-            sale.product_name,
+          produit: sale.product_name,
           stockBefore,
           stockAfter,
           serverStock,
@@ -1242,37 +966,24 @@ async function syncOneOfflineSale(
       return false;
     }
 
-    /* =====================================================
-       8. VÉRIFICATION FINALE
-    ===================================================== */
+    /* -------------------------------------------------------
+       TOUT EST SYNCHRONISÉ
+    ------------------------------------------------------- */
 
     if (
-      sale.sale_synced ===
-        true &&
-      sale.stock_synced ===
-        true
+      sale.sale_synced === true &&
+      sale.stock_synced === true
     ) {
       sale.synced = true;
 
-      /*
-       * Vérifier une dernière fois la vente.
-       */
-
       const {
         data: finalSale,
-        error:
-          finalSaleError,
+        error: finalSaleError,
       } = await supabase
         .from("sales")
         .select("id")
-        .eq(
-          "id",
-          sale.id
-        )
-        .eq(
-          "user_id",
-          sale.user_id
-        )
+        .eq("id", sale.id)
+        .eq("user_id", sale.user_id)
         .maybeSingle();
 
       if (
@@ -1287,34 +998,21 @@ async function syncOneOfflineSale(
         return false;
       }
 
-      /*
-       * Vérifier le stock final.
-       */
-
       const {
-        data:
-          finalProduct,
-        error:
-          finalProductError,
+        data: finalProduct,
+        error: finalProductError,
       } = await supabase
         .from("products")
         .select("stock")
-        .eq(
-          "id",
-          sale.product_id
-        )
-        .eq(
-          "user_id",
-          sale.user_id
-        )
+        .eq("id", sale.product_id)
+        .eq("user_id", sale.user_id)
         .maybeSingle();
 
       if (
         finalProductError ||
         !finalProduct ||
-        Number(
-          finalProduct.stock
-        ) !== stockAfter
+        Number(finalProduct.stock) !==
+          stockAfter
       ) {
         console.error(
           "[BISO-COMMERCE] Vérification finale stock échouée :",
@@ -1324,29 +1022,22 @@ async function syncOneOfflineSale(
         return false;
       }
 
-      /*
-       * ===================================================
-       * VENTE COMPLÈTEMENT TERMINÉE
-       *
-       * On supprime la copie locale.
-       * Elle ne sera donc plus comptée comme pending.
-       * ===================================================
-       */
+      await ensureLocalStock(
+        sale.product_id,
+        stockAfter,
+        sale.user_id
+      );
 
       await removeOfflineSale(
         sale.id
       );
 
       window.dispatchEvent(
-        new CustomEvent(
-          "biso-products-updated"
-        )
+        new CustomEvent("biso-products-updated")
       );
 
       window.dispatchEvent(
-        new CustomEvent(
-          "biso-sales-updated"
-        )
+        new CustomEvent("biso-sales-updated")
       );
 
       window.dispatchEvent(
@@ -1354,8 +1045,7 @@ async function syncOneOfflineSale(
           "biso-offline-sales-synced",
           {
             detail: {
-              saleId:
-                sale.id,
+              saleId: sale.id,
               remaining: 0,
             },
           }
@@ -1365,23 +1055,19 @@ async function syncOneOfflineSale(
       return true;
     }
 
-    /*
-     * La vente existe mais le stock n'est pas encore terminé.
-     */
+    /* -------------------------------------------------------
+       ENCORE PARTIELLEMENT SYNCHRONISÉE
+    ------------------------------------------------------- */
 
     await updateOfflineSale({
       ...sale,
       sale_synced:
-        sale.sale_synced ===
-        true,
+        sale.sale_synced === true,
       stock_synced:
-        sale.stock_synced ===
-        true,
+        sale.stock_synced === true,
       synced:
-        sale.sale_synced ===
-          true &&
-        sale.stock_synced ===
-          true,
+        sale.sale_synced === true &&
+        sale.stock_synced === true,
     });
 
     return false;
@@ -1411,25 +1097,14 @@ async function syncOfflineSales(
   }
 
   try {
-    /*
-     * Première étape :
-     * nettoyer les anciennes ventes déjà complètement
-     * synchronisées mais qui seraient encore dans IndexedDB.
-     */
-
     await cleanupCompletedOfflineSales(
       userId
     );
 
     const pendingSales =
-      await getPendingOfflineSales(
-        userId
-      );
+      await getPendingOfflineSales(userId);
 
-    if (
-      pendingSales.length ===
-      0
-    ) {
+    if (pendingSales.length === 0) {
       window.dispatchEvent(
         new CustomEvent(
           "biso-offline-sales-synced",
@@ -1444,62 +1119,38 @@ async function syncOfflineSales(
       return true;
     }
 
-    let allSynced =
-      true;
+    let allSynced = true;
 
-    for (
-      const sale of pendingSales
-    ) {
-      if (
-        !navigator.onLine
-      ) {
-        allSynced =
-          false;
+    for (const sale of pendingSales) {
+      if (!navigator.onLine) {
+        allSynced = false;
         break;
       }
 
       const success =
-        await syncOneOfflineSale(
-          sale
-        );
+        await syncOneOfflineSale(sale);
 
       if (!success) {
-        allSynced =
-          false;
+        allSynced = false;
       }
     }
-
-    /*
-     * Nettoyage supplémentaire.
-     */
 
     await cleanupCompletedOfflineSales(
       userId
     );
 
-    /*
-     * Relecture réelle de la file.
-     */
-
     const remainingSales =
-      await getPendingOfflineSales(
-        userId
-      );
+      await getPendingOfflineSales(userId);
 
     const completelySynced =
-      remainingSales.length ===
-      0;
+      remainingSales.length === 0;
 
     window.dispatchEvent(
-      new CustomEvent(
-        "biso-products-updated"
-      )
+      new CustomEvent("biso-products-updated")
     );
 
     window.dispatchEvent(
-      new CustomEvent(
-        "biso-sales-updated"
-      )
+      new CustomEvent("biso-sales-updated")
     );
 
     window.dispatchEvent(
@@ -1541,131 +1192,97 @@ async function fetchProductsOnline(
   } = await supabase
     .from("products")
     .select("*")
-    .eq(
-      "user_id",
-      userId
-    )
+    .eq("user_id", userId)
     .order("name");
 
   if (error) {
     throw error;
   }
 
-  return (
-    (data || []) as Product[]
-  ).map(
+  return ((data || []) as Product[]).map(
     (product) => ({
       ...product,
 
-      id: String(
-        product.id
-      ),
+      id: String(product.id),
 
-      user_id:
-        product.user_id
-          ? String(
-              product.user_id
-            )
-          : userId,
+      user_id: product.user_id
+        ? String(product.user_id)
+        : userId,
 
       name:
         product.name ||
         "Produit sans nom",
 
       stock:
-        Number(
-          product.stock
-        ) || 0,
+        Number(product.stock) || 0,
 
       initial_stock:
-        Number(
-          product.initial_stock
-        ) || 0,
+        Number(product.initial_stock) || 0,
 
       purchase_price:
-        Number(
-          product.purchase_price
-        ) || 0,
+        Number(product.purchase_price) || 0,
 
       selling_price:
-        Number(
-          product.selling_price
-        ) || 0,
+        Number(product.selling_price) || 0,
 
       currency:
-        String(
-          product.currency ||
-            ""
-        ),
+        String(product.currency || ""),
 
       pieces_per_unit:
-        Number(
-          product.pieces_per_unit
-        ) || 1,
+        Number(product.pieces_per_unit) || 1,
     })
   );
 }
 
 /* =========================================================
-   METTRE PRODUITS EN CACHE
+   CACHE PRODUITS
 ========================================================= */
 
 async function cacheProducts(
   products: Product[]
 ): Promise<void> {
-  const db =
-    await openSalesDB();
+  const db = await openSalesDB();
 
-  return new Promise(
-    (resolve, reject) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readwrite"
+    );
 
-      const store =
-        transaction.objectStore(
-          PRODUCTS_STORE
-        );
+    const store =
+      transaction.objectStore(PRODUCTS_STORE);
 
-      for (
-        const product of products
-      ) {
-        store.put(product);
-      }
-
-      transaction.oncomplete =
-        () => {
-          db.close();
-          resolve();
-        };
-
-      transaction.onerror =
-        () => {
-          db.close();
-
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible de mettre les produits en cache."
-              )
-          );
-        };
-
-      transaction.onabort =
-        () => {
-          db.close();
-
-          reject(
-            transaction.error ||
-              new Error(
-                "Mise en cache interrompue."
-              )
-          );
-        };
+    for (const product of products) {
+      store.put(product);
     }
-  );
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de mettre les produits en cache."
+          )
+      );
+    };
+
+    transaction.onabort = () => {
+      db.close();
+
+      reject(
+        transaction.error ||
+          new Error(
+            "Mise en cache interrompue."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
@@ -1673,194 +1290,135 @@ async function cacheProducts(
 ========================================================= */
 
 export default function SalesPage() {
-  const [
-    products,
-    setProducts,
-  ] = useState<Product[]>(
-    []
-  );
+  const [products, setProducts] =
+    useState<Product[]>([]);
 
-  const [
-    productId,
-    setProductId,
-  ] = useState("");
+  const [productId, setProductId] =
+    useState("");
 
-  const [
-    searchTerm,
-    setSearchTerm,
-  ] = useState("");
+  const [searchTerm, setSearchTerm] =
+    useState("");
 
-  const [
-    quantity,
-    setQuantity,
-  ] = useState("");
+  const [quantity, setQuantity] =
+    useState("");
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(false);
+  const [loading, setLoading] =
+    useState(false);
 
-  const [
-    showGuide,
-    setShowGuide,
-  ] = useState(false);
+  const [showGuide, setShowGuide] =
+    useState(false);
 
-  const [
-    showSuccess,
-    setShowSuccess,
-  ] = useState(false);
+  const [showSuccess, setShowSuccess] =
+    useState(false);
 
-  const [
-    successOffline,
-    setSuccessOffline,
-  ] = useState(false);
+  const [successOffline, setSuccessOffline] =
+    useState(false);
 
-  const [
-    isOnline,
-    setIsOnline,
-  ] = useState(true);
+  const [isOnline, setIsOnline] =
+    useState(true);
 
-  const [
-    connectionState,
-    setConnectionState,
-  ] =
-    useState<ConnectionState>(
-      "online"
-    );
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>("online");
 
-  const [
-    pendingSalesCount,
-    setPendingSalesCount,
-  ] = useState(0);
+  const [pendingSalesCount, setPendingSalesCount] =
+    useState(0);
 
   const quantityInputRef =
-    useRef<HTMLInputElement>(
-      null
-    );
+    useRef<HTMLInputElement>(null);
 
   const summaryRef =
-    useRef<HTMLDivElement>(
-      null
-    );
+    useRef<HTMLDivElement>(null);
 
-  /* =========================================================
+  /* =======================================================
      USER ID
-  ========================================================= */
+  ======================================================= */
 
-  const getUserId =
-    useCallback(() => {
-      if (
-        typeof window ===
-        "undefined"
-      ) {
-        return null;
-      }
+  const getUserId = useCallback(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
 
-      return localStorage.getItem(
-        "user_id"
-      );
-    }, []);
+    return localStorage.getItem(
+      "user_id"
+    );
+  }, []);
 
-  /* =========================================================
-     COMPTEUR
-  ========================================================= */
+  /* =======================================================
+     COMPTEUR VENTES EN ATTENTE
+  ======================================================= */
 
   const refreshPendingSalesCount =
-    useCallback(
-      async () => {
-        const userId =
-          getUserId();
+    useCallback(async () => {
+      const userId = getUserId();
 
-        if (!userId) {
-          setPendingSalesCount(
-            0
-          );
-          return;
-        }
+      if (!userId) {
+        setPendingSalesCount(0);
+        return;
+      }
 
-        try {
-          /*
-           * Nettoyage des anciennes ventes terminées.
-           */
-          await cleanupCompletedOfflineSales(
+      try {
+        await cleanupCompletedOfflineSales(
+          userId
+        );
+
+        const pending =
+          await getPendingOfflineSales(
             userId
           );
 
-          const pending =
-            await getPendingOfflineSales(
-              userId
-            );
+        setPendingSalesCount(
+          pending.length
+        );
+      } catch (error) {
+        console.error(
+          "[BISO-COMMERCE] Compteur :",
+          error
+        );
 
-          setPendingSalesCount(
-            pending.length
-          );
-        } catch (error) {
-          console.error(
-            "[BISO-COMMERCE] Compteur :",
-            error
-          );
+        setPendingSalesCount(0);
+      }
+    }, [getUserId]);
 
-          setPendingSalesCount(
-            0
-          );
-        }
-      },
-      [getUserId]
-    );
-
-  /* =========================================================
-     CHARGEMENT
-  ========================================================= */
+  /* =======================================================
+     CHARGER PRODUITS
+  ======================================================= */
 
   const loadProducts =
     useCallback(
-      async (
-        silent = false
-      ) => {
+      async (silent = false) => {
         try {
           const userId =
             getUserId();
 
           if (!userId) {
             setProducts([]);
-            setPendingSalesCount(
-              0
-            );
+            setPendingSalesCount(0);
             return;
           }
 
-          /*
-           * CACHE IMMÉDIAT
-           */
+          /* -----------------------------------------------
+             1. CACHE IMMÉDIAT
+          ------------------------------------------------ */
 
           const cached =
             await getLocalProducts(
               userId
             );
 
-          setProducts(
-            cached
-          );
-
-          /*
-           * COMPTEUR IMMÉDIAT
-           */
+          setProducts(cached);
 
           await refreshPendingSalesCount();
 
-          /*
-           * HORS CONNEXION
-           */
+          /* -----------------------------------------------
+             MODE OFFLINE
+          ------------------------------------------------ */
 
           if (
             typeof navigator !==
               "undefined" &&
             !navigator.onLine
           ) {
-            setIsOnline(
-              false
-            );
-
+            setIsOnline(false);
             setConnectionState(
               "offline"
             );
@@ -1868,30 +1426,30 @@ export default function SalesPage() {
             return;
           }
 
-          /*
-           * SYNCHRONISATION
-           */
-
           if (!silent) {
             setConnectionState(
               "syncing"
             );
           }
 
+          /* -----------------------------------------------
+             2. SYNCHRONISER D'ABORD
+          ------------------------------------------------ */
+
           await syncOfflineSales(
             userId
           );
 
-          /*
-           * IMPORTANT :
-           * relecture après synchronisation.
-           */
+          const pendingAfterSync =
+            await getPendingOfflineSales(
+              userId
+            );
 
           await refreshPendingSalesCount();
 
-          /*
-           * PRODUITS SERVEUR
-           */
+          /* -----------------------------------------------
+             3. RÉCUPÉRER SERVEUR
+          ------------------------------------------------ */
 
           if (
             typeof navigator !==
@@ -1903,27 +1461,74 @@ export default function SalesPage() {
                 userId
               );
 
-            /*
-             * Il ne faut pas écraser un stock local
-             * plus récent avec une ancienne valeur serveur
-             * pendant qu'une vente est encore pending.
-             *
-             * La synchronisation est déjà passée avant cette
-             * récupération.
-             */
+            let finalProducts: Product[];
+
+            /* ---------------------------------------------
+               NE PAS ÉCRASER LE STOCK LOCAL
+               S'IL RESTE DES VENTES EN ATTENTE
+            ---------------------------------------------- */
+
+            if (
+              pendingAfterSync.length >
+              0
+            ) {
+              const localAfterSync =
+                await getLocalProducts(
+                  userId
+                );
+
+              const localMap =
+                new Map(
+                  localAfterSync.map(
+                    (p) => [
+                      p.id,
+                      p,
+                    ]
+                  )
+                );
+
+              finalProducts =
+                onlineProducts.map(
+                  (op) => {
+                    const hasPending =
+                      pendingAfterSync.some(
+                        (s) =>
+                          s.product_id ===
+                          op.id
+                      );
+
+                    if (hasPending) {
+                      const local =
+                        localMap.get(
+                          op.id
+                        );
+
+                      if (local) {
+                        return {
+                          ...op,
+                          stock:
+                            local.stock,
+                        };
+                      }
+                    }
+
+                    return op;
+                  }
+                );
+            } else {
+              finalProducts =
+                onlineProducts;
+            }
 
             await cacheProducts(
-              onlineProducts
+              finalProducts
             );
 
             setProducts(
-              onlineProducts
+              finalProducts
             );
 
-            setIsOnline(
-              true
-            );
-
+            setIsOnline(true);
             setConnectionState(
               "online"
             );
@@ -1933,10 +1538,6 @@ export default function SalesPage() {
             "[BISO-COMMERCE] Chargement produits :",
             error
           );
-
-          /*
-           * Ne jamais vider l'écran.
-           */
 
           try {
             const userId =
@@ -1948,9 +1549,7 @@ export default function SalesPage() {
                   userId
                 );
 
-              setProducts(
-                cached
-              );
+              setProducts(cached);
             }
           } catch (cacheError) {
             console.error(
@@ -1961,7 +1560,7 @@ export default function SalesPage() {
 
           setConnectionState(
             typeof navigator !==
-              "undefined" &&
+                "undefined" &&
               navigator.onLine
               ? "online"
               : "offline"
@@ -1976,17 +1575,15 @@ export default function SalesPage() {
       ]
     );
 
-  /* =========================================================
-     INITIALISATION
-  ========================================================= */
+  /* =======================================================
+     PREMIER CHARGEMENT
+  ======================================================= */
 
   useEffect(() => {
     const online =
       navigator.onLine;
 
-    setIsOnline(
-      online
-    );
+    setIsOnline(online);
 
     setConnectionState(
       online
@@ -1995,45 +1592,24 @@ export default function SalesPage() {
     );
 
     void loadProducts();
-  }, [
-    loadProducts,
-  ]);
+  }, [loadProducts]);
 
-  /* =========================================================
-     INTERNET
-  ========================================================= */
+  /* =======================================================
+     ONLINE / OFFLINE
+  ======================================================= */
 
   useEffect(() => {
     const handleOnline =
       async () => {
-        setIsOnline(
-          true
-        );
+        setIsOnline(true);
 
         setConnectionState(
           "syncing"
         );
 
-        const userId =
-          getUserId();
+        await loadProducts(false);
 
-        if (userId) {
-          await syncOfflineSales(
-            userId
-          );
-
-          await refreshPendingSalesCount();
-        }
-
-        await loadProducts(
-          true
-        );
-
-        await refreshPendingSalesCount();
-
-        setIsOnline(
-          true
-        );
+        setIsOnline(true);
 
         setConnectionState(
           "online"
@@ -2042,9 +1618,7 @@ export default function SalesPage() {
 
     const handleOffline =
       () => {
-        setIsOnline(
-          false
-        );
+        setIsOnline(false);
 
         setConnectionState(
           "offline"
@@ -2072,15 +1646,11 @@ export default function SalesPage() {
         handleOffline
       );
     };
-  }, [
-    getUserId,
-    loadProducts,
-    refreshPendingSalesCount,
-  ]);
+  }, [loadProducts]);
 
-  /* =========================================================
-     ÉVÉNEMENT SYNCHRONISATION
-  ========================================================= */
+  /* =======================================================
+     APRÈS SYNCHRONISATION
+  ======================================================= */
 
   useEffect(() => {
     const handleOfflineSalesSynced =
@@ -2090,17 +1660,25 @@ export default function SalesPage() {
         const userId =
           getUserId();
 
-        if (!userId) return;
+        if (!userId) {
+          return;
+        }
 
         try {
-          const cached =
-            await getLocalProducts(
-              userId
+          if (
+            navigator.onLine
+          ) {
+            await loadProducts(
+              true
             );
+          } else {
+            const cached =
+              await getLocalProducts(
+                userId
+              );
 
-          setProducts(
-            cached
-          );
+            setProducts(cached);
+          }
         } catch (error) {
           console.error(
             "[BISO-COMMERCE] Actualisation après sync :",
@@ -2123,11 +1701,12 @@ export default function SalesPage() {
   }, [
     getUserId,
     refreshPendingSalesCount,
+    loadProducts,
   ]);
 
-  /* =========================================================
-     ÉVÉNEMENTS BISO
-  ========================================================= */
+  /* =======================================================
+     PRODUITS MIS À JOUR
+  ======================================================= */
 
   useEffect(() => {
     const handleUpdated =
@@ -2135,7 +1714,9 @@ export default function SalesPage() {
         const userId =
           getUserId();
 
-        if (!userId) return;
+        if (!userId) {
+          return;
+        }
 
         try {
           const cached =
@@ -2143,9 +1724,7 @@ export default function SalesPage() {
               userId
             );
 
-          setProducts(
-            cached
-          );
+          setProducts(cached);
 
           await refreshPendingSalesCount();
         } catch (error) {
@@ -2182,40 +1761,32 @@ export default function SalesPage() {
     refreshPendingSalesCount,
   ]);
 
-  /* =========================================================
+  /* =======================================================
      PRODUIT SÉLECTIONNÉ
-  ========================================================= */
+  ======================================================= */
 
   const selectedProduct =
     products.find(
       (p) =>
-        p.id ===
-        productId
+        p.id === productId
     );
-
-  /* =========================================================
-     RECHERCHE
-  ========================================================= */
 
   const filteredProducts =
-    products.filter(
-      (p) =>
-        p.name
-          .toLowerCase()
-          .includes(
-            searchTerm.toLowerCase()
-          )
+    products.filter((p) =>
+      p.name
+        .toLowerCase()
+        .includes(
+          searchTerm.toLowerCase()
+        )
     );
 
-  /* =========================================================
+  /* =======================================================
      QUANTITÉ
-  ========================================================= */
+  ======================================================= */
 
   const increaseQty = () => {
     const current =
-      Number(
-        quantity || 0
-      );
+      Number(quantity || 0);
 
     const next =
       current + 1;
@@ -2245,24 +1816,18 @@ export default function SalesPage() {
 
   const decreaseQty = () => {
     const value =
-      Number(
-        quantity || 0
-      );
+      Number(quantity || 0);
 
-    if (
-      value > 1
-    ) {
+    if (value > 1) {
       setQuantity(
-        String(
-          value - 1
-        )
+        String(value - 1)
       );
     }
   };
 
-  /* =========================================================
+  /* =======================================================
      CALCULS
-  ========================================================= */
+  ======================================================= */
 
   const totalPreview =
     selectedProduct
@@ -2299,9 +1864,9 @@ export default function SalesPage() {
         )
       : 0;
 
-  /* =========================================================
-     FOCUS
-  ========================================================= */
+  /* =======================================================
+     FOCUS QUANTITÉ
+  ======================================================= */
 
   const handleQuantityFocus =
     () => {
@@ -2317,16 +1882,14 @@ export default function SalesPage() {
       }, 300);
     };
 
-  /* =========================================================
-     RÉSUMÉ
-  ========================================================= */
+  /* =======================================================
+     SCROLL RÉSUMÉ
+  ======================================================= */
 
   useEffect(() => {
     if (
       selectedProduct &&
-      Number(
-        quantity
-      ) > 0
+      Number(quantity) > 0
     ) {
       setTimeout(() => {
         summaryRef.current?.scrollIntoView(
@@ -2344,398 +1907,456 @@ export default function SalesPage() {
     quantity,
   ]);
 
-  /* =========================================================
+  /* =======================================================
      ENREGISTRER VENTE
-  ========================================================= */
+  ======================================================= */
 
-  const saveSale =
-    async () => {
-      if (
-        !selectedProduct ||
-        !quantity
-      ) {
-        alert(
-          "Sélectionnez un produit et une quantité avant de continuer."
-        );
-
-        return;
-      }
-
-      const qty =
-        Number(
-          quantity
-        );
-
-      if (
-        !Number.isInteger(
-          qty
-        ) ||
-        qty <= 0
-      ) {
-        alert(
-          "La quantité doit être un nombre entier supérieur à zéro."
-        );
-
-        return;
-      }
-
-      const currentStock =
-        Number(
-          selectedProduct.stock
-        );
-
-      if (
-        qty >
-        currentStock
-      ) {
-        alert(
-          `Stock insuffisant !\nDisponible : ${currentStock}`
-        );
-
-        return;
-      }
-
-      const userId =
-        getUserId();
-
-      if (!userId) {
-        alert(
-          "Utilisateur non connecté."
-        );
-
-        return;
-      }
-
-      if (loading)
-        return;
-
-      setLoading(
-        true
+  const saveSale = async () => {
+    if (
+      !selectedProduct ||
+      !quantity
+    ) {
+      alert(
+        "Sélectionnez un produit et une quantité avant de continuer."
       );
 
-      try {
-        const prixVente =
-          Number(
-            selectedProduct.selling_price
-          );
+      return;
+    }
 
-        const prixAchat =
-          Number(
-            selectedProduct.purchase_price
-          );
+    const qty =
+      Number(quantity);
 
-        const totalSale =
-          prixVente *
-          qty;
+    if (
+      !Number.isInteger(qty) ||
+      qty <= 0
+    ) {
+      alert(
+        "La quantité doit être un nombre entier supérieur à zéro."
+      );
 
-        const profit =
-          (
-            prixVente -
-            prixAchat
-          ) *
-          qty;
+      return;
+    }
 
-        const stockBefore =
-          currentStock;
+    const currentStock =
+      Number(
+        selectedProduct.stock
+      );
 
-        const stockAfter =
-          Math.max(
-            0,
-            stockBefore -
-              qty
-          );
+    if (
+      qty >
+      currentStock
+    ) {
+      alert(
+        `Stock insuffisant!\nDisponible : ${currentStock}`
+      );
 
-        const saleId =
-          typeof crypto !==
-            "undefined" &&
-          typeof crypto.randomUUID ===
-            "function"
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random()
-                .toString(
-                  36
-                )
-                .slice(
-                  2
-                )}`;
+      return;
+    }
 
-        const createdAt =
-          new Date().toISOString();
+    const userId =
+      getUserId();
 
-        const saleData: OfflineSale =
+    if (!userId) {
+      alert(
+        "Utilisateur non connecté."
+      );
+
+      return;
+    }
+
+    if (loading) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const prixVente =
+        Number(
+          selectedProduct.selling_price
+        );
+
+      const prixAchat =
+        Number(
+          selectedProduct.purchase_price
+        );
+
+      const totalSale =
+        prixVente * qty;
+
+      const profit =
+        (prixVente -
+          prixAchat) *
+        qty;
+
+      const stockBefore =
+        currentStock;
+
+      const stockAfter =
+        Math.max(
+          0,
+          stockBefore - qty
+        );
+
+      const saleId =
+        typeof crypto !==
+          "undefined" &&
+        typeof crypto.randomUUID ===
+          "function"
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}`;
+
+      const createdAt =
+        new Date().toISOString();
+
+      const saleData: OfflineSale =
+        {
+          id: saleId,
+
+          user_id: userId,
+
+          product_id:
+            selectedProduct.id,
+
+          product_name:
+            selectedProduct.name,
+
+          quantity: qty,
+
+          purchase_price:
+            prixAchat,
+
+          selling_price:
+            prixVente,
+
+          total_sale:
+            totalSale,
+
+          profit,
+
+          currency:
+            selectedProduct.currency,
+
+          created_at:
+            createdAt,
+
+          stock_before:
+            stockBefore,
+
+          stock_after:
+            stockAfter,
+
+          sale_synced:
+            false,
+
+          stock_synced:
+            false,
+
+          synced:
+            false,
+        };
+
+      /* =====================================================
+         MODE HORS CONNEXION
+      ===================================================== */
+
+      if (
+        typeof navigator !==
+          "undefined" &&
+        !navigator.onLine
+      ) {
+        await saveOfflineSale(
+          saleData
+        );
+
+        const updatedProduct: Product =
           {
-            id: saleId,
+            ...selectedProduct,
+            stock:
+              stockAfter,
             user_id:
               userId,
-            product_id:
-              selectedProduct.id,
-            product_name:
-              selectedProduct.name,
-            quantity:
-              qty,
-            purchase_price:
-              prixAchat,
-            selling_price:
-              prixVente,
-            total_sale:
-              totalSale,
-            profit,
-            currency:
-              selectedProduct.currency,
-            created_at:
-              createdAt,
-
-            stock_before:
-              stockBefore,
-            stock_after:
-              stockAfter,
-
-            sale_synced:
-              false,
-
-            stock_synced:
-              false,
-
-            synced:
-              false,
           };
 
-        /* ===================================================
-           HORS CONNEXION
-        =================================================== */
-
-        if (
-          typeof navigator !==
-            "undefined" &&
-          !navigator.onLine
-        ) {
-          await saveOfflineSale(
-            saleData
-          );
-
-          const updatedProduct:
-            Product =
-            {
-              ...selectedProduct,
-
-              stock:
-                stockAfter,
-
-              user_id:
-                userId,
-            };
-
-          setProducts(
-            (current) =>
-              current.map(
-                (
-                  product
-                ) =>
-                  product.id ===
-                  updatedProduct.id
-                    ? updatedProduct
-                    : product
-              )
-          );
-
-          setIsOnline(
-            false
-          );
-
-          setConnectionState(
-            "offline"
-          );
-
-          setSuccessOffline(
-            true
-          );
-
-          setShowSuccess(
-            true
-          );
-
-          setQuantity(
-            ""
-          );
-
-          setProductId(
-            ""
-          );
-
-          setSearchTerm(
-            ""
-          );
-
-          await refreshPendingSalesCount();
-
-          window.dispatchEvent(
-            new CustomEvent(
-              "biso-products-updated"
+        setProducts(
+          (current) =>
+            current.map(
+              (product) =>
+                product.id ===
+                updatedProduct.id
+                  ? updatedProduct
+                  : product
             )
-          );
+        );
 
-          window.dispatchEvent(
-            new CustomEvent(
-              "biso-sales-updated"
+        setIsOnline(false);
+
+        setConnectionState(
+          "offline"
+        );
+
+        setSuccessOffline(
+          true
+        );
+
+        setShowSuccess(
+          true
+        );
+
+        setQuantity("");
+
+        setProductId("");
+
+        setSearchTerm("");
+
+        await refreshPendingSalesCount();
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-products-updated"
+          )
+        );
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-sales-updated"
+          )
+        );
+
+        return;
+      }
+
+      /* =====================================================
+         MODE EN LIGNE
+      ===================================================== */
+
+      setConnectionState(
+        "syncing"
+      );
+
+      const {
+        error: saleError,
+      } = await supabase
+        .from("sales")
+        .insert({
+          id: saleData.id,
+          user_id:
+            saleData.user_id,
+          product_id:
+            saleData.product_id,
+          product_name:
+            saleData.product_name,
+          quantity:
+            saleData.quantity,
+          purchase_price:
+            saleData.purchase_price,
+          selling_price:
+            saleData.selling_price,
+          total_sale:
+            saleData.total_sale,
+          profit:
+            saleData.profit,
+          currency:
+            saleData.currency,
+          created_at:
+            saleData.created_at,
+        });
+
+      /* =====================================================
+         SI LA VENTE SERVEUR ÉCHOUE
+         → ON PASSE EN FILE OFFLINE
+      ===================================================== */
+
+      if (saleError) {
+        console.error(
+          "[BISO-COMMERCE] Vente serveur refusée :",
+          saleError
+        );
+
+        await saveOfflineSale(
+          saleData
+        );
+
+        const updatedProduct: Product =
+          {
+            ...selectedProduct,
+            stock:
+              stockAfter,
+            user_id:
+              userId,
+          };
+
+        await saveLocalProduct(
+          updatedProduct
+        );
+
+        setProducts(
+          (current) =>
+            current.map(
+              (product) =>
+                product.id ===
+                updatedProduct.id
+                  ? updatedProduct
+                  : product
             )
-          );
+        );
 
-          return;
-        }
+        setSuccessOffline(
+          true
+        );
 
-        /* ===================================================
-           EN LIGNE
-        =================================================== */
+        setShowSuccess(
+          true
+        );
+
+        setConnectionState(
+          navigator.onLine
+            ? "syncing"
+            : "offline"
+        );
+
+        setQuantity("");
+
+        setProductId("");
+
+        setSearchTerm("");
+
+        await refreshPendingSalesCount();
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-products-updated"
+          )
+        );
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-sales-updated"
+          )
+        );
+
+        return;
+      }
+
+      saleData.sale_synced =
+        true;
+
+      /* =====================================================
+         METTRE À JOUR STOCK SERVEUR
+      ===================================================== */
+
+      const {
+        data: updatedProducts,
+        error: stockError,
+      } = await supabase
+        .from("products")
+        .update({
+          stock:
+            stockAfter,
+        })
+        .eq(
+          "id",
+          selectedProduct.id
+        )
+        .eq(
+          "user_id",
+          userId
+        )
+        .eq(
+          "stock",
+          stockBefore
+        )
+        .select(
+          "id, stock"
+        );
+
+      /* =====================================================
+         STOCK NON SYNCHRONISÉ
+      ===================================================== */
+
+      if (stockError) {
+        console.error(
+          "[BISO-COMMERCE] Stock serveur non synchronisé :",
+          stockError
+        );
+
+        await saveOfflineSale({
+          ...saleData,
+          sale_synced:
+            true,
+          stock_synced:
+            false,
+          synced:
+            false,
+        });
+
+        const updatedProduct: Product =
+          {
+            ...selectedProduct,
+            stock:
+              stockAfter,
+            user_id:
+              userId,
+          };
+
+        await saveLocalProduct(
+          updatedProduct
+        );
+
+        setProducts(
+          (current) =>
+            current.map(
+              (product) =>
+                product.id ===
+                updatedProduct.id
+                  ? updatedProduct
+                  : product
+            )
+        );
+
+        setSuccessOffline(
+          true
+        );
+
+        setShowSuccess(
+          true
+        );
 
         setConnectionState(
           "syncing"
         );
 
-        /*
-         * IMPORTANT :
-         *
-         * Même en ligne, si quelque chose échoue,
-         * la vente est conservée localement.
-         */
+        setQuantity("");
 
-        const {
-          error:
-            saleError,
-        } = await supabase
-          .from("sales")
-          .insert({
-            id:
-              saleData.id,
-            user_id:
-              saleData.user_id,
-            product_id:
-              saleData.product_id,
-            product_name:
-              saleData.product_name,
-            quantity:
-              saleData.quantity,
-            purchase_price:
-              saleData.purchase_price,
-            selling_price:
-              saleData.selling_price,
-            total_sale:
-              saleData.total_sale,
-            profit:
-              saleData.profit,
-            currency:
-              saleData.currency,
-            created_at:
-              saleData.created_at,
-          });
+        setProductId("");
 
-        /* ===================================================
-           INSERT VENTE ÉCHOUÉ
-        =================================================== */
+        setSearchTerm("");
 
-        if (saleError) {
-          console.error(
-            "[BISO-COMMERCE] Vente serveur refusée :",
-            saleError
-          );
+        await refreshPendingSalesCount();
 
-          await saveOfflineSale(
-            saleData
-          );
+        return;
+      }
 
-          const updatedProduct:
-            Product =
-            {
-              ...selectedProduct,
+      /* =====================================================
+         AUCUNE LIGNE MODIFIÉE
+      ===================================================== */
 
-              stock:
-                stockAfter,
-
-              user_id:
-                userId,
-            };
-
-          await saveLocalProduct(
-            updatedProduct
-          );
-
-          setProducts(
-            (current) =>
-              current.map(
-                (
-                  product
-                ) =>
-                  product.id ===
-                  updatedProduct.id
-                    ? updatedProduct
-                    : product
-              )
-          );
-
-          setSuccessOffline(
-            true
-          );
-
-          setShowSuccess(
-            true
-          );
-
-          setConnectionState(
-            navigator.onLine
-              ? "syncing"
-              : "offline"
-          );
-
-          setQuantity(
-            ""
-          );
-
-          setProductId(
-            ""
-          );
-
-          setSearchTerm(
-            ""
-          );
-
-          await refreshPendingSalesCount();
-
-          window.dispatchEvent(
-            new CustomEvent(
-              "biso-products-updated"
-            )
-          );
-
-          window.dispatchEvent(
-            new CustomEvent(
-              "biso-sales-updated"
-            )
-          );
-
-          return;
-        }
-
-        /*
-         * La vente est maintenant dans Supabase.
-         */
-
-        saleData.sale_synced =
-          true;
-
-        /* ===================================================
-           DIMINUER STOCK SERVEUR
-        =================================================== */
-
+      if (
+        !updatedProducts ||
+        updatedProducts.length === 0
+      ) {
         const {
           data:
-            updatedProducts,
+            currentServerProduct,
           error:
-            stockError,
+            currentServerProductError,
         } = await supabase
           .from("products")
-          .update({
-            stock:
-              stockAfter,
-          })
+          .select(
+            "id, stock"
+          )
           .eq(
             "id",
             selectedProduct.id
@@ -2744,69 +2365,21 @@ export default function SalesPage() {
             "user_id",
             userId
           )
-          .eq(
-            "stock",
-            stockBefore
-          )
-          .select(
-            "id, stock"
-          );
-
-        /* ===================================================
-           ERREUR STOCK
-        =================================================== */
+          .maybeSingle();
 
         if (
-          stockError
+          currentServerProductError ||
+          !currentServerProduct
         ) {
-          console.error(
-            "[BISO-COMMERCE] Stock serveur non synchronisé :",
-            stockError
-          );
-
-          await saveOfflineSale(
-            {
-              ...saleData,
-
-              sale_synced:
-                true,
-
-              stock_synced:
-                false,
-
-              synced:
-                false,
-            }
-          );
-
-          const updatedProduct:
-            Product =
-            {
-              ...selectedProduct,
-
-              stock:
-                stockAfter,
-
-              user_id:
-                userId,
-            };
-
-          await saveLocalProduct(
-            updatedProduct
-          );
-
-          setProducts(
-            (current) =>
-              current.map(
-                (
-                  product
-                ) =>
-                  product.id ===
-                  updatedProduct.id
-                    ? updatedProduct
-                    : product
-              )
-          );
+          await saveOfflineSale({
+            ...saleData,
+            sale_synced:
+              true,
+            stock_synced:
+              false,
+            synced:
+              false,
+          });
 
           setSuccessOffline(
             true
@@ -2820,655 +2393,423 @@ export default function SalesPage() {
             "syncing"
           );
 
-          setQuantity(
-            ""
-          );
+          setQuantity("");
 
-          setProductId(
-            ""
-          );
+          setProductId("");
 
-          setSearchTerm(
-            ""
-          );
+          setSearchTerm("");
 
           await refreshPendingSalesCount();
 
           return;
         }
 
-        /* ===================================================
-           AUCUNE LIGNE RETOURNÉE
-        =================================================== */
-
         if (
-          !updatedProducts ||
-          updatedProducts.length ===
-            0
+          Number(
+            currentServerProduct.stock
+          ) === stockAfter
         ) {
-          const {
-            data:
-              currentServerProduct,
-            error:
-              currentServerProductError,
-          } = await supabase
-            .from("products")
-            .select(
-              "id, stock"
-            )
-            .eq(
-              "id",
-              selectedProduct.id
-            )
-            .eq(
-              "user_id",
-              userId
-            )
-            .maybeSingle();
-
-          if (
-            currentServerProductError ||
-            !currentServerProduct
-          ) {
-            await saveOfflineSale(
-              {
-                ...saleData,
-
-                sale_synced:
-                  true,
-
-                stock_synced:
-                  false,
-
-                synced:
-                  false,
-              }
-            );
-
-            setSuccessOffline(
-              true
-            );
-
-            setShowSuccess(
-              true
-            );
-
-            setConnectionState(
-              "syncing"
-            );
-
-            setQuantity(
-              ""
-            );
-
-            setProductId(
-              ""
-            );
-
-            setSearchTerm(
-              ""
-            );
-
-            await refreshPendingSalesCount();
-
-            return;
-          }
-
-          /*
-           * Le stock est déjà arrivé à la valeur attendue.
-           */
-
-          if (
-            Number(
-              currentServerProduct.stock
-            ) ===
-            stockAfter
-          ) {
-            saleData.stock_synced =
-              true;
-
-            saleData.synced =
-              true;
-          } else {
-            await saveOfflineSale(
-              {
-                ...saleData,
-
-                sale_synced:
-                  true,
-
-                stock_synced:
-                  false,
-
-                synced:
-                  false,
-              }
-            );
-
-            setSuccessOffline(
-              true
-            );
-
-            setShowSuccess(
-              true
-            );
-
-            setConnectionState(
-              "syncing"
-            );
-
-            setQuantity(
-              ""
-            );
-
-            setProductId(
-              ""
-            );
-
-            setSearchTerm(
-              ""
-            );
-
-            await refreshPendingSalesCount();
-
-            return;
-          }
-        } else {
-          /*
-           * Le stock a été mis à jour.
-           */
-
-          const returnedStock =
-            Number(
-              updatedProducts[0]
-                .stock
-            );
-
-          if (
-            returnedStock ===
-            stockAfter
-          ) {
-            saleData.stock_synced =
-              true;
-
-            saleData.synced =
-              true;
-          }
-        }
-
-        /* ===================================================
-           VENTE COMPLÈTEMENT SYNCHRONISÉE
-        =================================================== */
-
-        if (
-          saleData.sale_synced ===
-            true &&
-          saleData.stock_synced ===
-            true
-        ) {
-          saleData.synced =
+          saleData.stock_synced =
             true;
 
-          /*
-           * Le produit local est mis à jour.
-           */
-
-          await saveLocalProduct(
-            {
-              ...selectedProduct,
-
-              stock:
-                stockAfter,
-
-              user_id:
-                userId,
-            }
-          );
-
-          /*
-           * Supprimer toute éventuelle copie locale.
-           */
-
-          await removeOfflineSale(
-            saleData.id
-          );
-
-          setProducts(
-            (current) =>
-              current.map(
-                (
-                  product
-                ) =>
-                  product.id ===
-                  selectedProduct.id
-                    ? {
-                        ...product,
-
-                        stock:
-                          stockAfter,
-                      }
-                    : product
-              )
-          );
-
-          await refreshPendingSalesCount();
-
-          setIsOnline(
-            true
-          );
-
-          setConnectionState(
-            "online"
-          );
+          saleData.synced =
+            true;
+        } else {
+          await saveOfflineSale({
+            ...saleData,
+            sale_synced:
+              true,
+            stock_synced:
+              false,
+            synced:
+              false,
+          });
 
           setSuccessOffline(
-            false
+            true
           );
 
           setShowSuccess(
             true
           );
 
-          setQuantity(
-            ""
+          setConnectionState(
+            "syncing"
           );
 
-          setProductId(
-            ""
-          );
+          setQuantity("");
 
-          setSearchTerm(
-            ""
-          );
+          setProductId("");
 
-          window.dispatchEvent(
-            new CustomEvent(
-              "biso-products-updated"
-            )
-          );
+          setSearchTerm("");
 
-          window.dispatchEvent(
-            new CustomEvent(
-              "biso-sales-updated"
-            )
-          );
-
-          window.dispatchEvent(
-            new CustomEvent(
-              "biso-offline-sales-synced",
-              {
-                detail: {
-                  saleId:
-                    saleData.id,
-                  remaining:
-                    0,
-                },
-              }
-            )
-          );
+          await refreshPendingSalesCount();
 
           return;
         }
+      } else {
+        const returnedStock =
+          Number(
+            updatedProducts[0]
+              .stock
+          );
 
-        /*
-         * Par sécurité, conserver localement.
-         */
+        if (
+          returnedStock ===
+          stockAfter
+        ) {
+          saleData.stock_synced =
+            true;
 
-        await saveOfflineSale(
-          saleData
+          saleData.synced =
+            true;
+        }
+      }
+
+      /* =====================================================
+         TOUT EST SYNCHRONISÉ
+      ===================================================== */
+
+      if (
+        saleData.sale_synced ===
+          true &&
+        saleData.stock_synced ===
+          true
+      ) {
+        saleData.synced =
+          true;
+
+        await saveLocalProduct({
+          ...selectedProduct,
+          stock:
+            stockAfter,
+          user_id:
+            userId,
+        });
+
+        await removeOfflineSale(
+          saleData.id
+        );
+
+        setProducts(
+          (current) =>
+            current.map(
+              (product) =>
+                product.id ===
+                selectedProduct.id
+                  ? {
+                      ...product,
+                      stock:
+                        stockAfter,
+                    }
+                  : product
+            )
         );
 
         await refreshPendingSalesCount();
 
-        setConnectionState(
-          "syncing"
-        );
-
-        setQuantity(
-          ""
-        );
-
-        setProductId(
-          ""
-        );
-
-        setSearchTerm(
-          ""
-        );
-      } catch (error) {
-        console.error(
-          "[BISO-COMMERCE] Erreur vente :",
-          error
-        );
-
-        /*
-         * Si Internet a réellement disparu,
-         * conserver la vente hors ligne.
-         */
-
-        if (
-          typeof navigator !==
-            "undefined" &&
-          !navigator.onLine
-        ) {
-          try {
-            const qtyValue =
-              Number(
-                quantity
-              );
-
-            if (
-              selectedProduct &&
-              Number.isInteger(
-                qtyValue
-              ) &&
-              qtyValue > 0 &&
-              qtyValue <=
-                Number(
-                  selectedProduct.stock
-                )
-            ) {
-              const before =
-                Number(
-                  selectedProduct.stock
-                );
-
-              const after =
-                Math.max(
-                  0,
-                  before -
-                    qtyValue
-                );
-
-              const prixVente =
-                Number(
-                  selectedProduct.selling_price
-                );
-
-              const prixAchat =
-                Number(
-                  selectedProduct.purchase_price
-                );
-
-              const offlineSale:
-                OfflineSale =
-                {
-                  id:
-                    typeof crypto !==
-                      "undefined" &&
-                    typeof crypto.randomUUID ===
-                      "function"
-                      ? crypto.randomUUID()
-                      : `${Date.now()}-${Math.random()
-                          .toString(
-                            36
-                          )
-                          .slice(
-                            2
-                          )}`,
-
-                  user_id:
-                    userId,
-
-                  product_id:
-                    selectedProduct.id,
-
-                  product_name:
-                    selectedProduct.name,
-
-                  quantity:
-                    qtyValue,
-
-                  purchase_price:
-                    prixAchat,
-
-                  selling_price:
-                    prixVente,
-
-                  total_sale:
-                    prixVente *
-                    qtyValue,
-
-                  profit:
-                    (
-                      prixVente -
-                      prixAchat
-                    ) *
-                    qtyValue,
-
-                  currency:
-                    selectedProduct.currency,
-
-                  created_at:
-                    new Date().toISOString(),
-
-                  stock_before:
-                    before,
-
-                  stock_after:
-                    after,
-
-                  sale_synced:
-                    false,
-
-                  stock_synced:
-                    false,
-
-                  synced:
-                    false,
-                };
-
-              await saveOfflineSale(
-                offlineSale
-              );
-
-              const updatedProduct:
-                Product =
-                {
-                  ...selectedProduct,
-
-                  stock:
-                    after,
-
-                  user_id:
-                    userId,
-                };
-
-              await saveLocalProduct(
-                updatedProduct
-              );
-
-              setProducts(
-                (current) =>
-                  current.map(
-                    (
-                      product
-                    ) =>
-                      product.id ===
-                      updatedProduct.id
-                        ? updatedProduct
-                        : product
-                  )
-              );
-
-              setIsOnline(
-                false
-              );
-
-              setConnectionState(
-                "offline"
-              );
-
-              setSuccessOffline(
-                true
-              );
-
-              setShowSuccess(
-                true
-              );
-
-              setQuantity(
-                ""
-              );
-
-              setProductId(
-                ""
-              );
-
-              setSearchTerm(
-                ""
-              );
-
-              await refreshPendingSalesCount();
-
-              window.dispatchEvent(
-                new CustomEvent(
-                  "biso-products-updated"
-                )
-              );
-
-              window.dispatchEvent(
-                new CustomEvent(
-                  "biso-sales-updated"
-                )
-              );
-
-              return;
-            }
-          } catch (
-            offlineError
-          ) {
-            console.error(
-              "[BISO-COMMERCE] Sauvegarde offline échouée :",
-              offlineError
-            );
-          }
-        }
-
-        alert(
-          "La vente n'a pas pu être enregistrée. Vérifiez votre connexion puis réessayez."
-        );
+        setIsOnline(true);
 
         setConnectionState(
-          typeof navigator !==
-            "undefined" &&
-            navigator.onLine
-            ? "online"
-            : "offline"
+          "online"
         );
-      } finally {
-        setLoading(
+
+        setSuccessOffline(
           false
         );
+
+        setShowSuccess(
+          true
+        );
+
+        setQuantity("");
+
+        setProductId("");
+
+        setSearchTerm("");
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-products-updated"
+          )
+        );
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-sales-updated"
+          )
+        );
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-offline-sales-synced",
+            {
+              detail: {
+                saleId:
+                  saleData.id,
+                remaining:
+                  0,
+              },
+            }
+          )
+        );
+
+        return;
       }
-    };
+
+      /* =====================================================
+         ENREGISTRER POUR SYNCHRONISATION FUTURE
+      ===================================================== */
+
+      await saveOfflineSale(
+        saleData
+      );
+
+      await refreshPendingSalesCount();
+
+      setConnectionState(
+        "syncing"
+      );
+
+      setQuantity("");
+
+      setProductId("");
+
+      setSearchTerm("");
+    } catch (error) {
+      console.error(
+        "[BISO-COMMERCE] Erreur vente :",
+        error
+      );
+
+      /* =====================================================
+         SECOURS OFFLINE
+      ===================================================== */
+
+      if (
+        typeof navigator !==
+          "undefined" &&
+        !navigator.onLine
+      ) {
+        try {
+          const qtyValue =
+            Number(quantity);
+
+          if (
+            selectedProduct &&
+            Number.isInteger(
+              qtyValue
+            ) &&
+            qtyValue > 0 &&
+            qtyValue <=
+              Number(
+                selectedProduct.stock
+              )
+          ) {
+            const before =
+              Number(
+                selectedProduct.stock
+              );
+
+            const after =
+              Math.max(
+                0,
+                before -
+                  qtyValue
+              );
+
+            const prixVente =
+              Number(
+                selectedProduct.selling_price
+              );
+
+            const prixAchat =
+              Number(
+                selectedProduct.purchase_price
+              );
+
+            const offlineSale: OfflineSale =
+              {
+                id:
+                  typeof crypto !==
+                    "undefined" &&
+                  typeof crypto.randomUUID ===
+                    "function"
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random()
+                        .toString(36)
+                        .slice(2)}`,
+
+                user_id:
+                  userId,
+
+                product_id:
+                  selectedProduct.id,
+
+                product_name:
+                  selectedProduct.name,
+
+                quantity:
+                  qtyValue,
+
+                purchase_price:
+                  prixAchat,
+
+                selling_price:
+                  prixVente,
+
+                total_sale:
+                  prixVente *
+                  qtyValue,
+
+                profit:
+                  (prixVente -
+                    prixAchat) *
+                  qtyValue,
+
+                currency:
+                  selectedProduct.currency,
+
+                created_at:
+                  new Date().toISOString(),
+
+                stock_before:
+                  before,
+
+                stock_after:
+                  after,
+
+                sale_synced:
+                  false,
+
+                stock_synced:
+                  false,
+
+                synced:
+                  false,
+              };
+
+            await saveOfflineSale(
+              offlineSale
+            );
+
+            const updatedProduct: Product =
+              {
+                ...selectedProduct,
+                stock:
+                  after,
+                user_id:
+                  userId,
+              };
+
+            await saveLocalProduct(
+              updatedProduct
+            );
+
+            setProducts(
+              (current) =>
+                current.map(
+                  (product) =>
+                    product.id ===
+                    updatedProduct.id
+                      ? updatedProduct
+                      : product
+                )
+            );
+
+            setIsOnline(false);
+
+            setConnectionState(
+              "offline"
+            );
+
+            setSuccessOffline(
+              true
+            );
+
+            setShowSuccess(
+              true
+            );
+
+            setQuantity("");
+
+            setProductId("");
+
+            setSearchTerm("");
+
+            await refreshPendingSalesCount();
+
+            window.dispatchEvent(
+              new CustomEvent(
+                "biso-products-updated"
+              )
+            );
+
+            window.dispatchEvent(
+              new CustomEvent(
+                "biso-sales-updated"
+              )
+            );
+
+            return;
+          }
+        } catch (offlineError) {
+          console.error(
+            "[BISO-COMMERCE] Sauvegarde offline échouée :",
+            offlineError
+          );
+        }
+      }
+
+      alert(
+        "La vente n'a pas pu être enregistrée. Vérifiez votre connexion puis réessayez."
+      );
+
+      setConnectionState(
+        typeof navigator !==
+            "undefined" &&
+          navigator.onLine
+          ? "online"
+          : "offline"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /* =========================================================
-     AFFICHAGE
+     INTERFACE
   ========================================================= */
 
   return (
-    <main
-      className="
-        relative
-        min-h-[100dvh]
-        w-full
-        overflow-x-hidden
-        bg-[#f5f7fb]
-        px-3
-        py-4
-        pb-32
-        text-slate-900
-        sm:px-6
-        sm:py-6
-      "
-    >
-      <div
-        className="
-          relative
-          z-10
-          mx-auto
-          w-full
-          max-w-xl
-        "
-      >
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
+    <main className="relative min-h-screen w-full overflow-x-hidden bg-[#f5f7fb] px-3 py-4 pb-32 text-slate-900 sm:px-6 sm:py-6">
+      <div className="relative z-10 mx-auto w-full max-w-xl">
 
-        <header
-          className="
-            mb-4
-            rounded-[22px]
-            border
-            border-slate-100
-            bg-white
-            p-4
-            shadow-[0_8px_30px_rgba(15,23,42,0.05)]
-            sm:mb-6
-            sm:rounded-[26px]
-            sm:p-6
-          "
-        >
-          <div
-            className="
-              flex
-              items-start
-              justify-between
-              gap-3
-            "
-          >
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
+        <header className="mb-4 rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_8px_30px_rgba(15,23,42,0.05)] sm:mb-6 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <div
-                  className="
-                    flex
-                    h-10
-                    w-10
-                    shrink-0
-                    items-center
-                    justify-center
-                    rounded-xl
-                    bg-indigo-50
-                    text-indigo-600
-                    sm:h-11
-                    sm:w-11
-                  "
-                >
-                  <ShoppingCart
-                    size={20}
-                  />
+
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 sm:h-11 sm:w-11">
+                  <ShoppingCart size={20} />
                 </div>
 
-                <h1
-                  className="
-                    truncate
-                    text-xl
-                    font-black
-                    tracking-tight
-                    text-slate-900
-                    sm:text-3xl
-                  "
-                >
+                <h1 className="truncate text-xl font-black tracking-tight text-slate-900 sm:text-3xl">
                   Caisse{" "}
                   <span className="text-indigo-600">
                     vente
                   </span>
                 </h1>
+
               </div>
 
-              <p
-                className="
-                  mt-2
-                  text-xs
-                  leading-5
-                  text-slate-500
-                  sm:text-sm
-                "
-              >
-                Enregistrez vos ventes
-                rapidement avec
-                BISO-COMMERCE.
+              <p className="mt-2 text-xs leading-5 text-slate-500 sm:text-sm">
+                Enregistrez vos ventes rapidement avec BISO-COMMERCE.
               </p>
             </div>
 
@@ -3479,26 +2820,7 @@ export default function SalesPage() {
                   !showGuide
                 )
               }
-              className="
-                flex
-                min-h-[42px]
-                shrink-0
-                items-center
-                justify-center
-                gap-1.5
-                rounded-xl
-                border
-                border-indigo-100
-                bg-indigo-50
-                px-3
-                text-[11px]
-                font-black
-                text-indigo-600
-                shadow-sm
-                transition
-                active:scale-95
-                sm:px-4
-              "
+              className="flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-indigo-100 bg-indigo-50 px-3 text-xs font-black text-indigo-600 shadow-sm transition active:scale-95 sm:px-4"
             >
               <Sparkles size={14} />
 
@@ -3508,26 +2830,19 @@ export default function SalesPage() {
                   : "Guide"}
               </span>
             </button>
+
           </div>
 
+          {/* CONNEXION */}
+
           <div className="mt-4 flex flex-wrap items-center gap-2">
+
             <div
-              className={`
-                inline-flex
-                min-h-[38px]
-                items-center
-                gap-2
-                rounded-xl
-                border
-                px-3
-                text-[10px]
-                font-black
-                ${
-                  isOnline
-                    ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                    : "border-amber-100 bg-amber-50 text-amber-700"
-                }
-              `}
+              className={`inline-flex min-h-9 items-center gap-2 rounded-xl border px-3 text-xs font-black ${
+                isOnline
+                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                  : "border-amber-100 bg-amber-50 text-amber-700"
+              }`}
             >
               {isOnline ? (
                 <Wifi size={15} />
@@ -3542,37 +2857,17 @@ export default function SalesPage() {
               </span>
 
               <span
-                className={`
-                  h-1.5
-                  w-1.5
-                  rounded-full
-                  ${
-                    isOnline
-                      ? "bg-emerald-500"
-                      : "bg-amber-500"
-                  }
-                `}
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isOnline
+                    ? "bg-emerald-500"
+                    : "bg-amber-500"
+                }`}
               />
             </div>
 
             {connectionState ===
               "syncing" && (
-              <div
-                className="
-                  inline-flex
-                  min-h-[38px]
-                  items-center
-                  gap-2
-                  rounded-xl
-                  border
-                  border-indigo-100
-                  bg-indigo-50
-                  px-3
-                  text-[10px]
-                  font-black
-                  text-indigo-700
-                "
-              >
+              <div className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 text-xs font-black text-indigo-700">
                 <Loader2
                   size={15}
                   className="animate-spin"
@@ -3584,22 +2879,7 @@ export default function SalesPage() {
 
             {pendingSalesCount >
               0 && (
-              <div
-                className="
-                  inline-flex
-                  min-h-[38px]
-                  items-center
-                  gap-2
-                  rounded-xl
-                  border
-                  border-amber-100
-                  bg-amber-50
-                  px-3
-                  text-[10px]
-                  font-black
-                  text-amber-700
-                "
-              >
+              <div className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 text-xs font-black text-amber-700">
                 <CloudOff size={15} />
 
                 {pendingSalesCount} vente
@@ -3610,123 +2890,52 @@ export default function SalesPage() {
                 en attente
               </div>
             )}
+
           </div>
         </header>
 
-        {/* =====================================================
+        {/* =================================================
             GUIDE
-        ===================================================== */}
+        ================================================= */}
 
         {showGuide && (
-          <section
-            className="
-              mb-4
-              overflow-hidden
-              rounded-[22px]
-              border
-              border-slate-100
-              bg-white
-              p-4
-              shadow-[0_8px_30px_rgba(15,23,42,0.06)]
-              sm:mb-5
-              sm:rounded-[26px]
-              sm:p-5
-            "
-          >
-            <div
-              className="
-                mb-4
-                flex
-                items-center
-                gap-3
-              "
-            >
-              <div
-                className="
-                  flex
-                  h-10
-                  w-10
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-indigo-50
-                  text-indigo-600
-                "
-              >
-                <Sparkles
-                  size={19}
-                />
+          <section className="mb-4 overflow-hidden rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:mb-5 sm:p-5">
+
+            <div className="mb-4 flex items-center gap-3">
+
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                <Sparkles size={19} />
               </div>
 
-              <h2
-                className="
-                  text-sm
-                  font-black
-                  leading-5
-                  text-slate-900
-                  sm:text-base
-                "
-              >
-                Guide de vente
-                BISO-COMMERCE
+              <h2 className="text-sm font-black leading-5 text-slate-900 sm:text-base">
+                Guide de vente BISO-COMMERCE
               </h2>
+
             </div>
 
-            <div
-              className="
-                space-y-3
-                text-sm
-                text-slate-600
-              "
-            >
-              <div
-                className="
-                  rounded-2xl
-                  border
-                  border-slate-100
-                  bg-slate-50
-                  p-4
-                "
-              >
+            <div className="space-y-3 text-sm text-slate-600">
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                 <h3 className="mb-2 text-sm font-black text-slate-900">
                   1️⃣ Rechercher un produit
                 </h3>
 
                 <p className="text-xs leading-6 sm:text-sm">
-                  Cherchez le produit dans votre
-                  stock puis sélectionnez-le.
+                  Cherchez le produit dans votre stock puis sélectionnez-le.
                 </p>
               </div>
 
-              <div
-                className="
-                  rounded-2xl
-                  border
-                  border-slate-100
-                  bg-slate-50
-                  p-4
-                "
-              >
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                 <h3 className="mb-2 text-sm font-black text-slate-900">
                   2️⃣ Choisir la quantité
                 </h3>
 
                 <p className="text-xs leading-6 sm:text-sm">
-                  Indiquez combien de produits
-                  vous vendez.
+                  Indiquez combien de produits vous vendez.
                 </p>
               </div>
 
-              <div
-                className="
-                  rounded-2xl
-                  border
-                  border-slate-100
-                  bg-slate-50
-                  p-4
-                "
-              >
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                 <h3 className="mb-2 text-sm font-black text-slate-900">
                   3️⃣ Vérifier le résumé
                 </h3>
@@ -3746,174 +2955,83 @@ export default function SalesPage() {
                 </ul>
               </div>
 
-              <div
-                className="
-                  rounded-2xl
-                  border
-                  border-indigo-100
-                  bg-indigo-50
-                  p-4
-                "
-              >
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
                 <h3 className="font-black text-indigo-700">
                   4️⃣ Valider la vente
                 </h3>
 
                 <p className="mt-1 text-xs leading-6 sm:text-sm">
-                  Même sans Internet, la vente est
-                  enregistrée sur l'appareil et le
-                  stock est diminué immédiatement.
+                  Même sans Internet, la vente est enregistrée sur l'appareil et le stock est diminué immédiatement.
                 </p>
               </div>
 
-              <div
-                className="
-                  rounded-2xl
-                  border
-                  border-emerald-100
-                  bg-emerald-50
-                  p-4
-                "
-              >
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
                 <h3 className="font-black text-emerald-700">
                   5️⃣ Synchronisation
                 </h3>
 
                 <p className="mt-1 text-xs leading-6 sm:text-sm">
-                  Dès que la connexion revient,
-                  BISO-COMMERCE synchronise
-                  automatiquement les ventes.
+                  Dès que la connexion revient, BISO-COMMERCE synchronise automatiquement les ventes.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  setShowGuide(
-                    false
-                  )
+                  setShowGuide(false)
                 }
-                className="
-                  mt-2
-                  flex
-                  min-h-[46px]
-                  w-full
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-indigo-600
-                  px-4
-                  py-3
-                  text-xs
-                  font-black
-                  text-white
-                  transition
-                  active:scale-[0.99]
-                  hover:bg-indigo-700
-                "
+                className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-xs font-black text-white transition active:scale-[0.99] hover:bg-indigo-700"
               >
                 Fermer le guide
               </button>
+
             </div>
           </section>
         )}
 
-        {/* =====================================================
+        {/* =================================================
             CAISSE
-        ===================================================== */}
+        ================================================= */}
 
-        <section
-          className="
-            space-y-5
-            rounded-[22px]
-            border
-            border-slate-100
-            bg-white
-            p-4
-            shadow-[0_8px_30px_rgba(15,23,42,0.06)]
-            sm:rounded-[26px]
-            sm:p-6
-          "
-        >
-          {/* ===================================================
-              RECHERCHE
-          =================================================== */}
+        <section className="space-y-5 rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:p-6">
+
+          {/* PRODUIT */}
 
           <div>
-            <label
-              className="
-                mb-2
-                block
-                text-xs
-                font-black
-                text-slate-500
-              "
-            >
+
+            <label className="mb-2 block text-xs font-black text-slate-500">
               Produit
             </label>
 
-            <div
-              className="
-                flex
-                min-h-[52px]
-                items-center
-                gap-3
-                rounded-2xl
-                border
-                border-slate-800
-                bg-black
-                px-3
-                sm:px-4
-              "
-            >
+            <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-800 bg-black px-3 sm:px-4">
+
               <Search
                 size={18}
                 className="shrink-0 text-indigo-400"
               />
 
               <input
-                value={
-                  searchTerm
-                }
+                value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(
                     e.target.value
                   );
 
-                  setProductId(
-                    ""
-                  );
+                  setProductId("");
                 }}
                 placeholder="Rechercher un produit..."
                 autoComplete="off"
-                className="
-                  min-w-0
-                  flex-1
-                  bg-transparent
-                  py-3
-                  text-sm
-                  text-white
-                  outline-none
-                  placeholder:text-slate-500
-                "
+                className="min-w-0 flex-1 bg-transparent py-3 text-sm text-white outline-none placeholder:text-slate-500"
               />
+
             </div>
+
+            {/* RÉSULTATS */}
 
             {searchTerm &&
               !productId && (
-                <div
-                  className="
-                    mt-2
-                    max-h-[45vh]
-                    overflow-y-auto
-                    overscroll-contain
-                    rounded-2xl
-                    border
-                    border-slate-800
-                    bg-black
-                    shadow-xl
-                  "
-                >
+                <div className="mt-2 max-h-72 overflow-y-auto overscroll-contain rounded-2xl border border-slate-800 bg-black shadow-xl">
+
                   {filteredProducts.length ===
                   0 ? (
                     <div className="p-5 text-center text-xs text-slate-400">
@@ -3923,9 +3041,7 @@ export default function SalesPage() {
                     filteredProducts.map(
                       (p) => (
                         <button
-                          key={
-                            p.id
-                          }
+                          key={p.id}
                           type="button"
                           onClick={() => {
                             setProductId(
@@ -3943,82 +3059,43 @@ export default function SalesPage() {
                               150
                             );
                           }}
-                          className="
-                            flex
-                            min-h-[58px]
-                            w-full
-                            items-center
-                            justify-between
-                            gap-3
-                            border-b
-                            border-white/10
-                            px-3
-                            py-3
-                            text-left
-                            text-white
-                            transition
-                            active:bg-white/10
-                            sm:px-4
-                          "
+                          className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-white/10 px-3 py-3 text-left text-white transition active:bg-white/10 sm:px-4"
                         >
+
                           <div className="flex min-w-0 items-center gap-3">
-                            <div
-                              className="
-                                flex
-                                h-9
-                                w-9
-                                shrink-0
-                                items-center
-                                justify-center
-                                rounded-xl
-                                bg-indigo-500/15
-                                text-indigo-400
-                              "
-                            >
+
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-400">
                               <Package
-                                size={
-                                  17
-                                }
+                                size={17}
                               />
                             </div>
 
                             <span className="min-w-0 truncate text-sm font-semibold">
-                              {
-                                p.name
-                              }
+                              {p.name}
                             </span>
+
                           </div>
 
-                          <span className="shrink-0 text-[10px] font-medium text-slate-400">
+                          <span className="shrink-0 text-xs font-medium text-slate-400">
                             Stock :{" "}
-                            {
-                              p.stock
-                            }
+                            {p.stock}
                           </span>
+
                         </button>
                       )
                     )
                   )}
+
                 </div>
               )}
 
+            {/* PRODUIT SÉLECTIONNÉ */}
+
             {selectedProduct && (
-              <div
-                className="
-                  mt-3
-                  flex
-                  items-center
-                  justify-between
-                  gap-3
-                  rounded-2xl
-                  border
-                  border-indigo-100
-                  bg-indigo-50
-                  px-3
-                  py-3
-                "
-              >
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-3">
+
                 <div className="flex min-w-0 items-center gap-2">
+
                   <CheckCircle
                     size={16}
                     className="shrink-0 text-indigo-600"
@@ -4029,44 +3106,31 @@ export default function SalesPage() {
                       selectedProduct.name
                     }
                   </span>
+
                 </div>
 
-                <span className="shrink-0 text-[10px] font-bold text-indigo-500">
+                <span className="shrink-0 text-xs font-bold text-indigo-500">
                   {
                     selectedProduct.stock
                   }{" "}
                   en stock
                 </span>
+
               </div>
             )}
+
           </div>
 
-          {/* ===================================================
-              QUANTITÉ
-          =================================================== */}
+          {/* QUANTITÉ */}
 
           <div>
-            <label
-              className="
-                mb-2
-                block
-                text-xs
-                font-black
-                text-slate-500
-              "
-            >
+
+            <label className="mb-2 block text-xs font-black text-slate-500">
               Quantité vendue
             </label>
 
-            <div
-              className="
-                grid
-                grid-cols-[48px_minmax(0,1fr)_48px]
-                items-center
-                gap-2
-                sm:grid-cols-[52px_minmax(0,1fr)_52px]
-              "
-            >
+            <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2 sm:grid-cols-[52px_minmax(0,1fr)_52px]">
+
               <button
                 type="button"
                 onClick={
@@ -4079,28 +3143,9 @@ export default function SalesPage() {
                   ) <= 1
                 }
                 aria-label="Diminuer la quantité"
-                className="
-                  flex
-                  h-12
-                  w-12
-                  items-center
-                  justify-center
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-slate-50
-                  text-slate-700
-                  transition
-                  active:scale-95
-                  disabled:cursor-not-allowed
-                  disabled:opacity-40
-                  sm:h-[52px]
-                  sm:w-[52px]
-                "
+                className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Minus
-                  size={18}
-                />
+                <Minus size={18} />
               </button>
 
               <input
@@ -4117,21 +3162,19 @@ export default function SalesPage() {
                     ? selectedProduct.stock
                     : undefined
                 }
-                value={
-                  quantity
-                }
+                value={quantity}
                 onChange={(e) => {
                   const value =
                     e.target
                       .value;
 
                   if (
-                    value ===
-                    ""
+                    value === ""
                   ) {
                     setQuantity(
                       ""
                     );
+
                     return;
                   }
 
@@ -4170,25 +3213,7 @@ export default function SalesPage() {
                   handleQuantityFocus
                 }
                 placeholder="0"
-                className="
-                  h-12
-                  min-w-0
-                  w-full
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-slate-50
-                  px-2
-                  text-center
-                  text-lg
-                  font-black
-                  text-slate-900
-                  outline-none
-                  focus:border-indigo-300
-                  focus:ring-2
-                  focus:ring-indigo-100
-                  sm:h-[52px]
-                "
+                className="h-12 min-w-0 w-full rounded-xl border border-slate-200 bg-slate-50 px-2 text-center text-lg font-black text-slate-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
               />
 
               <button
@@ -4199,85 +3224,46 @@ export default function SalesPage() {
                 disabled={
                   !!selectedProduct &&
                   Number(
-                    quantity ||
-                      0
+                    quantity || 0
                   ) >=
                     Number(
                       selectedProduct.stock
                     )
                 }
                 aria-label="Augmenter la quantité"
-                className="
-                  flex
-                  h-12
-                  w-12
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-indigo-600
-                  text-white
-                  shadow-sm
-                  transition
-                  active:scale-95
-                  disabled:cursor-not-allowed
-                  disabled:opacity-40
-                  sm:h-[52px]
-                  sm:w-[52px]
-                "
+                className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Plus
-                  size={18}
-                />
+                <Plus size={18} />
               </button>
+
             </div>
 
             {selectedProduct && (
-              <p className="mt-2 text-center text-[10px] font-medium text-slate-400">
+              <p className="mt-2 text-center text-xs font-medium text-slate-400">
                 Maximum disponible :{" "}
                 {
                   selectedProduct.stock
                 }
               </p>
             )}
+
           </div>
 
-          {/* ===================================================
+          {/* =================================================
               RÉSUMÉ
-          =================================================== */}
+          ================================================= */}
 
           {selectedProduct &&
-            Number(
-              quantity
-            ) > 0 && (
+            Number(quantity) >
+              0 && (
               <div
-                ref={
-                  summaryRef
-                }
-                className="
-                  scroll-mt-6
-                  overflow-hidden
-                  rounded-2xl
-                  border
-                  border-indigo-100
-                  bg-indigo-50
-                  p-4
-                  sm:p-5
-                "
+                ref={summaryRef}
+                className="scroll-mt-6 overflow-hidden rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:p-5"
               >
+
                 <div className="mb-4 flex items-center gap-2">
-                  <div
-                    className="
-                      flex
-                      h-9
-                      w-9
-                      shrink-0
-                      items-center
-                      justify-center
-                      rounded-xl
-                      bg-indigo-100
-                      text-indigo-600
-                    "
-                  >
+
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
                     <ShoppingCart
                       size={18}
                     />
@@ -4286,52 +3272,37 @@ export default function SalesPage() {
                   <p className="text-sm font-black text-indigo-800">
                     Résumé de la vente
                   </p>
+
                 </div>
 
-                <div
-                  className="
-                    flex
-                    items-start
-                    justify-between
-                    gap-3
-                    border-b
-                    border-indigo-100
-                    pb-3
-                  "
-                >
+                <div className="flex items-start justify-between gap-3 border-b border-indigo-100 pb-3">
+
                   <span className="text-xs text-slate-500">
                     Produit
                   </span>
 
-                  <span
-                    className="
-                      max-w-[65%]
-                      break-words
-                      text-right
-                      text-xs
-                      font-black
-                      text-slate-900
-                    "
-                  >
+                  <span className="max-w-[65%] break-words text-right text-xs font-black text-slate-900">
                     {
                       selectedProduct.name
                     }
                   </span>
+
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
+
                   <span className="text-xs text-slate-500">
                     Quantité
                   </span>
 
                   <span className="text-xs font-black text-slate-900">
-                    {
-                      quantity
-                    }
+                    {quantity}
                   </span>
+
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
+
                   <span className="text-xs text-slate-500">
                     Prix unité
                   </span>
@@ -4344,10 +3315,14 @@ export default function SalesPage() {
                       selectedProduct.currency
                     }
                   </span>
+
                 </div>
 
+                {/* TOTAL */}
+
                 <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-400">
                     Total client
                   </p>
 
@@ -4357,22 +3332,13 @@ export default function SalesPage() {
                       selectedProduct.currency
                     }
                   </p>
+
                 </div>
 
-                <div
-                  className="
-                    mt-3
-                    flex
-                    items-start
-                    gap-2
-                    rounded-xl
-                    bg-white/60
-                    p-3
-                    text-xs
-                    font-bold
-                    text-emerald-600
-                  "
-                >
+                {/* BÉNÉFICE */}
+
+                <div className="mt-3 flex items-start gap-2 rounded-xl bg-white/60 p-3 text-xs font-bold text-emerald-600">
+
                   <TrendingUp
                     size={16}
                     className="mt-0.5 shrink-0"
@@ -4380,34 +3346,20 @@ export default function SalesPage() {
 
                   <span>
                     Bénéfice estimé :{" "}
-                    {
-                      profitPreview.toLocaleString()
-                    }{" "}
+                    {profitPreview.toLocaleString()}{" "}
                     {
                       selectedProduct.currency
                     }
                   </span>
+
                 </div>
+
+                {/* STOCK FAIBLE */}
 
                 {stockAfterSale <=
                   5 && (
-                  <div
-                    className="
-                      mt-3
-                      flex
-                      items-start
-                      gap-2
-                      rounded-xl
-                      border
-                      border-amber-100
-                      bg-amber-50
-                      p-3
-                      text-xs
-                      font-medium
-                      leading-5
-                      text-amber-700
-                    "
-                  >
+                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs font-medium leading-5 text-amber-700">
+
                     <AlertTriangle
                       size={16}
                       className="mt-0.5 shrink-0"
@@ -4421,14 +3373,16 @@ export default function SalesPage() {
                         }
                       </strong>
                     </span>
+
                   </div>
                 )}
+
               </div>
             )}
 
-          {/* ===================================================
-              VALIDATION
-          =================================================== */}
+          {/* =================================================
+              BOUTON VENTE
+          ================================================= */}
 
           <button
             type="button"
@@ -4440,30 +3394,9 @@ export default function SalesPage() {
               !selectedProduct ||
               !quantity
             }
-            className="
-              flex
-              min-h-[54px]
-              w-full
-              items-center
-              justify-center
-              gap-2
-              rounded-2xl
-              bg-indigo-600
-              px-4
-              py-4
-              text-sm
-              font-black
-              text-white
-              shadow-md
-              shadow-indigo-600/10
-              transition
-              active:scale-[0.99]
-              hover:bg-indigo-700
-              disabled:cursor-not-allowed
-              disabled:opacity-50
-              sm:text-base
-            "
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-4 text-sm font-black text-white shadow-md shadow-indigo-600/10 transition active:scale-[0.99] hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
           >
+
             {loading ? (
               <>
                 <Loader2
@@ -4484,124 +3417,62 @@ export default function SalesPage() {
                   : "Enregistrer la vente hors connexion"}
               </>
             )}
+
           </button>
+
         </section>
 
-        {/* =====================================================
-            POPUP SUCCÈS
-        ===================================================== */}
+        {/* =================================================
+            MODAL SUCCÈS
+        ================================================= */}
 
         {showSuccess && (
-          <div
-            className="
-              fixed
-              inset-0
-              z-[100]
-              flex
-              items-center
-              justify-center
-              bg-slate-950/50
-              px-4
-              py-6
-              backdrop-blur-sm
-            "
-          >
-            <div
-              className="
-                w-full
-                max-w-sm
-                overflow-hidden
-                rounded-[28px]
-                border
-                border-slate-100
-                bg-white
-                shadow-[0_25px_80px_rgba(15,23,42,0.18)]
-              "
-            >
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+
+            <div className="w-full max-w-sm overflow-hidden rounded-[24px] border border-slate-100 bg-white shadow-[0_25px_80px_rgba(15,23,42,0.18)]">
+
               <div
-                className={`
-                  p-6
-                  text-center
-                  ${
-                    successOffline
-                      ? "bg-amber-50"
-                      : "bg-emerald-50"
-                  }
-                `}
+                className={`p-6 text-center ${
+                  successOffline
+                    ? "bg-amber-50"
+                    : "bg-emerald-50"
+                }`}
               >
+
                 <div
-                  className={`
-                    mx-auto
-                    flex
-                    h-16
-                    w-16
-                    items-center
-                    justify-center
-                    rounded-2xl
-                    ${
-                      successOffline
-                        ? "bg-amber-100 text-amber-600"
-                        : "bg-emerald-100 text-emerald-600"
-                    }
-                  `}
+                  className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl ${
+                    successOffline
+                      ? "bg-amber-100 text-amber-600"
+                      : "bg-emerald-100 text-emerald-600"
+                  }`}
                 >
                   <CheckCircle
                     size={38}
                   />
                 </div>
 
-                <h2
-                  className="
-                    mt-4
-                    text-xl
-                    font-black
-                    text-slate-900
-                    sm:text-2xl
-                  "
-                >
-                  Vente enregistrée
-                  ✅
+                <h2 className="mt-4 text-xl font-black text-slate-900 sm:text-2xl">
+                  Vente enregistrée ✅
                 </h2>
 
-                <p
-                  className="
-                    mt-3
-                    text-xs
-                    leading-6
-                    text-slate-600
-                    sm:text-sm
-                  "
-                >
+                <p className="mt-3 text-xs leading-6 text-slate-600 sm:text-sm">
                   {successOffline
                     ? "La vente a été enregistrée sur cet appareil. Le stock a été diminué immédiatement. Elle sera automatiquement synchronisée dès que la connexion Internet reviendra."
                     : "Votre vente a été enregistrée avec succès et le stock a été mis à jour."}
                 </p>
 
                 {successOffline && (
-                  <div
-                    className="
-                      mt-4
-                      flex
-                      items-center
-                      gap-2
-                      rounded-xl
-                      border
-                      border-amber-100
-                      bg-white
-                      px-3
-                      py-2.5
-                      text-left
-                    "
-                  >
+                  <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-100 bg-white px-3 py-2.5 text-left">
+
                     <CloudOff
                       size={16}
                       className="shrink-0 text-amber-600"
                     />
 
-                    <span className="text-[11px] font-bold leading-5 text-amber-700">
-                      En attente de connexion pour
-                      synchronisation.
+                    <span className="text-xs font-bold leading-5 text-amber-700">
+                      En attente de connexion pour synchronisation.
                     </span>
+
                   </div>
                 )}
 
@@ -4615,32 +3486,18 @@ export default function SalesPage() {
                     window.location.href =
                       "/dashboard";
                   }}
-                  className="
-                    mt-6
-                    flex
-                    min-h-[50px]
-                    w-full
-                    items-center
-                    justify-center
-                    rounded-2xl
-                    bg-indigo-600
-                    px-4
-                    py-3
-                    text-sm
-                    font-black
-                    text-white
-                    shadow-sm
-                    transition
-                    active:scale-[0.99]
-                    hover:bg-indigo-700
-                  "
+                  className="mt-6 flex min-h-11 w-full items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-sm transition active:scale-[0.99] hover:bg-indigo-700"
                 >
                   OK
                 </button>
+
               </div>
+
             </div>
+
           </div>
         )}
+
       </div>
     </main>
   );

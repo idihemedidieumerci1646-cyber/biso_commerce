@@ -60,7 +60,7 @@ type SyncState =
 ========================================================= */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 const PRODUCTS_STORE = "products";
 

@@ -1158,18 +1158,22 @@ export default function DebtsPage() {
   ========================================================= */
 
   const syncPendingDebts =
-    useCallback(async () => {
-      if (!navigator.onLine) {
-        return;
-      }
+  useCallback(async () => {
+    if (!navigator.onLine) {
+      return;
+    }
 
-      const userId =
-        await getUserId();
+    const userId =
+      await getUserId();
 
-      if (!userId) {
-        return;
-      }
+    if (!userId) {
+      console.warn(
+        "Synchronisation dettes impossible : user_id introuvable."
+      );
+      return;
+    }
 
+    try {
       const localDebts =
         await getLocalDebts();
 
@@ -1181,25 +1185,38 @@ export default function DebtsPage() {
               String(userId)
         );
 
+      if (!pendingDebts.length) {
+        return;
+      }
+
+      setConnectionState("syncing");
+
+      /*
+       * IMPORTANT :
+       * Chaque dette locale est envoyée à Supabase.
+       * On ne la marque "synced" QUE si Supabase
+       * confirme réellement l'enregistrement.
+       */
+
       for (const debt of pendingDebts) {
         try {
           const payload = {
             id: debt.id,
             user_id: userId,
-            client_name:
-              debt.client_name,
+            client_name: debt.client_name,
             phone: debt.phone,
-            total_amount:
-              debt.total_amount,
-            paid_amount:
-              debt.paid_amount,
-            currency:
-              debt.currency,
-            created_at:
-              debt.created_at,
+            total_amount: Number(
+              debt.total_amount || 0
+            ),
+            paid_amount: Number(
+              debt.paid_amount || 0
+            ),
+            currency: debt.currency,
+            created_at: debt.created_at,
           };
 
           const {
+            data,
             error,
           } = await supabase
             .from("debts")
@@ -1208,32 +1225,180 @@ export default function DebtsPage() {
               {
                 onConflict: "id",
               }
-            );
+            )
+            .select()
+            .single();
 
           if (error) {
-            throw error;
+            console.error(
+              "Supabase a refusé la synchronisation de la dette :",
+              error
+            );
+
+            /*
+             * On NE SUPPRIME PAS la dette locale.
+             * Elle reste synced:false et sera réessayée.
+             */
+            continue;
           }
 
+          if (!data) {
+            console.error(
+              "Supabase n'a pas confirmé la dette :",
+              debt.id
+            );
+
+            /*
+             * Même chose :
+             * on garde la dette localement.
+             */
+            continue;
+          }
+
+          /*
+           * SUPABASE A CONFIRMÉ.
+           * Maintenant seulement on marque la dette
+           * comme synchronisée.
+           */
           await putLocalDebt({
             ...debt,
+            id: String(data.id || debt.id),
             user_id: userId,
+            client_name: String(
+              data.client_name ??
+                debt.client_name
+            ),
+            phone: String(
+              data.phone ??
+                debt.phone
+            ),
+            total_amount: Number(
+              data.total_amount ??
+                debt.total_amount
+            ),
+            paid_amount: Number(
+              data.paid_amount ??
+                debt.paid_amount
+            ),
+            currency:
+              data.currency === "USD"
+                ? "USD"
+                : "FC",
+            created_at:
+              data.created_at ??
+              debt.created_at,
             synced: true,
           });
 
+          /*
+           * Mettre immédiatement l'état React
+           * à jour avec la dette confirmée.
+           */
+          setDebts(
+            (current) => {
+              const exists =
+                current.some(
+                  (item) =>
+                    String(item.id) ===
+                    String(
+                      debt.id
+                    )
+                );
+
+              const syncedDebt: Debt = {
+                id: String(
+                  data.id ||
+                    debt.id
+                ),
+                user_id:
+                  userId,
+                client_name:
+                  String(
+                    data.client_name ??
+                      debt.client_name
+                  ),
+                phone:
+                  String(
+                    data.phone ??
+                      debt.phone
+                  ),
+                total_amount:
+                  Number(
+                    data.total_amount ??
+                      debt.total_amount
+                  ),
+                paid_amount:
+                  Number(
+                    data.paid_amount ??
+                      debt.paid_amount
+                  ),
+                currency:
+                  data.currency ===
+                  "USD"
+                    ? "USD"
+                    : "FC",
+                created_at:
+                  data.created_at ??
+                  debt.created_at,
+              };
+
+              if (exists) {
+                return current.map(
+                  (item) =>
+                    String(
+                      item.id
+                    ) ===
+                    String(
+                      debt.id
+                    )
+                      ? syncedDebt
+                      : item
+                );
+              }
+
+              return [
+                syncedDebt,
+                ...current,
+              ];
+            }
+          );
+
           window.dispatchEvent(
             new CustomEvent(
-              "biso-debts-updated"
+              "biso-debts-updated",
+              {
+                detail: {
+                  debt: {
+                    ...debt,
+                    synced: true,
+                  },
+                },
+              }
             )
           );
+
+          console.log(
+            "Dette synchronisée avec succès :",
+            debt.id
+          );
         } catch (error) {
+          /*
+           * Très important :
+           * aucune suppression locale ici.
+           */
           console.error(
             "Erreur synchronisation dette :",
             error
           );
         }
       }
-    }, [getUserId]);
-
+    } catch (error) {
+      console.error(
+        "Erreur lecture des dettes locales pour synchronisation :",
+        error
+      );
+    }
+  }, [getUserId]);
   /* =========================================================
      SYNCHRONISER PAIEMENTS
   ========================================================= */
@@ -1529,26 +1694,26 @@ export default function DebtsPage() {
         }
 
         const serverDebts =
-          (
-            (data || []) as Debt[]
-          ).map(
-            normalizeDebt
-          );
+  (
+    (data || []) as Debt[]
+  ).map(
+    normalizeDebt
+  );
 
-        for (
-          const debt of serverDebts
-        ) {
-          await putLocalDebt({
-            ...debt,
-            synced: true,
-          });
-        }
+for (
+  const debt of serverDebts
+) {
+  await putLocalDebt({
+    ...debt,
+    synced: true,
+  });
+}
 
-        const refreshedLocal =
-          await getLocalDebts();
+const refreshedLocal =
+  await getLocalDebts();
 
-        const queue =
-          await getDebtDeleteQueue();
+const queue =
+  await getDebtDeleteQueue();
 
         const deletedIds =
           new Set(

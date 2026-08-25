@@ -1551,34 +1551,135 @@ export default function ReportsPage() {
             throw error;
           }
 
-          const remoteSales =
-            (
-              (data ||
-                []) as Partial<Sale>[]
-            ).map(
-              (sale) =>
-                normalizeSale({
-                  ...sale,
-                  id:
-                    String(
-                      sale.id
-                    ),
-                  created_at:
-                    String(
-                      sale.created_at ||
-                        new Date().toISOString()
-                    ),
-                  user_id:
-                    userId,
-                  synced:
-                    true,
-                })
-            );
+         const remoteSales =
+  (
+    (data ||
+      []) as Partial<Sale>[]
+  ).map(
+    (sale) =>
+      normalizeSale({
+        ...sale,
+        id: String(sale.id),
+        created_at: String(
+          sale.created_at ||
+            new Date().toISOString()
+        ),
+        user_id: userId,
+        synced: true,
+      })
+  );
 
-          await saveLocalSales(
-            remoteSales
-          );
+/*
+  IMPORTANT :
+  On reconstruit le stockage local avec
+  les ventes réellement présentes sur Supabase.
 
+  On conserve uniquement les ventes locales
+  qui ne sont pas encore synchronisées.
+*/
+
+const currentLocalSales =
+  await getLocalSales(userId);
+
+const pendingLocalSales =
+  currentLocalSales.filter(
+    (sale) =>
+      sale.synced === false
+  );
+
+const remoteIds = new Set(
+  remoteSales.map(
+    (sale) => sale.id
+  )
+);
+
+/*
+  Les ventes supprimées du serveur ne sont
+  plus conservées localement.
+*/
+const finalLocalSales = [
+  ...pendingLocalSales,
+  ...remoteSales.filter(
+    (sale) =>
+      !pendingLocalSales.some(
+        (pending) =>
+          pending.id === sale.id
+      )
+  ),
+];
+
+/*
+  On supprime d'abord les anciennes ventes
+  synchronisées qui ne sont plus sur le serveur.
+*/
+const db =
+  await openSalesDB();
+
+await new Promise<void>(
+  (resolve, reject) => {
+    let transaction: IDBTransaction;
+
+    try {
+      transaction =
+        db.transaction(
+          SALES_STORE,
+          "readwrite"
+        );
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    const store =
+      transaction.objectStore(
+        SALES_STORE
+      );
+
+    for (
+      const localSale of currentLocalSales
+    ) {
+      if (
+        localSale.synced === true &&
+        !remoteIds.has(
+          localSale.id
+        )
+      ) {
+        store.delete(
+          localSale.id
+        );
+      }
+    }
+
+    transaction.oncomplete =
+      () => resolve();
+
+    transaction.onerror =
+      () =>
+        reject(
+          transaction.error ||
+            new Error(
+              "Impossible de nettoyer les ventes locales supprimées."
+            )
+        );
+
+    transaction.onabort =
+      () =>
+        reject(
+          transaction.error ||
+            new Error(
+              "Nettoyage des ventes locales interrompu."
+            )
+        );
+  }
+);
+
+/*
+  On enregistre les ventes réellement
+  présentes sur le serveur.
+*/
+await saveLocalSales(
+  finalLocalSales
+);
           setSyncState(
             "online"
           );
@@ -2375,190 +2476,182 @@ export default function ReportsPage() {
     };
 
   /* ======================================================
-     SUPPRESSION
-  ====================================================== */
+   SUPPRESSION DÉFINITIVE D'UNE VENTE
+====================================================== */
 
-  const deleteSale =
-    async (saleId: string) => {
-      const confirmed =
-        window.confirm(
-          "Voulez-vous vraiment supprimer cette vente ? Cette action est irréversible."
-        );
+const deleteSale = async (saleId: string) => {
+  const confirmed = window.confirm(
+    "Voulez-vous vraiment supprimer cette vente ? Cette action est irréversible."
+  );
 
-      if (!confirmed) {
-        return;
-      }
+  if (!confirmed) {
+    return;
+  }
 
-      const userId =
-        getStoredUserId();
+  const userId = getStoredUserId();
 
-      if (!userId) {
-        setNotice({
-          type: "error",
-          message:
-            "Utilisateur non connecté.",
-        });
-        return;
-      }
+  if (!userId) {
+    setNotice({
+      type: "error",
+      message: "Utilisateur non connecté.",
+    });
+    return;
+  }
 
-      try {
-        /*
-          Suppression immédiate
-          de l'écran + du cache local.
-        */
+  try {
+    /*
+      1. SUPPRESSION IMMÉDIATE DE L'INTERFACE
+    */
+    setSalesHistory((current) =>
+      current.filter((sale) => sale.id !== saleId)
+    );
 
-        setSalesHistory(
-          current =>
-            current.filter(
-              sale =>
-                sale.id !==
-                saleId
-            )
-        );
+    setFilteredSales((current) =>
+      current.filter((sale) => sale.id !== saleId)
+    );
 
-        setFilteredSales(
-          current =>
-            current.filter(
-              sale =>
-                sale.id !==
-                saleId
-            )
-        );
+    /*
+      2. SUPPRESSION DU STOCKAGE LOCAL
+    */
+    await removeLocalSale(saleId);
 
-        await removeLocalSale(
-          saleId
-        );
+    /*
+      3. HORS CONNEXION
+      On garde la suppression dans la file.
+    */
+    if (!navigator.onLine) {
+      await addSaleDeleteToQueue({
+        id: saleId,
+        userId,
+        createdAt: Date.now(),
+      });
 
-        /*
-          HORS CONNEXION :
-          on ajoute simplement
-          la suppression dans la file.
-        */
+      setSyncState("offline");
 
-        if (
-          !navigator.onLine
-        ) {
-          await addSaleDeleteToQueue({
-            id: saleId,
-            userId,
-            createdAt:
-              Date.now(),
-          });
+      setNotice({
+        type: "success",
+        message:
+          "Vente supprimée de cet appareil. La suppression sera synchronisée automatiquement dès le retour d'Internet.",
+      });
 
-          setSyncState(
-            "offline"
-          );
+      return;
+    }
 
-          setNotice({
-            type: "success",
-            message:
-              "Vente supprimée de votre appareil. La suppression sera synchronisée dès le retour d'Internet.",
-          });
+    /*
+      4. EN LIGNE
+      Suppression DIRECTE dans Supabase.
+    */
+    setSyncState("syncing");
 
-          return;
-        }
+    const {
+  data: deletedSale,
+  error,
+} = await supabase
+  .from("sales")
+  .delete()
+  .eq("id", saleId)
+  .eq("user_id", userId)
+  .select("id");
 
-        /*
-          EN LIGNE :
-          suppression directe
-          dans Supabase.
-        */
+if (error) {
+  throw error;
+}
 
-        setSyncState(
-          "syncing"
-        );
+if (!deletedSale || deletedSale.length === 0) {
+  throw new Error(
+    "La vente n'a pas été supprimée du serveur. Vérifiez les permissions Supabase (RLS)."
+  );
+}
 
-        const {
-          data,
-          error,
-        } =
-          await supabase
-            .from("sales")
-            .delete()
-            .eq(
-              "id",
-              saleId
-            )
-            .eq(
-              "user_id",
-              userId
-            )
-            .select("id");
+    /*
+      Si Supabase refuse la suppression,
+      on considère que la synchronisation n'est
+      pas terminée.
+    */
+    if (error) {
+      console.error(
+        "Erreur Supabase suppression vente :",
+        error
+      );
 
-        if (error) {
-          throw error;
-        }
+      /*
+        On remet la suppression dans la file
+        pour éviter que la vente réapparaisse
+        plus tard.
+      */
+      await addSaleDeleteToQueue({
+        id: saleId,
+        userId,
+        createdAt: Date.now(),
+      });
 
-        /*
-          Si Supabase n'a rien trouvé,
-          on ne remet pas la vente.
-          Elle a déjà pu être supprimée.
-        */
+      setSyncState("error");
 
-        if (
-          data &&
-          data.length > 0
-        ) {
-          // suppression confirmée
-        }
+      setNotice({
+        type: "error",
+        message:
+          "La vente a été supprimée de l'écran, mais la suppression serveur est en attente de synchronisation.",
+      });
 
-        setSyncState(
-          "online"
-        );
+      return;
+    }
 
-        setNotice({
-          type: "success",
-          message:
-            "Vente supprimée définitivement.",
-        });
-      } catch (error) {
-        console.error(
-          "Erreur suppression :",
-          error
-        );
+    /*
+      5. SUPPRESSION SERVEUR TERMINÉE
+    */
+    setSyncState("online");
 
-        /*
-          Si Internet vient
-          de tomber pendant la suppression,
-          on la met en attente.
-        */
+    setNotice({
+      type: "success",
+      message:
+        "Vente supprimée définitivement.",
+    });
 
-        if (
-          !navigator.onLine
-        ) {
-          try {
-            await addSaleDeleteToQueue({
-              id: saleId,
-              userId,
-              createdAt:
-                Date.now(),
-            });
+  } catch (error) {
+    console.error(
+      "Erreur suppression vente :",
+      error
+    );
 
-            setSyncState(
-              "offline"
-            );
+    /*
+      Si la connexion tombe pendant
+      la suppression, on ajoute quand même
+      la suppression dans la file.
+    */
+    try {
+      await addSaleDeleteToQueue({
+        id: saleId,
+        userId,
+        createdAt: Date.now(),
+      });
 
-            setNotice({
-              type: "success",
-              message:
-                "Vente supprimée localement. La suppression sera synchronisée dès que la connexion reviendra.",
-            });
+      setSyncState(
+        navigator.onLine
+          ? "error"
+          : "offline"
+      );
 
-            return;
-          } catch {
-            // Rien
-          }
-        }
+      setNotice({
+        type: "success",
+        message:
+          "Vente supprimée localement. La suppression sera synchronisée automatiquement.",
+      });
+    } catch (queueError) {
+      console.error(
+        "Erreur file de suppression :",
+        queueError
+      );
 
-        setNotice({
-          type: "error",
-          message:
-            getErrorMessage(
-              error
-            ),
-        });
-      }
-    };
+      setSyncState("error");
+
+      setNotice({
+        type: "error",
+        message:
+          "Impossible d'enregistrer la suppression. Veuillez réessayer.",
+      });
+    }
+  }
+};
 
   /* ======================================================
      VENTES AFFICHÉES
