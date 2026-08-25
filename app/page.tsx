@@ -17,11 +17,29 @@ import {
 export default function Home() {
   const router = useRouter();
 
+  /*
+   * =========================================================
+   * SESSION LOCALE
+   * ---------------------------------------------------------
+   * Fonctionne avec ou sans connexion Internet.
+   *
+   * Si l'utilisateur est déjà connecté sur cet appareil,
+   * on l'envoie directement vers le dashboard.
+   * =========================================================
+   */
   useEffect(() => {
-    const phone = localStorage.getItem("phone");
+    try {
+      const phone =
+        localStorage.getItem("phone");
 
-    if (phone) {
-      router.replace("/dashboard");
+      if (phone) {
+        router.replace("/dashboard");
+      }
+    } catch (error) {
+      console.error(
+        "Erreur lecture session locale :",
+        error
+      );
     }
   }, [router]);
 
@@ -36,41 +54,41 @@ export default function Home() {
 
         <div
           className="
-          absolute
-          -left-32
-          -top-32
-          h-80
-          w-80
-          rounded-full
-          bg-indigo-100/70
-          blur-3xl
+            absolute
+            -left-32
+            -top-32
+            h-80
+            w-80
+            rounded-full
+            bg-indigo-100/70
+            blur-3xl
           "
         />
 
         <div
           className="
-          absolute
-          -right-32
-          top-1/4
-          h-80
-          w-80
-          rounded-full
-          bg-indigo-50
-          blur-3xl
+            absolute
+            -right-32
+            top-1/4
+            h-80
+            w-80
+            rounded-full
+            bg-indigo-50
+            blur-3xl
           "
         />
 
         <div
           className="
-          absolute
-          bottom-0
-          left-1/2
-          h-72
-          w-72
-          -translate-x-1/2
-          rounded-full
-          bg-slate-100
-          blur-3xl
+            absolute
+            bottom-0
+            left-1/2
+            h-72
+            w-72
+            -translate-x-1/2
+            rounded-full
+            bg-slate-100
+            blur-3xl
           "
         />
 
@@ -83,18 +101,17 @@ export default function Home() {
 
       <div
         className="
-        relative
-        z-10
-        mx-auto
-        flex
-        min-h-[calc(100vh-3rem)]
-        w-full
-        max-w-5xl
-        items-center
-        justify-center
+          relative
+          z-10
+          mx-auto
+          flex
+          min-h-[calc(100vh-3rem)]
+          w-full
+          max-w-5xl
+          items-center
+          justify-center
         "
       >
-
 
         {/* =======================================================
             CARD PRINCIPALE
@@ -102,19 +119,18 @@ export default function Home() {
 
         <div
           className="
-          w-full
-          max-w-xl
-          rounded-[26px]
-          border
-          border-slate-200
-          bg-white
-          p-6
-          shadow-[0_12px_40px_rgba(15,23,42,0.06)]
-          sm:p-8
-          md:p-10
+            w-full
+            max-w-xl
+            rounded-[26px]
+            border
+            border-slate-200
+            bg-white
+            p-6
+            shadow-[0_12px_40px_rgba(15,23,42,0.06)]
+            sm:p-8
+            md:p-10
           "
         >
-
 
           {/* =====================================================
               BADGE
@@ -124,30 +140,30 @@ export default function Home() {
 
             <div
               className="
-              flex
-              items-center
-              gap-2
-              rounded-full
-              border
-              border-indigo-100
-              bg-indigo-50
-              px-4
-              py-2
-              text-xs
-              font-bold
-              text-indigo-700
+                flex
+                items-center
+                gap-2
+                rounded-full
+                border
+                border-indigo-100
+                bg-indigo-50
+                px-4
+                py-2
+                text-xs
+                font-bold
+                text-indigo-700
               "
             >
 
               <div
                 className="
-                flex
-                h-6
-                w-6
-                items-center
-                justify-center
-                rounded-lg
-                bg-white
+                  flex
+                  h-6
+                  w-6
+                  items-center
+                  justify-center
+                  rounded-lg
+                  bg-white
                 "
               >
 
@@ -172,24 +188,24 @@ export default function Home() {
 
             <div
               className="
-              absolute
-              h-40
-              w-40
-              rounded-full
-              bg-indigo-100
-              blur-3xl
+                absolute
+                h-40
+                w-40
+                rounded-full
+                bg-indigo-100
+                blur-3xl
               "
             />
 
             <div
               className="
-              relative
-              rounded-[26px]
-              border
-              border-slate-200
-              bg-slate-50
-              p-3
-              shadow-[0_8px_25px_rgba(15,23,42,0.06)]
+                relative
+                rounded-[26px]
+                border
+                border-slate-200
+                bg-slate-50
+                p-3
+                shadow-[0_8px_25px_rgba(15,23,42,0.06)]
               "
             >
 
@@ -213,13 +229,13 @@ export default function Home() {
 
           <h1
             className="
-            mt-7
-            text-center
-            text-3xl
-            font-black
-            tracking-tight
-            text-slate-900
-            sm:text-4xl
+              mt-7
+              text-center
+              text-3xl
+              font-black
+              tracking-tight
+              text-slate-900
+              sm:text-4xl
             "
           >
 
@@ -238,13 +254,13 @@ export default function Home() {
 
           <p
             className="
-            mx-auto
-            mt-4
-            max-w-md
-            text-center
-            text-sm
-            leading-7
-            text-slate-500
+              mx-auto
+              mt-4
+              max-w-md
+              text-center
+              text-sm
+              leading-7
+              text-slate-500
             "
           >
 
@@ -261,40 +277,39 @@ export default function Home() {
 
           <div
             className="
-            mt-7
-            grid
-            grid-cols-1
-            gap-3
-            sm:grid-cols-2
+              mt-7
+              grid
+              grid-cols-1
+              gap-3
+              sm:grid-cols-2
             "
           >
-
 
             {/* GESTION */}
 
             <div
               className="
-              flex
-              items-center
-              gap-3
-              rounded-2xl
-              border
-              border-slate-200
-              bg-slate-50
-              p-3.5
+                flex
+                items-center
+                gap-3
+                rounded-2xl
+                border
+                border-slate-200
+                bg-slate-50
+                p-3.5
               "
             >
 
               <div
                 className="
-                flex
-                h-10
-                w-10
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-indigo-100
+                  flex
+                  h-10
+                  w-10
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-indigo-100
                 "
               >
 
@@ -323,27 +338,27 @@ export default function Home() {
 
             <div
               className="
-              flex
-              items-center
-              gap-3
-              rounded-2xl
-              border
-              border-slate-200
-              bg-slate-50
-              p-3.5
+                flex
+                items-center
+                gap-3
+                rounded-2xl
+                border
+                border-slate-200
+                bg-slate-50
+                p-3.5
               "
             >
 
               <div
                 className="
-                flex
-                h-10
-                w-10
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-indigo-100
+                  flex
+                  h-10
+                  w-10
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-indigo-100
                 "
               >
 
@@ -367,7 +382,6 @@ export default function Home() {
 
             </div>
 
-
           </div>
 
 
@@ -377,41 +391,40 @@ export default function Home() {
 
           <div className="mt-8 flex flex-col gap-3">
 
-
             {/* CONNEXION */}
 
             <Link
               href="/login"
               className="
-              group
-              flex
-              w-full
-              items-center
-              justify-center
-              gap-2
-              rounded-2xl
-              bg-indigo-600
-              px-6
-              py-4
-              font-bold
-              text-white
-              shadow-[0_8px_20px_rgba(79,70,229,0.18)]
-              transition
-              hover:bg-indigo-700
-              hover:shadow-[0_10px_24px_rgba(79,70,229,0.22)]
-              active:scale-[0.99]
+                group
+                flex
+                w-full
+                items-center
+                justify-center
+                gap-2
+                rounded-2xl
+                bg-indigo-600
+                px-6
+                py-4
+                font-bold
+                text-white
+                shadow-[0_8px_20px_rgba(79,70,229,0.18)]
+                transition
+                hover:bg-indigo-700
+                hover:shadow-[0_10px_24px_rgba(79,70,229,0.22)]
+                active:scale-[0.99]
               "
             >
 
               <div
                 className="
-                flex
-                h-7
-                w-7
-                items-center
-                justify-center
-                rounded-lg
-                bg-white/10
+                  flex
+                  h-7
+                  w-7
+                  items-center
+                  justify-center
+                  rounded-lg
+                  bg-white/10
                 "
               >
 
@@ -423,10 +436,10 @@ export default function Home() {
 
               <ArrowRight
                 className="
-                h-5
-                w-5
-                transition
-                group-hover:translate-x-1
+                  h-5
+                  w-5
+                  transition
+                  group-hover:translate-x-1
                 "
               />
 
@@ -438,34 +451,34 @@ export default function Home() {
             <Link
               href="/register"
               className="
-              flex
-              w-full
-              items-center
-              justify-center
-              gap-2
-              rounded-2xl
-              border
-              border-indigo-200
-              bg-indigo-50
-              px-6
-              py-4
-              font-bold
-              text-indigo-700
-              transition
-              hover:bg-indigo-100
-              active:scale-[0.99]
+                flex
+                w-full
+                items-center
+                justify-center
+                gap-2
+                rounded-2xl
+                border
+                border-indigo-200
+                bg-indigo-50
+                px-6
+                py-4
+                font-bold
+                text-indigo-700
+                transition
+                hover:bg-indigo-100
+                active:scale-[0.99]
               "
             >
 
               <div
                 className="
-                flex
-                h-7
-                w-7
-                items-center
-                justify-center
-                rounded-lg
-                bg-white
+                  flex
+                  h-7
+                  w-7
+                  items-center
+                  justify-center
+                  rounded-lg
+                  bg-white
                 "
               >
 
@@ -477,7 +490,6 @@ export default function Home() {
 
             </Link>
 
-
           </div>
 
 
@@ -487,17 +499,16 @@ export default function Home() {
 
           <div
             className="
-            mt-8
-            rounded-2xl
-            border
-            border-slate-200
-            bg-slate-50
-            p-4
+              mt-8
+              rounded-2xl
+              border
+              border-slate-200
+              bg-slate-50
+              p-4
             "
           >
 
             <div className="space-y-3">
-
 
               {/* SÉCURITÉ */}
 
@@ -505,14 +516,14 @@ export default function Home() {
 
                 <div
                   className="
-                  flex
-                  h-9
-                  w-9
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-green-50
+                    flex
+                    h-9
+                    w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-green-50
                   "
                 >
 
@@ -521,7 +532,6 @@ export default function Home() {
                   />
 
                 </div>
-
 
                 <div>
 
@@ -542,25 +552,25 @@ export default function Home() {
 
               <div
                 className="
-                flex
-                items-center
-                gap-3
-                border-t
-                border-slate-200
-                pt-3
+                  flex
+                  items-center
+                  gap-3
+                  border-t
+                  border-slate-200
+                  pt-3
                 "
               >
 
                 <div
                   className="
-                  flex
-                  h-9
-                  w-9
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-indigo-50
+                    flex
+                    h-9
+                    w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-indigo-50
                   "
                 >
 
@@ -569,7 +579,6 @@ export default function Home() {
                   />
 
                 </div>
-
 
                 <div>
 
@@ -585,14 +594,11 @@ export default function Home() {
 
               </div>
 
-
             </div>
 
           </div>
 
-
         </div>
-
 
       </div>
 
@@ -603,13 +609,13 @@ export default function Home() {
 
       <p
         className="
-        absolute
-        bottom-3
-        left-0
-        right-0
-        text-center
-        text-xs
-        text-slate-400
+          absolute
+          bottom-3
+          left-0
+          right-0
+          text-center
+          text-xs
+          text-slate-400
         "
       >
 
@@ -618,7 +624,6 @@ export default function Home() {
         PDG DIEUMERCI IDI
 
       </p>
-
 
     </main>
   );
