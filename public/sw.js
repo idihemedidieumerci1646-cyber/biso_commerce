@@ -1,4 +1,4 @@
-const CACHE_VERSION = "biso-commerce-v5";
+const CACHE_VERSION = "biso-commerce-v6";
 
 const APP_SHELL = [
   "/",
@@ -24,10 +24,7 @@ self.addEventListener("install", (event) => {
       const cache = await caches.open(CACHE_VERSION);
 
       /*
-       * On met en cache les pages principales.
-       *
-       * Une page qui n'a jamais été ouverte avant ne pourra
-       * évidemment pas être disponible hors connexion.
+       * Préchargement des pages principales.
        */
       for (const url of APP_SHELL) {
         try {
@@ -39,7 +36,10 @@ self.addEventListener("install", (event) => {
           );
 
           if (response.ok) {
-            await cache.put(url, response.clone());
+            await cache.put(
+              new Request(url),
+              response.clone()
+            );
           }
         } catch (error) {
           console.warn(
@@ -51,7 +51,7 @@ self.addEventListener("install", (event) => {
       }
 
       /*
-       * Active immédiatement le nouveau SW.
+       * Active immédiatement le nouveau Service Worker.
        */
       await self.skipWaiting();
     })()
@@ -69,13 +69,15 @@ self.addEventListener("activate", (event) => {
 
       await Promise.all(
         cacheNames
-          .filter(
-            (name) => name.startsWith("biso-commerce-")
+          .filter((name) =>
+            name.startsWith("biso-commerce-")
           )
           .filter(
             (name) => name !== CACHE_VERSION
           )
-          .map((name) => caches.delete(name))
+          .map((name) =>
+            caches.delete(name)
+          )
       );
 
       await self.clients.claim();
@@ -105,24 +107,28 @@ function isSameOrigin(request) {
 }
 
 function isNextStaticFile(url) {
-  return (
-    url.pathname.startsWith("/_next/static/")
+  return url.pathname.startsWith(
+    "/_next/static/"
   );
 }
 
 function isNextImage(url) {
-  return (
-    url.pathname.startsWith("/_next/image")
+  return url.pathname.startsWith(
+    "/_next/image"
   );
 }
 
 function isManifest(url) {
   return (
-    url.pathname === "/manifest.json"
+    url.pathname ===
+    "/manifest.json"
   );
 }
 
-async function putInCache(request, response) {
+async function putInCache(
+  request,
+  response
+) {
   if (
     !response ||
     !response.ok ||
@@ -133,7 +139,9 @@ async function putInCache(request, response) {
 
   try {
     const cache =
-      await caches.open(CACHE_VERSION);
+      await caches.open(
+        CACHE_VERSION
+      );
 
     await cache.put(
       request,
@@ -148,413 +156,691 @@ async function putInCache(request, response) {
 }
 
 /* =========================================================
+   TROUVER UNE PAGE ADAPTÉE HORS CONNEXION
+========================================================= */
+
+async function getOfflineNavigation(
+  url
+) {
+  /*
+   * =======================================================
+   * 1. URL EXACTE
+   *
+   * Exemple :
+   *
+   * /products/edit/123
+   *
+   * Si cette page a déjà été ouverte avec Internet,
+   * elle doit être utilisée directement.
+   * =======================================================
+   */
+
+  const exactRequest =
+    new Request(
+      url.href,
+      {
+        method: "GET",
+      }
+    );
+
+  const exact =
+    await caches.match(
+      exactRequest
+    );
+
+  if (exact) {
+    console.log(
+      "[BISO-COMMERCE] Page exacte trouvée dans le cache :",
+      url.pathname
+    );
+
+    return exact;
+  }
+
+  /*
+   * =======================================================
+   * 2. PATHNAME EXACT
+   * =======================================================
+   */
+
+  const pathnameRequest =
+    new Request(
+      url.pathname,
+      {
+        method: "GET",
+      }
+    );
+
+  const pathnameMatch =
+    await caches.match(
+      pathnameRequest
+    );
+
+  if (pathnameMatch) {
+    console.log(
+      "[BISO-COMMERCE] Pathname trouvé dans le cache :",
+      url.pathname
+    );
+
+    return pathnameMatch;
+  }
+
+  /*
+   * =======================================================
+   * 3. ROUTES PARTICULIÈRES
+   *
+   * On ne renvoie PLUS toutes les routes vers Dashboard.
+   *
+   * Chaque section possède son propre fallback.
+   * =======================================================
+   */
+
+  /*
+   * PRODUITS
+   *
+   * /products/edit/123
+   * /products/...
+   */
+  if (
+    url.pathname === "/products" ||
+    url.pathname.startsWith(
+      "/products/"
+    )
+  ) {
+    const productsPage =
+      await caches.match(
+        "/products"
+      );
+
+    if (productsPage) {
+      return productsPage;
+    }
+  }
+
+  /*
+   * VENTES
+   */
+  if (
+    url.pathname === "/sales" ||
+    url.pathname.startsWith(
+      "/sales/"
+    )
+  ) {
+    const salesPage =
+      await caches.match(
+        "/sales"
+      );
+
+    if (salesPage) {
+      return salesPage;
+    }
+  }
+
+  /*
+   * DETTES
+   */
+  if (
+    url.pathname === "/debts" ||
+    url.pathname.startsWith(
+      "/debts/"
+    )
+  ) {
+    const debtsPage =
+      await caches.match(
+        "/debts"
+      );
+
+    if (debtsPage) {
+      return debtsPage;
+    }
+  }
+
+  /*
+   * RAPPORTS
+   */
+  if (
+    url.pathname === "/reports" ||
+    url.pathname.startsWith(
+      "/reports/"
+    )
+  ) {
+    const reportsPage =
+      await caches.match(
+        "/reports"
+      );
+
+    if (reportsPage) {
+      return reportsPage;
+    }
+  }
+
+  /*
+   * DÉPENSES
+   */
+  if (
+    url.pathname === "/expenses" ||
+    url.pathname.startsWith(
+      "/expenses/"
+    )
+  ) {
+    const expensesPage =
+      await caches.match(
+        "/expenses"
+      );
+
+    if (expensesPage) {
+      return expensesPage;
+    }
+  }
+
+  /*
+   * ASSISTANT
+   */
+  if (
+    url.pathname === "/assistant" ||
+    url.pathname.startsWith(
+      "/assistant/"
+    )
+  ) {
+    const assistantPage =
+      await caches.match(
+        "/assistant"
+      );
+
+    if (assistantPage) {
+      return assistantPage;
+    }
+  }
+
+  /*
+   * ABONNEMENT
+   */
+  if (
+    url.pathname === "/subscription" ||
+    url.pathname.startsWith(
+      "/subscription/"
+    )
+  ) {
+    const subscriptionPage =
+      await caches.match(
+        "/subscription"
+      );
+
+    if (subscriptionPage) {
+      return subscriptionPage;
+    }
+  }
+
+  /*
+   * =======================================================
+   * 4. APP SHELL
+   *
+   * On essaie seulement les pages principales.
+   * =======================================================
+   */
+
+  if (
+    APP_SHELL.includes(
+      url.pathname
+    )
+  ) {
+    const shell =
+      await caches.match(
+        url.pathname
+      );
+
+    if (shell) {
+      return shell;
+    }
+  }
+
+  /*
+   * =======================================================
+   * 5. IMPORTANT
+   *
+   * PLUS DE FALLBACK AUTOMATIQUE VERS /dashboard.
+   *
+   * Avant :
+   *
+   * route inconnue
+   *       ↓
+   * Dashboard ❌
+   *
+   * Maintenant :
+   *
+   * route inconnue
+   *       ↓
+   * vraie page offline
+   * =======================================================
+   */
+
+  return offlinePage();
+}
+
+/* =========================================================
    FETCH
 ========================================================= */
 
-self.addEventListener("fetch", (event) => {
-  const request = event.request;
+self.addEventListener(
+  "fetch",
+  (event) => {
+    const request =
+      event.request;
 
-  /*
-   * Seulement GET.
-   */
-  if (request.method !== "GET") {
-    return;
-  }
+    /*
+     * Seulement GET.
+     */
+    if (
+      request.method !==
+      "GET"
+    ) {
+      return;
+    }
 
-  /*
-   * Seulement notre domaine.
-   */
-  if (!isSameOrigin(request)) {
-    return;
-  }
+    /*
+     * Seulement notre domaine.
+     */
+    if (
+      !isSameOrigin(request)
+    ) {
+      return;
+    }
 
-  const url = new URL(request.url);
+    const url =
+      new URL(request.url);
 
-  /* =======================================================
-     1. NAVIGATION / PAGES NEXT.JS
-  ======================================================= */
+    /* =======================================================
+       1. NAVIGATION
+    ======================================================= */
 
-  if (request.mode === "navigate") {
-    event.respondWith(
-      (async () => {
-        /*
-         * INTERNET D'ABORD
-         *
-         * Cela permet d'obtenir la dernière version
-         * de la page lorsqu'Internet est disponible.
-         */
-        try {
-          const response = await fetch(
-            request,
-            {
-              cache: "no-store",
-            }
-          );
+    if (
+      request.mode ===
+      "navigate"
+    ) {
+      event.respondWith(
+        (async () => {
+          /*
+           * =================================================
+           * INTERNET
+           * =================================================
+           */
 
-          if (response.ok) {
-            /*
-             * Sauvegarder la page actuelle.
-             */
-            await putInCache(
-              request,
-              response
-            );
+          try {
+            const response =
+              await fetch(
+                request,
+                {
+                  cache:
+                    "no-store",
+                }
+              );
 
-            /*
-             * Sauvegarder également le pathname.
-             *
-             * Exemple :
-             *
-             * /products/edit/123
-             */
-            try {
+            if (
+              response.ok
+            ) {
+              /*
+               * Mettre en cache l'URL exacte.
+               */
               await putInCache(
-                new Request(
-                  url.pathname
-                ),
+                request,
                 response
               );
-            } catch {
-              /* rien */
+
+              /*
+               * Mettre également le pathname
+               * en cache.
+               */
+              try {
+                await putInCache(
+                  new Request(
+                    url.pathname
+                  ),
+                  response
+                );
+              } catch {
+                /* rien */
+              }
+
+              return response;
+            }
+
+            throw new Error(
+              `Navigation HTTP ${response.status}`
+            );
+          } catch (
+            error
+          ) {
+            /*
+             * =================================================
+             * HORS CONNEXION
+             * =================================================
+             */
+
+            console.warn(
+              "[BISO-COMMERCE] Navigation hors connexion :",
+              url.pathname
+            );
+
+            return getOfflineNavigation(
+              url
+            );
+          }
+        })()
+      );
+
+      return;
+    }
+
+    /* =======================================================
+       2. JAVASCRIPT / NEXT STATIC
+    ======================================================= */
+
+    if (
+      request.destination ===
+        "script" ||
+      request.destination ===
+        "worker" ||
+      isNextStaticFile(url)
+    ) {
+      event.respondWith(
+        (async () => {
+          try {
+            const response =
+              await fetch(
+                request,
+                {
+                  cache:
+                    "no-store",
+                }
+              );
+
+            if (
+              response &&
+              response.ok
+            ) {
+              await putInCache(
+                request,
+                response
+              );
             }
 
             return response;
-          }
-
-          throw new Error(
-            `Navigation HTTP ${response.status}`
-          );
-        } catch (error) {
-          /*
-           * PAS INTERNET
-           */
-
-          console.warn(
-            "[BISO-COMMERCE] Navigation hors connexion :",
-            url.pathname
-          );
-
-          /*
-           * 1. URL exacte
-           */
-          const exact =
-            await caches.match(request);
-
-          if (exact) {
-            return exact;
-          }
-
-          /*
-           * 2. Pathname exact
-           */
-          const pathnameMatch =
-            await caches.match(
-              new Request(url.pathname)
-            );
-
-          if (pathnameMatch) {
-            return pathnameMatch;
-          }
-
-          /*
-           * 3. Une page de l'APP SHELL
-           */
-          if (
-            APP_SHELL.includes(
-              url.pathname
-            )
-          ) {
-            const shell =
+          } catch {
+            const cached =
               await caches.match(
-                url.pathname
+                request
               );
 
-            if (shell) {
-              return shell;
+            if (cached) {
+              return cached;
             }
-          }
 
-          /*
-           * 4. Dashboard comme dernier fallback.
-           *
-           * Cela évite le "This page couldn't load"
-           * si une route dynamique n'a pas été préchargée.
-           */
-          const dashboard =
-            await caches.match(
-              "/dashboard"
-            );
-
-          if (dashboard) {
-            return dashboard;
-          }
-
-          /*
-           * 5. Accueil
-           */
-          const home =
-            await caches.match("/");
-
-          if (home) {
-            return home;
-          }
-
-          /*
-           * 6. Écran offline
-           */
-          return offlinePage();
-        }
-      })()
-    );
-
-    return;
-  }
-
-  /* =======================================================
-     2. CHUNKS NEXT.JS / JAVASCRIPT
-     
-     IMPORTANT :
-     On utilise NETWORK FIRST.
-
-     Cela évite de garder indéfiniment un vieux chunk.
-     Mais si le téléphone est hors connexion et que le
-     chunk a déjà été chargé auparavant, on peut utiliser
-     sa copie locale.
-  ======================================================= */
-
-  if (
-    request.destination === "script" ||
-    request.destination === "worker" ||
-    isNextStaticFile(url)
-  ) {
-    event.respondWith(
-      (async () => {
-        try {
-          const response =
-            await fetch(request, {
-              cache: "no-store",
-            });
-
-          /*
-           * Ne mettre en cache que les réponses valides.
-           */
-          if (
-            response &&
-            response.ok
-          ) {
-            await putInCache(
-              request,
-              response
-            );
-          }
-
-          return response;
-        } catch {
-          /*
-           * Hors connexion :
-           * chercher le chunk précédemment téléchargé.
-           */
-          const cached =
-            await caches.match(request);
-
-          if (cached) {
-            return cached;
-          }
-
-          /*
-           * Aucun chunk disponible.
-           */
-          return new Response(
-            "Ressource JavaScript indisponible hors connexion.",
-            {
-              status: 503,
-              headers: {
-                "Content-Type":
-                  "text/plain; charset=utf-8",
-              },
-            }
-          );
-        }
-      })()
-    );
-
-    return;
-  }
-
-  /* =======================================================
-     3. CSS
-  ======================================================= */
-
-  if (
-    request.destination === "style"
-  ) {
-    event.respondWith(
-      (async () => {
-        /*
-         * D'abord cache.
-         *
-         * Le CSS change moins souvent que les pages.
-         */
-        const cached =
-          await caches.match(request);
-
-        if (cached) {
-          /*
-           * On essaie quand même de mettre à jour
-           * en arrière-plan.
-           */
-          fetch(request, {
-            cache: "no-store",
-          })
-            .then((response) => {
-              if (response.ok) {
-                void putInCache(
-                  request,
-                  response
-                );
+            return new Response(
+              "Ressource JavaScript indisponible hors connexion.",
+              {
+                status: 503,
+                headers: {
+                  "Content-Type":
+                    "text/plain; charset=utf-8",
+                },
               }
-            })
-            .catch(() => {});
-
-          return cached;
-        }
-
-        /*
-         * Pas de cache → Internet.
-         */
-        try {
-          const response =
-            await fetch(request, {
-              cache: "no-store",
-            });
-
-          if (response.ok) {
-            await putInCache(
-              request,
-              response
             );
           }
+        })()
+      );
 
-          return response;
-        } catch {
-          return new Response(
-            "",
-            {
-              status: 503,
-            }
-          );
-        }
-      })()
-    );
+      return;
+    }
 
-    return;
-  }
+    /* =======================================================
+       3. CSS
+    ======================================================= */
 
-  /* =======================================================
-     4. IMAGES
-  ======================================================= */
-
-  if (
-    request.destination === "image" ||
-    isNextImage(url)
-  ) {
-    event.respondWith(
-      (async () => {
-        const cached =
-          await caches.match(request);
-
-        if (cached) {
-          return cached;
-        }
-
-        try {
-          const response =
-            await fetch(request);
-
-          if (
-            response &&
-            response.ok
-          ) {
-            await putInCache(
-              request,
-              response
+    if (
+      request.destination ===
+      "style"
+    ) {
+      event.respondWith(
+        (async () => {
+          const cached =
+            await caches.match(
+              request
             );
+
+          if (cached) {
+            /*
+             * Mise à jour silencieuse.
+             */
+            fetch(
+              request,
+              {
+                cache:
+                  "no-store",
+              }
+            )
+              .then(
+                (response) => {
+                  if (
+                    response &&
+                    response.ok
+                  ) {
+                    void putInCache(
+                      request,
+                      response
+                    );
+                  }
+                }
+              )
+              .catch(
+                () => {}
+              );
+
+            return cached;
           }
 
-          return response;
-        } catch {
-          return new Response(
-            "",
-            {
-              status: 503,
+          try {
+            const response =
+              await fetch(
+                request,
+                {
+                  cache:
+                    "no-store",
+                }
+              );
+
+            if (
+              response.ok
+            ) {
+              await putInCache(
+                request,
+                response
+              );
             }
-          );
-        }
-      })()
-    );
 
-    return;
-  }
-
-  /* =======================================================
-     5. POLICES
-  ======================================================= */
-
-  if (
-    request.destination === "font"
-  ) {
-    event.respondWith(
-      (async () => {
-        const cached =
-          await caches.match(request);
-
-        if (cached) {
-          return cached;
-        }
-
-        try {
-          const response =
-            await fetch(request);
-
-          if (
-            response &&
-            response.ok
-          ) {
-            await putInCache(
-              request,
-              response
+            return response;
+          } catch {
+            return new Response(
+              "",
+              {
+                status: 503,
+              }
             );
           }
+        })()
+      );
 
-          return response;
-        } catch {
-          return new Response(
-            "",
-            {
-              status: 503,
+      return;
+    }
+
+    /* =======================================================
+       4. IMAGES
+    ======================================================= */
+
+    if (
+      request.destination ===
+        "image" ||
+      isNextImage(url)
+    ) {
+      event.respondWith(
+        (async () => {
+          const cached =
+            await caches.match(
+              request
+            );
+
+          if (cached) {
+            return cached;
+          }
+
+          try {
+            const response =
+              await fetch(
+                request
+              );
+
+            if (
+              response &&
+              response.ok
+            ) {
+              await putInCache(
+                request,
+                response
+              );
             }
-          );
-        }
-      })()
-    );
 
-    return;
-  }
+            return response;
+          } catch {
+            return new Response(
+              "",
+              {
+                status: 503,
+              }
+            );
+          }
+        })()
+      );
 
-  /* =======================================================
-     6. MANIFEST
-  ======================================================= */
+      return;
+    }
 
-  if (
-    isManifest(url)
-  ) {
+    /* =======================================================
+       5. POLICES
+    ======================================================= */
+
+    if (
+      request.destination ===
+      "font"
+    ) {
+      event.respondWith(
+        (async () => {
+          const cached =
+            await caches.match(
+              request
+            );
+
+          if (cached) {
+            return cached;
+          }
+
+          try {
+            const response =
+              await fetch(
+                request
+              );
+
+            if (
+              response &&
+              response.ok
+            ) {
+              await putInCache(
+                request,
+                response
+              );
+            }
+
+            return response;
+          } catch {
+            return new Response(
+              "",
+              {
+                status: 503,
+              }
+            );
+          }
+        })()
+      );
+
+      return;
+    }
+
+    /* =======================================================
+       6. MANIFEST
+    ======================================================= */
+
+    if (
+      isManifest(url)
+    ) {
+      event.respondWith(
+        (async () => {
+          try {
+            const response =
+              await fetch(
+                request,
+                {
+                  cache:
+                    "no-store",
+                }
+              );
+
+            if (
+              response &&
+              response.ok
+            ) {
+              await putInCache(
+                request,
+                response
+              );
+            }
+
+            return response;
+          } catch {
+            const cached =
+              await caches.match(
+                request
+              );
+
+            if (cached) {
+              return cached;
+            }
+
+            return new Response(
+              "{}",
+              {
+                status: 503,
+                headers: {
+                  "Content-Type":
+                    "application/manifest+json",
+                },
+              }
+            );
+          }
+        })()
+      );
+
+      return;
+    }
+
+    /* =======================================================
+       7. AUTRES RESSOURCES
+    ======================================================= */
+
     event.respondWith(
       (async () => {
         try {
           const response =
-            await fetch(request, {
-              cache: "no-store",
-            });
+            await fetch(
+              request
+            );
 
           if (
             response &&
@@ -569,70 +855,25 @@ self.addEventListener("fetch", (event) => {
           return response;
         } catch {
           const cached =
-            await caches.match(request);
+            await caches.match(
+              request
+            );
 
           if (cached) {
             return cached;
           }
 
           return new Response(
-            "{}",
+            "",
             {
               status: 503,
-              headers: {
-                "Content-Type":
-                  "application/manifest+json",
-              },
             }
           );
         }
       })()
     );
-
-    return;
   }
-
-  /* =======================================================
-     7. AUTRES RESSOURCES
-     
-     NETWORK FIRST
-  ======================================================= */
-
-  event.respondWith(
-    (async () => {
-      try {
-        const response =
-          await fetch(request);
-
-        if (
-          response &&
-          response.ok
-        ) {
-          await putInCache(
-            request,
-            response
-          );
-        }
-
-        return response;
-      } catch {
-        const cached =
-          await caches.match(request);
-
-        if (cached) {
-          return cached;
-        }
-
-        return new Response(
-          "",
-          {
-            status: 503,
-          }
-        );
-      }
-    })()
-  );
-});
+);
 
 /* =========================================================
    PAGE HORS CONNEXION
@@ -645,6 +886,7 @@ function offlinePage() {
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
+
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0"
@@ -666,9 +908,11 @@ function offlinePage() {
 
     body {
       min-height: 100vh;
+
       display: flex;
       align-items: center;
       justify-content: center;
+
       padding: 20px;
 
       background: #f5f7fb;
@@ -749,12 +993,13 @@ function offlinePage() {
     </h1>
 
     <p>
-      BISO-COMMERCE est actuellement
+      Cette page n'est pas encore disponible
       hors connexion.
       <br /><br />
-      Revenez sur l'application lorsque
-      la connexion Internet est disponible
-      pour charger cette page.
+
+      Ouvrez cette page au moins une fois
+      avec Internet afin que BISO-COMMERCE
+      puisse la conserver sur l'appareil.
     </p>
 
   </div>
@@ -790,10 +1035,6 @@ self.addEventListener(
       self.skipWaiting();
     }
 
-    /*
-     * Permet de demander au SW de supprimer
-     * tous les anciens caches.
-     */
     if (
       event.data &&
       event.data.type ===
@@ -815,7 +1056,9 @@ self.addEventListener(
                     CACHE_VERSION
               )
               .map((name) =>
-                caches.delete(name)
+                caches.delete(
+                  name
+                )
               )
           );
         })()
