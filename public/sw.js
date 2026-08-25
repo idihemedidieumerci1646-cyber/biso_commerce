@@ -160,6 +160,58 @@ function isProductEditRoute(url) {
     )
   );
 }
+/* =========================================================
+   PRODUIT — CACHE DE LA PAGE ÉDITION
+========================================================= */
+
+async function cacheProductEditPage(request, response) {
+  if (
+    !response ||
+    !response.ok ||
+    response.type !== "basic"
+  ) {
+    return;
+  }
+
+  try {
+    const cache = await caches.open(
+      CACHE_VERSION
+    );
+
+    /*
+     * On sauvegarde l'URL exacte :
+     *
+     * /products/edit/123
+     */
+    await cache.put(
+      request,
+      response.clone()
+    );
+
+    /*
+     * On sauvegarde également
+     * le pathname exact.
+     */
+    const url = new URL(
+      request.url
+    );
+
+    await cache.put(
+      new Request(url.pathname),
+      response.clone()
+    );
+
+    console.log(
+      "[BISO-COMMERCE] Page édition produit mise en cache :",
+      url.pathname
+    );
+  } catch (error) {
+    console.warn(
+      "[BISO-COMMERCE] Impossible de mettre en cache la page édition :",
+      error
+    );
+  }
+}
 
 /* =========================================================
    PRODUIT — ROUTES

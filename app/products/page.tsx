@@ -52,17 +52,22 @@ type SyncState =
   | "syncing"
   | "error";
 
+type DeleteQueueItem = {
+  id: string;
+  product_id: string;
+  user_id: string;
+  created_at: string;
+};
+
 /* =========================================================
    INDEXED DB
-   ---------------------------------------------------------
-   Le cache des produits reste disponible hors connexion.
-   La file de suppression hors connexion a été supprimée.
 ========================================================= */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 10;
+const DB_VERSION = 12;
 
 const PRODUCTS_STORE = "products";
+const DELETE_QUEUE_STORE = "delete_queue";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -84,72 +89,64 @@ function openProductsDB(): Promise<IDBDatabase> {
   }
 
   dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(
-      DB_NAME,
-      DB_VERSION
-    );
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
       const transaction = request.transaction;
 
-      if (!transaction) {
-        return;
-      }
+      if (!transaction) return;
 
       let productsStore: IDBObjectStore;
 
       if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {
-        productsStore = db.createObjectStore(
-          PRODUCTS_STORE,
-          {
-            keyPath: "id",
-          }
-        );
+        productsStore = db.createObjectStore(PRODUCTS_STORE, {
+          keyPath: "id",
+        });
       } else {
-        productsStore =
-          transaction.objectStore(
-            PRODUCTS_STORE
-          );
+        productsStore = transaction.objectStore(PRODUCTS_STORE);
       }
 
-      if (
-        !productsStore.indexNames.contains(
-          "user_id"
-        )
-      ) {
-        productsStore.createIndex(
-          "user_id",
-          "user_id",
-          {
-            unique: false,
-          }
-        );
+      if (!productsStore.indexNames.contains("user_id")) {
+        productsStore.createIndex("user_id", "user_id", {
+          unique: false,
+        });
       }
 
-      if (
-        !productsStore.indexNames.contains(
-          "created_at"
-        )
-      ) {
-        productsStore.createIndex(
-          "created_at",
-          "created_at",
-          {
-            unique: false,
-          }
-        );
+      if (!productsStore.indexNames.contains("created_at")) {
+        productsStore.createIndex("created_at", "created_at", {
+          unique: false,
+        });
       }
 
-      /*
-       * Si une ancienne version de l'application
-       * possédait delete_queue, on ne l'utilise
-       * désormais plus.
-       *
-       * On ne supprime pas brutalement le store ici
-       * afin de ne pas casser les anciennes données
-       * IndexedDB.
-       */
+      let deleteQueueStore: IDBObjectStore;
+
+      if (!db.objectStoreNames.contains(DELETE_QUEUE_STORE)) {
+        deleteQueueStore = db.createObjectStore(DELETE_QUEUE_STORE, {
+          keyPath: "id",
+        });
+      } else {
+        deleteQueueStore =
+          transaction.objectStore(DELETE_QUEUE_STORE);
+      }
+
+      if (!deleteQueueStore.indexNames.contains("user_id")) {
+        deleteQueueStore.createIndex("user_id", "user_id", {
+          unique: false,
+        });
+      }
+
+      if (!deleteQueueStore.indexNames.contains("product_id")) {
+        deleteQueueStore.createIndex("product_id", "product_id", {
+          unique: false,
+        });
+      }
+
+      if (!deleteQueueStore.indexNames.contains("created_at")) {
+        deleteQueueStore.createIndex("created_at", "created_at", {
+          unique: false,
+        });
+      }
     };
 
     request.onsuccess = () => {
@@ -165,18 +162,15 @@ function openProductsDB(): Promise<IDBDatabase> {
 
     request.onerror = () => {
       dbPromise = null;
-
       reject(
         request.error ||
-          new Error(
-            "Impossible d'ouvrir IndexedDB."
-          )
+          new Error("Impossible d'ouvrir IndexedDB.")
       );
     };
 
     request.onblocked = () => {
       console.warn(
-        "La mise à jour IndexedDB est bloquée. Fermez les autres onglets de Biso-Commerce."
+        "Mise à jour IndexedDB bloquée. Fermez les autres onglets de Biso-Commerce."
       );
     };
   });
@@ -185,53 +179,31 @@ function openProductsDB(): Promise<IDBDatabase> {
 }
 
 /* =========================================================
-   UTILITAIRE ERREUR
+   ERREURS
 ========================================================= */
 
-function getErrorMessage(
-  error: unknown
-): string {
+function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
 
-  if (
-    typeof error === "object" &&
-    error !== null
-  ) {
+  if (typeof error === "object" && error !== null) {
     const e = error as {
       message?: string;
       details?: string;
       hint?: string;
       code?: string;
-      status?: number;
-      statusCode?: number;
     };
 
-    if (e.message) {
-      return e.message;
-    }
-
-    if (e.details) {
-      return e.details;
-    }
-
-    if (e.hint) {
-      return e.hint;
-    }
-
-    if (e.code) {
-      return `Erreur Supabase (${e.code})`;
-    }
+    if (e.message) return e.message;
+    if (e.details) return e.details;
+    if (e.hint) return e.hint;
+    if (e.code) return `Erreur Supabase (${e.code})`;
 
     try {
-      const json =
-        JSON.stringify(error);
+      const json = JSON.stringify(error);
 
-      if (
-        json &&
-        json !== "{}"
-      ) {
+      if (json && json !== "{}") {
         return json;
       }
     } catch {
@@ -246,325 +218,400 @@ function getErrorMessage(
   return "Une erreur inconnue est survenue.";
 }
 
-/* =========================================================
-   LOG ERREUR SUPABASE
-========================================================= */
-
 function logSupabaseError(
   title: string,
   error: unknown
 ) {
-  console.error(
-    title,
-    error
-  );
-
-  if (
-    typeof error === "object" &&
-    error !== null
-  ) {
-    const e = error as {
-      message?: string;
-      details?: string;
-      hint?: string;
-      code?: string;
-      status?: number;
-      statusCode?: number;
-    };
-
-    console.error(
-      "Supabase details :",
-      {
-        message: e.message,
-        details: e.details,
-        hint: e.hint,
-        code: e.code,
-        status: e.status,
-        statusCode:
-          e.statusCode,
-      }
-    );
-  }
-
-  console.error(
-    "Message erreur :",
-    getErrorMessage(error)
-  );
+  console.error(title, error);
+  console.error("Message erreur :", getErrorMessage(error));
 }
 
 /* =========================================================
-   UTILISATEUR
+   USER ID
 ========================================================= */
 
 function getStoredUserId(): string | null {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  const userId =
-    localStorage.getItem(
-      "user_id"
-    );
+  const userId = localStorage.getItem("user_id");
 
-  if (!userId) {
-    return null;
-  }
-
-  return String(userId);
+  return userId ? String(userId) : null;
 }
 
 /* =========================================================
-   VÉRIFIER LA CONNEXION
-========================================================= */
-
-function requireConnection(
-  action:
-    | "ajouter"
-    | "modifier"
-    | "supprimer"
-): boolean {
-  if (
-    typeof navigator !==
-      "undefined" &&
-    !navigator.onLine
-  ) {
-    alert(
-      `Cette action nécessite une connexion Internet.\n\nVous devez être connecté pour ${action} un produit.`
-    );
-
-    return false;
-  }
-
-  return true;
-}
-
-/* =========================================================
-   LIRE TOUS LES PRODUITS DU CACHE
+   CACHE : LIRE
 ========================================================= */
 
 async function getAllCachedProducts(
   userId: string
 ): Promise<Product[]> {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readonly"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readonly"
+    );
 
-      const store =
-        transaction.objectStore(
-          PRODUCTS_STORE
-        );
+    const store = transaction.objectStore(PRODUCTS_STORE);
+    const request = store.getAll();
 
-      const request =
-        store.getAll();
+    request.onsuccess = () => {
+      const all = (request.result || []) as Product[];
 
-      request.onsuccess =
-        () => {
-          const all =
-            (request.result ||
-              []) as Product[];
+      const result = all.filter(
+        (product) =>
+          String(product.user_id || "") === String(userId)
+      );
 
-          const result =
-            all.filter(
-              (product) =>
-                String(
-                  product.user_id ||
-                    ""
-                ) ===
-                String(userId)
-            );
+      result.sort((a, b) => {
+        const dateA = a.created_at
+          ? new Date(a.created_at).getTime()
+          : 0;
 
-          result.sort(
-            (a, b) => {
-              const dateA =
-                a.created_at
-                  ? new Date(
-                      a.created_at
-                    ).getTime()
-                  : 0;
+        const dateB = b.created_at
+          ? new Date(b.created_at).getTime()
+          : 0;
 
-              const dateB =
-                b.created_at
-                  ? new Date(
-                      b.created_at
-                    ).getTime()
-                  : 0;
+        return dateB - dateA;
+      });
 
-              return (
-                dateB -
-                dateA
-              );
-            }
-          );
+      resolve(result);
+    };
 
-          resolve(result);
-        };
-
-      request.onerror =
-        () => {
-          reject(
-            request.error ||
-              new Error(
-                "Impossible de lire les produits hors connexion."
-              )
-          );
-        };
-    }
-  );
+    request.onerror = () => {
+      reject(
+        request.error ||
+          new Error(
+            "Impossible de lire les produits hors connexion."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
-   METTRE UN PRODUIT EN CACHE
+   CACHE : AJOUTER / MODIFIER
 ========================================================= */
 
 async function cacheProduct(
   product: Product
 ): Promise<void> {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readwrite"
+    );
 
-      transaction
-        .objectStore(
-          PRODUCTS_STORE
-        )
-        .put(product);
+    transaction.objectStore(PRODUCTS_STORE).put(product);
 
-      transaction.oncomplete =
-        () => resolve();
+    transaction.oncomplete = () => resolve();
 
-      transaction.onerror =
-        () => {
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible de sauvegarder le produit."
-              )
-          );
-        };
-    }
-  );
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de sauvegarder le produit."
+          )
+      );
+    };
+  });
 }
-
-/* =========================================================
-   METTRE PLUSIEURS PRODUITS EN CACHE
-========================================================= */
 
 async function cacheProducts(
   products: Product[]
 ): Promise<void> {
-  if (!products.length) {
-    return;
-  }
+  if (!products.length) return;
 
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readwrite"
+    );
 
-      const store =
-        transaction.objectStore(
-          PRODUCTS_STORE
-        );
+    const store = transaction.objectStore(PRODUCTS_STORE);
 
-      for (
-        const product of products
-      ) {
-        store.put(product);
-      }
-
-      transaction.oncomplete =
-        () => resolve();
-
-      transaction.onerror =
-        () => {
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible de mettre en cache les produits."
-              )
-          );
-        };
+    for (const product of products) {
+      store.put(product);
     }
-  );
+
+    transaction.oncomplete = () => resolve();
+
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de mettre en cache les produits."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
-   SUPPRIMER PRODUIT DU CACHE
+   CACHE : SUPPRIMER
 ========================================================= */
 
 async function removeCachedProduct(
   id: string
 ): Promise<void> {
-  const db =
-    await openProductsDB();
+  const db = await openProductsDB();
 
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
-      const transaction =
-        db.transaction(
-          PRODUCTS_STORE,
-          "readwrite"
-        );
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      PRODUCTS_STORE,
+      "readwrite"
+    );
 
-      transaction
-        .objectStore(
-          PRODUCTS_STORE
-        )
-        .delete(id);
+    transaction.objectStore(PRODUCTS_STORE).delete(id);
 
-      transaction.oncomplete =
-        () => resolve();
+    transaction.oncomplete = () => resolve();
 
-      transaction.onerror =
-        () => {
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible de supprimer le produit localement."
-              )
-          );
-        };
-    }
-  );
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de supprimer le produit localement."
+          )
+      );
+    };
+  });
 }
 
 /* =========================================================
-   NORMALISER PRODUIT
+   FILE SUPPRESSION
+========================================================= */
+
+async function queueProductDeletion(
+  productId: string,
+  userId: string
+): Promise<void> {
+  const db = await openProductsDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      DELETE_QUEUE_STORE,
+      "readwrite"
+    );
+
+    const store = transaction.objectStore(
+      DELETE_QUEUE_STORE
+    );
+
+    const item: DeleteQueueItem = {
+      id: `${userId}:${productId}`,
+      product_id: String(productId),
+      user_id: String(userId),
+      created_at: new Date().toISOString(),
+    };
+
+    store.put(item);
+
+    transaction.oncomplete = () => resolve();
+
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible d'enregistrer la suppression hors connexion."
+          )
+      );
+    };
+  });
+}
+
+/* =========================================================
+   LIRE FILE SUPPRESSION
+========================================================= */
+
+async function getQueuedDeletions(
+  userId: string
+): Promise<DeleteQueueItem[]> {
+  const db = await openProductsDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      DELETE_QUEUE_STORE,
+      "readonly"
+    );
+
+    const store = transaction.objectStore(
+      DELETE_QUEUE_STORE
+    );
+
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const all =
+        (request.result || []) as DeleteQueueItem[];
+
+      const result = all
+        .filter(
+          (item) =>
+            String(item.user_id) === String(userId)
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() -
+            new Date(b.created_at).getTime()
+        );
+
+      resolve(result);
+    };
+
+    request.onerror = () => {
+      reject(
+        request.error ||
+          new Error(
+            "Impossible de lire la file de suppression."
+          )
+      );
+    };
+  });
+}
+
+/* =========================================================
+   RETIRER DE LA FILE
+========================================================= */
+
+async function removeDeletionFromQueue(
+  queueId: string
+): Promise<void> {
+  const db = await openProductsDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      DELETE_QUEUE_STORE,
+      "readwrite"
+    );
+
+    transaction.objectStore(DELETE_QUEUE_STORE).delete(queueId);
+
+    transaction.oncomplete = () => resolve();
+
+    transaction.onerror = () => {
+      reject(
+        transaction.error ||
+          new Error(
+            "Impossible de retirer la suppression de la file locale."
+          )
+      );
+    };
+  });
+}
+
+/* =========================================================
+   SYNCHRONISATION DES SUPPRESSIONS
+   IMPORTANT :
+   Dès que Internet revient, cette fonction envoie
+   directement les suppressions à Supabase.
+========================================================= */
+
+async function syncQueuedDeletions(
+  userId: string
+): Promise<{
+  synced: number;
+  failed: number;
+}> {
+  if (
+    typeof navigator !== "undefined" &&
+    !navigator.onLine
+  ) {
+    return {
+      synced: 0,
+      failed: 0,
+    };
+  }
+
+  const queue = await getQueuedDeletions(userId);
+
+  if (!queue.length) {
+    return {
+      synced: 0,
+      failed: 0,
+    };
+  }
+
+  let synced = 0;
+  let failed = 0;
+
+  console.log(
+    `🔄 ${queue.length} suppression(s) en attente. Envoi direct vers Supabase...`
+  );
+
+  for (const item of queue) {
+    try {
+      /*
+       * ENVOI DIRECT À SUPABASE
+       */
+      const { data, error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", item.product_id)
+        .eq("user_id", userId)
+        .select("id");
+
+      if (error) {
+        throw error;
+      }
+
+      /*
+       * Même si le produit n'existe déjà plus,
+       * la tâche locale peut être supprimée.
+       */
+      if (data && data.length > 0) {
+        console.log(
+          "✅ Suppression envoyée à Supabase :",
+          item.product_id
+        );
+      } else {
+        console.log(
+          "ℹ️ Produit déjà absent de Supabase :",
+          item.product_id
+        );
+      }
+
+      /*
+       * Seulement après la réponse Supabase,
+       * on retire la tâche locale.
+       */
+      await removeDeletionFromQueue(item.id);
+
+      synced++;
+    } catch (error) {
+      failed++;
+
+      logSupabaseError(
+        `❌ Échec synchronisation ${item.product_id}`,
+        error
+      );
+
+      /*
+       * IMPORTANT :
+       * On garde la tâche dans IndexedDB.
+       * Elle sera réessayée à la prochaine connexion.
+       */
+    }
+  }
+
+  console.log(
+    `📦 Synchronisation terminée : ${synced} envoyée(s), ${failed} échec(s).`
+  );
+
+  return {
+    synced,
+    failed,
+  };
+}
+
+/* =========================================================
+   NORMALISER
 ========================================================= */
 
 function normalizeProduct(
@@ -572,45 +619,18 @@ function normalizeProduct(
 ): Product {
   return {
     ...product,
-
-    id: String(
-      product.id
-    ),
-
-    user_id:
-      product.user_id
-        ? String(
-            product.user_id
-          )
-        : undefined,
-
-    name:
-      product.name ??
-      null,
-
-    stock:
-      Number(
-        product.stock
-      ) || 0,
-
+    id: String(product.id),
+    user_id: product.user_id
+      ? String(product.user_id)
+      : undefined,
+    name: product.name ?? null,
+    stock: Number(product.stock) || 0,
     purchase_price:
-      Number(
-        product.purchase_price
-      ) || 0,
-
+      Number(product.purchase_price) || 0,
     selling_price:
-      Number(
-        product.selling_price
-      ) || 0,
-
-    currency: String(
-      product.currency ||
-        ""
-    ),
-
-    unit:
-      product.unit ??
-      null,
+      Number(product.selling_price) || 0,
+    currency: String(product.currency || ""),
+    unit: product.unit ?? null,
   };
 }
 
@@ -619,345 +639,193 @@ function normalizeProduct(
 ========================================================= */
 
 export default function ProductsPage() {
-  const [
-    products,
-    setProducts,
-  ] = useState<Product[]>(
-    []
-  );
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showGuide, setShowGuide] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [syncState, setSyncState] =
+    useState<SyncState>("online");
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
+  const [syncError, setSyncError] =
+    useState<string | null>(null);
 
-  const [
-    searchTerm,
-    setSearchTerm,
-  ] = useState("");
+  const [deletingIds, setDeletingIds] =
+    useState<Set<string>>(new Set());
 
-  const [
-    showGuide,
-    setShowGuide,
-  ] = useState(false);
-
-  const [
-    isOnline,
-    setIsOnline,
-  ] = useState(true);
-
-  const [
-    syncState,
-    setSyncState,
-  ] = useState<SyncState>(
-    "online"
-  );
-
-  const [
-    syncError,
-    setSyncError,
-  ] = useState<
-    string | null
-  >(null);
-
-  const [
-    deletingIds,
-    setDeletingIds,
-  ] = useState<
-    Set<string>
-  >(new Set());
-
-  const [
-    deleteModal,
-    setDeleteModal,
-  ] =
+  const [deleteModal, setDeleteModal] =
     useState<DeleteModalState>({
       open: false,
       product: null,
     });
 
   /* =========================================================
-     CHARGER CACHE
+     CACHE
   ========================================================= */
 
-  const loadCachedProducts =
-    useCallback(
-      async () => {
-        const userId =
-          getStoredUserId();
+  const loadCachedProducts = useCallback(async () => {
+    const userId = getStoredUserId();
 
-        if (!userId) {
-          setProducts([]);
-          return;
-        }
+    if (!userId) {
+      setProducts([]);
+      return;
+    }
 
-        try {
-          const cached =
-            await getAllCachedProducts(
-              userId
-            );
+    try {
+      const cached =
+        await getAllCachedProducts(userId);
 
-          setProducts(
-            cached
-          );
-        } catch (error) {
-          console.error(
-            "Erreur lecture cache :",
-            error
-          );
-        }
-      },
-      []
-    );
+      setProducts(cached);
+    } catch (error) {
+      console.error(
+        "Erreur lecture cache :",
+        error
+      );
+    }
+  }, []);
 
   /* =========================================================
-     CHARGER PRODUITS SUPABASE
+     CHARGER DEPUIS SUPABASE
   ========================================================= */
 
   const fetchProductsOnline =
-    useCallback(
-      async () => {
-        const userId =
-          getStoredUserId();
+    useCallback(async () => {
+      const userId = getStoredUserId();
 
-        console.log(
-          "USER ID :",
-          userId
+      if (!userId) {
+        setProducts([]);
+        setLoading(false);
+
+        setSyncError(
+          "Utilisateur non identifié. Le user_id est absent du navigateur."
         );
 
-        if (!userId) {
-          setProducts([]);
-          setLoading(false);
+        return;
+      }
 
-          setSyncError(
-            "Utilisateur non identifié. Le user_id est absent du navigateur."
+      if (
+        typeof navigator !== "undefined" &&
+        !navigator.onLine
+      ) {
+        setSyncState("offline");
+        return;
+      }
+
+      setSyncState("syncing");
+      setSyncError(null);
+
+      try {
+        /*
+         * =====================================================
+         * 1. EN PREMIER :
+         * envoyer immédiatement les suppressions locales
+         * à Supabase.
+         * =====================================================
+         */
+        const deletionResult =
+          await syncQueuedDeletions(userId);
+
+        if (deletionResult.failed > 0) {
+          console.warn(
+            `${deletionResult.failed} suppression(s) n'ont pas encore pu être envoyées.`
           );
-
-          return;
         }
 
-        if (
-          typeof navigator !==
-            "undefined" &&
-          !navigator.onLine
-        ) {
-          return;
-        }
+        /*
+         * =====================================================
+         * 2. ENSUITE :
+         * récupérer Supabase.
+         * =====================================================
+         */
 
-        setSyncState(
-          "syncing"
-        );
-
-        setSyncError(null);
-
-        const pageSize =
-          1000;
-
+        const pageSize = 1000;
         let from = 0;
 
-        const allProducts: Product[] =
-          [];
+        const allProducts: Product[] = [];
+
+        while (true) {
+          const to = from + pageSize - 1;
+
+          const {
+            data,
+            error,
+          } = await supabase
+            .from("products")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", {
+              ascending: false,
+            })
+            .range(from, to);
+
+          if (error) {
+            throw error;
+          }
+
+          const page =
+            ((data || []) as Product[]).map(
+              normalizeProduct
+            );
+
+          allProducts.push(...page);
+
+          if (page.length < pageSize) {
+            break;
+          }
+
+          from += pageSize;
+        }
+
+        /*
+         * =====================================================
+         * 3. METTRE LE SERVEUR EN CACHE
+         * =====================================================
+         */
+
+        await cacheProducts(allProducts);
+
+        /*
+         * =====================================================
+         * 4. AFFICHAGE
+         * =====================================================
+         */
+
+        setProducts(allProducts);
+
+        setSyncState("online");
+        setSyncError(null);
+
+        console.log(
+          `✅ Produits synchronisés depuis Supabase : ${allProducts.length}`
+        );
+      } catch (error) {
+        logSupabaseError(
+          "Erreur chargement Supabase :",
+          error
+        );
 
         try {
-          while (true) {
-            const to =
-              from +
-              pageSize -
-              1;
+          const cached =
+            await getAllCachedProducts(userId);
 
-            console.log(
-              `Chargement produits Supabase : ${from} → ${to}`
-            );
-
-            const {
-              data,
-              error,
-            } = await supabase
-              .from(
-                "products"
-              )
-              .select("*")
-              .eq(
-                "user_id",
-                userId
-              )
-              .order(
-                "created_at",
-                {
-                  ascending:
-                    false,
-                }
-              )
-              .range(
-                from,
-                to
-              );
-
-            if (error) {
-              throw error;
-            }
-
-            const page =
-              (
-                (data ||
-                  []) as Product[]
-              ).map(
-                normalizeProduct
-              );
-
-            allProducts.push(
-              ...page
-            );
-
-            console.log(
-              `Produits reçus dans ce bloc : ${page.length}`
-            );
-
-            if (
-              page.length <
-              pageSize
-            ) {
-              break;
-            }
-
-            from +=
-              pageSize;
-          }
-
-          console.log(
-            "TOTAL PRODUITS SUPABASE :",
-            allProducts.length
-          );
-
-          /* =====================================================
-             CACHE DES PRODUITS SERVEUR
-          ===================================================== */
-
-          await cacheProducts(
-            allProducts
-          );
-
-          /*
-           * On conserve les produits locaux qui
-           * ne sont pas encore présents sur Supabase.
-           */
-          const cachedProducts =
-            await getAllCachedProducts(
-              userId
-            );
-
-          const serverIds =
-            new Set(
-              allProducts.map(
-                (product) =>
-                  product.id
-              )
-            );
-
-          const localOnlyProducts =
-            cachedProducts.filter(
-              (product) =>
-                !serverIds.has(
-                  product.id
-                )
-            );
-
-          const mergedProducts =
-            [
-              ...localOnlyProducts,
-              ...allProducts,
-            ];
-
-          const uniqueProducts =
-            Array.from(
-              new Map(
-                mergedProducts.map(
-                  (product) => [
-                    product.id,
-                    product,
-                  ]
-                )
-              ).values()
-            );
-
-          uniqueProducts.sort(
-            (a, b) => {
-              const dateA =
-                a.created_at
-                  ? new Date(
-                      a.created_at
-                    ).getTime()
-                  : 0;
-
-              const dateB =
-                b.created_at
-                  ? new Date(
-                      b.created_at
-                    ).getTime()
-                  : 0;
-
-              return (
-                dateB -
-                dateA
-              );
-            }
-          );
-
-          setProducts(
-            uniqueProducts
-          );
-
-          setSyncState(
-            "online"
-          );
-
-          setSyncError(null);
-        } catch (error: unknown) {
-          logSupabaseError(
-            "Erreur chargement Supabase :",
-            error
-          );
-
-          const message =
-            getErrorMessage(
-              error
-            );
-
-          try {
-            const cached =
-              await getAllCachedProducts(
-                userId
-              );
-
-            setProducts(
-              cached
-            );
-          } catch (
+          setProducts(cached);
+        } catch (cacheError) {
+          console.error(
+            "Erreur lecture cache après erreur Supabase :",
             cacheError
-          ) {
-            console.error(
-              "Erreur lecture cache après erreur Supabase :",
-              cacheError
-            );
-          }
-
-          setSyncState(
-            "error"
-          );
-
-          setSyncError(
-            message ||
-              "Impossible de synchroniser les produits avec Supabase."
           );
         }
-      },
-      []
-    );
+
+        setSyncState("error");
+
+        setSyncError(
+          getErrorMessage(error) ||
+            "Impossible de synchroniser les produits avec Supabase."
+        );
+      }
+    }, []);
 
   /* =========================================================
      CHARGEMENT PRINCIPAL
@@ -965,20 +833,15 @@ export default function ProductsPage() {
 
   const loadProducts =
     useCallback(
-      async (
-        showFullLoader = true
-      ) => {
-        const userId =
-          getStoredUserId();
+      async (showFullLoader = true) => {
+        const userId = getStoredUserId();
 
         if (!userId) {
           setProducts([]);
           setLoading(false);
-
           setSyncError(
             "Utilisateur non identifié."
           );
-
           return;
         }
 
@@ -987,17 +850,13 @@ export default function ProductsPage() {
         }
 
         /*
-         * CACHE IMMÉDIAT
+         * Affichage instantané du cache.
          */
         try {
           const cached =
-            await getAllCachedProducts(
-              userId
-            );
+            await getAllCachedProducts(userId);
 
-          setProducts(
-            cached
-          );
+          setProducts(cached);
         } catch (error) {
           console.error(
             "Erreur cache :",
@@ -1006,260 +865,203 @@ export default function ProductsPage() {
         }
 
         /*
-         * INTERNET
+         * Puis serveur si disponible.
          */
         if (
-          typeof navigator !==
-            "undefined" &&
+          typeof navigator !== "undefined" &&
           navigator.onLine
         ) {
           await fetchProductsOnline();
         } else {
-          setSyncState(
-            "offline"
-          );
+          setSyncState("offline");
         }
 
         setLoading(false);
       },
-      [
-        fetchProductsOnline,
-      ]
+      [fetchProductsOnline]
     );
 
   /* =========================================================
-     SUPPRESSION PRODUIT
-     ---------------------------------------------------------
-     CONNEXION OBLIGATOIRE
+     SUPPRESSION
   ========================================================= */
 
-  const deleteProduct =
-    async (
-      product: Product
-    ) => {
-      const userId =
-        getStoredUserId();
+  const deleteProduct = async (
+    product: Product
+  ) => {
+    const userId = getStoredUserId();
 
-      if (!userId) {
-        setDeleteModal({
-          open: false,
-          product: null,
-        });
+    if (!userId) {
+      setDeleteModal({
+        open: false,
+        product: null,
+      });
+
+      setSyncError(
+        "Utilisateur non identifié."
+      );
+
+      return;
+    }
+
+    if (deletingIds.has(product.id)) {
+      return;
+    }
+
+    setDeletingIds((current) => {
+      const next = new Set(current);
+      next.add(product.id);
+      return next;
+    });
+
+    setDeleteModal({
+      open: false,
+      product: null,
+    });
+
+    const previousProducts = products;
+
+    try {
+      setSyncError(null);
+
+      /*
+       * =====================================================
+       * HORS CONNEXION
+       * =====================================================
+       */
+
+      if (
+        typeof navigator !== "undefined" &&
+        !navigator.onLine
+      ) {
+        /*
+         * 1. Retirer immédiatement de l'écran/cache.
+         */
+        await removeCachedProduct(product.id);
+
+        /*
+         * 2. Enregistrer dans la file.
+         */
+        await queueProductDeletion(
+          product.id,
+          userId
+        );
+
+        /*
+         * 3. Retirer de l'écran.
+         */
+        setProducts((current) =>
+          current.filter(
+            (item) =>
+              item.id !== product.id
+          )
+        );
+
+        setSyncState("offline");
 
         setSyncError(
-          "Utilisateur non identifié."
+          "Produit supprimé localement. Dès que la connexion revient, la suppression sera envoyée automatiquement à Supabase."
         );
 
         return;
       }
 
       /*
-       * IMPORTANT :
-       * aucune suppression hors connexion.
+       * =====================================================
+       * EN LIGNE
+       * =====================================================
        */
-      if (
-        typeof navigator !==
-          "undefined" &&
-        !navigator.onLine
-      ) {
-        setDeleteModal({
-          open: false,
-          product: null,
-        });
 
-        setSyncError(
-          "Cette action nécessite une connexion Internet."
+      setSyncState("syncing");
+
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", product.id)
+        .eq("user_id", userId)
+        .select("id");
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Supabase n'a supprimé aucune ligne. Vérifiez le user_id et les politiques RLS de la table products."
         );
-
-        return;
       }
 
-      if (
-        deletingIds.has(
-          product.id
+      /*
+       * Supprimer le cache après confirmation.
+       */
+      await removeCachedProduct(product.id);
+
+      setProducts((current) =>
+        current.filter(
+          (item) =>
+            item.id !== product.id
         )
-      ) {
-        return;
-      }
-
-      setDeletingIds(
-        (current) => {
-          const next =
-            new Set(
-              current
-            );
-
-          next.add(
-            product.id
-          );
-
-          return next;
-        }
       );
 
-      setDeleteModal({
-        open: false,
-        product: null,
+      setSyncState("online");
+      setSyncError(null);
+
+      console.log(
+        "✅ Produit supprimé définitivement de Supabase :",
+        product.id
+      );
+    } catch (error) {
+      logSupabaseError(
+        "Erreur suppression produit :",
+        error
+      );
+
+      setProducts(previousProducts);
+
+      setSyncState("error");
+
+      setSyncError(
+        getErrorMessage(error) ||
+          "Impossible de supprimer le produit."
+      );
+    } finally {
+      setDeletingIds((current) => {
+        const next = new Set(current);
+        next.delete(product.id);
+        return next;
       });
-
-      const previousProducts =
-        products;
-
-      try {
-        setSyncState(
-          "syncing"
-        );
-
-        setSyncError(null);
-
-        const {
-          data,
-          error,
-        } = await supabase
-          .from(
-            "products"
-          )
-          .delete()
-          .eq(
-            "id",
-            product.id
-          )
-          .eq(
-            "user_id",
-            userId
-          )
-          .select("id");
-
-        if (error) {
-          throw error;
-        }
-
-        if (
-          !data ||
-          data.length === 0
-        ) {
-          throw new Error(
-            "Supabase n'a supprimé aucune ligne. Vérifiez la colonne user_id et les politiques RLS de la table products."
-          );
-        }
-
-        /*
-         * Supprimer du cache uniquement
-         * après confirmation Supabase.
-         */
-        await removeCachedProduct(
-          product.id
-        );
-
-        setProducts(
-          (current) =>
-            current.filter(
-              (item) =>
-                item.id !==
-                product.id
-            )
-        );
-
-        setSyncState(
-          "online"
-        );
-
-        setSyncError(null);
-      } catch (
-        error: unknown
-      ) {
-        logSupabaseError(
-          "Erreur suppression produit :",
-          error
-        );
-
-        setProducts(
-          previousProducts
-        );
-
-        setSyncState(
-          "error"
-        );
-
-        setSyncError(
-          getErrorMessage(
-            error
-          ) ||
-            "Impossible de supprimer le produit."
-        );
-      } finally {
-        setDeletingIds(
-          (current) => {
-            const next =
-              new Set(
-                current
-              );
-
-            next.delete(
-              product.id
-            );
-
-            return next;
-          }
-        );
-      }
-    };
+    }
+  };
 
   /* =========================================================
      ACTUALISER
   ========================================================= */
 
-  const refreshProducts =
-    async () => {
-      if (refreshing) {
-        return;
-      }
+  const refreshProducts = async () => {
+    if (refreshing) return;
 
-      setRefreshing(true);
+    setRefreshing(true);
 
-      try {
-        await loadProducts(
-          false
-        );
-      } catch (error) {
-        console.error(
-          "Erreur actualisation :",
-          error
-        );
-      } finally {
-        setRefreshing(false);
-      }
-    };
+    try {
+      await loadProducts(false);
+    } catch (error) {
+      console.error(
+        "Erreur actualisation :",
+        error
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   /* =========================================================
-     DEMANDER SUPPRESSION
+     MODALE
   ========================================================= */
 
-  const askDelete = (
-    product: Product
-  ) => {
-    /*
-     * Protection supplémentaire :
-     * même si le bouton était appelé directement,
-     * la modale ne s'ouvre pas hors connexion.
-     */
-    if (
-      typeof navigator !==
-        "undefined" &&
-      !navigator.onLine
-    ) {
-      setSyncError(
-        "Cette action nécessite une connexion Internet."
-      );
-
-      return;
-    }
-
-    if (
-      deletingIds.has(
-        product.id
-      )
-    ) {
+  const askDelete = (product: Product) => {
+    if (deletingIds.has(product.id)) {
       return;
     }
 
@@ -1274,51 +1076,37 @@ export default function ProductsPage() {
   ========================================================= */
 
   useEffect(() => {
-    let mounted =
-      true;
+    let mounted = true;
 
-    const init =
-      async () => {
-        try {
-          await openProductsDB();
+    const init = async () => {
+      try {
+        await openProductsDB();
 
-          if (!mounted) {
-            return;
-          }
+        if (!mounted) return;
 
-          setIsOnline(
-            typeof navigator !==
-              "undefined"
-              ? navigator.onLine
-              : true
+        const online =
+          typeof navigator !== "undefined"
+            ? navigator.onLine
+            : true;
+
+        setIsOnline(online);
+
+        await loadProducts(true);
+      } catch (error) {
+        console.error(
+          "Erreur initialisation :",
+          error
+        );
+
+        if (mounted) {
+          setLoading(false);
+          setSyncState("error");
+          setSyncError(
+            getErrorMessage(error)
           );
-
-          await loadProducts(
-            true
-          );
-        } catch (error) {
-          console.error(
-            "Erreur initialisation :",
-            error
-          );
-
-          if (mounted) {
-            setLoading(
-              false
-            );
-
-            setSyncState(
-              "error"
-            );
-
-            setSyncError(
-              getErrorMessage(
-                error
-              )
-            );
-          }
         }
-      };
+      }
+    };
 
     init();
 
@@ -1328,181 +1116,122 @@ export default function ProductsPage() {
   }, [loadProducts]);
 
   /* =========================================================
-     REALTIME — PRODUITS
+     REALTIME
   ========================================================= */
 
   useEffect(() => {
-    const userId =
-      getStoredUserId();
+    const userId = getStoredUserId();
 
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
 
-    const channel =
-      supabase
-        .channel(
-          `products-user-${userId}`
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "products",
-            filter: `user_id=eq.${userId}`,
-          },
-          async (
+    const channel = supabase
+      .channel(`products-user-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "products",
+          filter: `user_id=eq.${userId}`,
+        },
+        async (payload) => {
+          console.log(
+            "Produit modifié Supabase :",
             payload
-          ) => {
-            console.log(
-              "Produit modifié :",
-              payload
+          );
+
+          if (
+            payload.eventType === "INSERT" &&
+            payload.new
+          ) {
+            const product =
+              normalizeProduct(
+                payload.new as Product
+              );
+
+            await cacheProduct(product);
+
+            setProducts((current) => {
+              const exists =
+                current.some(
+                  (item) =>
+                    item.id === product.id
+                );
+
+              if (exists) {
+                return current.map(
+                  (item) =>
+                    item.id === product.id
+                      ? product
+                      : item
+                );
+              }
+
+              return [product, ...current];
+            });
+
+            return;
+          }
+
+          if (
+            payload.eventType === "UPDATE" &&
+            payload.new
+          ) {
+            const product =
+              normalizeProduct(
+                payload.new as Product
+              );
+
+            await cacheProduct(product);
+
+            setProducts((current) =>
+              current.map(
+                (item) =>
+                  item.id === product.id
+                    ? product
+                    : item
+              )
             );
 
-            if (
-              payload.eventType ===
-                "INSERT" &&
-              payload.new
-            ) {
-              const product =
-                normalizeProduct(
-                  payload.new as Product
-                );
-
-              try {
-                await cacheProduct(
-                  product
-                );
-              } catch (
-                error
-              ) {
-                console.error(
-                  "Erreur cache nouveau produit :",
-                  error
-                );
-              }
-
-              setProducts(
-                (current) => {
-                  const exists =
-                    current.some(
-                      (item) =>
-                        item.id ===
-                        product.id
-                    );
-
-                  if (exists) {
-                    return current.map(
-                      (item) =>
-                        item.id ===
-                        product.id
-                          ? product
-                          : item
-                    );
-                  }
-
-                  return [
-                    product,
-                    ...current,
-                  ];
-                }
-              );
-
-              return;
-            }
-
-            if (
-              payload.eventType ===
-                "UPDATE" &&
-              payload.new
-            ) {
-              const product =
-                normalizeProduct(
-                  payload.new as Product
-                );
-
-              try {
-                await cacheProduct(
-                  product
-                );
-              } catch (
-                error
-              ) {
-                console.error(
-                  "Erreur cache produit modifié :",
-                  error
-                );
-              }
-
-              setProducts(
-                (current) =>
-                  current.map(
-                    (item) =>
-                      item.id ===
-                      product.id
-                        ? product
-                        : item
-                  )
-              );
-
-              return;
-            }
-
-            if (
-              payload.eventType ===
-                "DELETE" &&
-              payload.old
-            ) {
-              const productId =
-                String(
-                  (
-                    payload.old as Product
-                  ).id
-                );
-
-              try {
-                await removeCachedProduct(
-                  productId
-                );
-              } catch (
-                error
-              ) {
-                console.error(
-                  "Erreur suppression cache :",
-                  error
-                );
-              }
-
-              setProducts(
-                (current) =>
-                  current.filter(
-                    (item) =>
-                      item.id !==
-                      productId
-                  )
-              );
-            }
+            return;
           }
-        )
-        .subscribe(
-          (status) => {
-            console.log(
-              "Realtime products :",
-              status
+
+          if (
+            payload.eventType === "DELETE" &&
+            payload.old
+          ) {
+            const productId =
+              String(
+                (payload.old as Product).id
+              );
+
+            await removeCachedProduct(
+              productId
+            );
+
+            setProducts((current) =>
+              current.filter(
+                (item) =>
+                  item.id !== productId
+              )
             );
           }
+        }
+      )
+      .subscribe((status) => {
+        console.log(
+          "Realtime products :",
+          status
         );
+      });
 
     return () => {
-      supabase.removeChannel(
-        channel
-      );
+      supabase.removeChannel(channel);
     };
   }, []);
 
   /* =========================================================
-     RECHARGER APRÈS RETOUR SUR PAGE
+     RETOUR PAGE / FOCUS
   ========================================================= */
 
   useEffect(() => {
@@ -1513,35 +1242,26 @@ export default function ProductsPage() {
           "visible"
         ) {
           try {
-            await loadProducts(
-              false
-            );
-          } catch (
-            error
-          ) {
+            await loadProducts(false);
+          } catch (error) {
             console.error(
-              "Erreur rechargement après retour :",
+              "Erreur rechargement visibilité :",
               error
             );
           }
         }
       };
 
-    const handleFocus =
-      async () => {
-        try {
-          await loadProducts(
-            false
-          );
-        } catch (
+    const handleFocus = async () => {
+      try {
+        await loadProducts(false);
+      } catch (error) {
+        console.error(
+          "Erreur rechargement focus :",
           error
-        ) {
-          console.error(
-            "Erreur rechargement après focus :",
-            error
-          );
-        }
-      };
+        );
+      }
+    };
 
     document.addEventListener(
       "visibilitychange",
@@ -1568,55 +1288,114 @@ export default function ProductsPage() {
 
   /* =========================================================
      ONLINE / OFFLINE
+     IMPORTANT :
+     ICI LA SYNCHRONISATION EST DÉCLENCHÉE
+     IMMÉDIATEMENT AU RETOUR INTERNET.
   ========================================================= */
 
   useEffect(() => {
-    const handleOnline =
+    let syncing = false;
+
+    const synchronizeImmediately =
       async () => {
-        setIsOnline(
-          true
-        );
+        if (syncing) return;
 
-        setSyncState(
-          "syncing"
-        );
+        if (
+          typeof navigator !== "undefined" &&
+          !navigator.onLine
+        ) {
+          return;
+        }
 
+        const userId =
+          getStoredUserId();
+
+        if (!userId) return;
+
+        syncing = true;
+
+        setIsOnline(true);
+        setSyncState("syncing");
         setSyncError(null);
 
         try {
+          /*
+           * =================================================
+           * ÉTAPE 1 :
+           * ENVOI IMMÉDIAT À SUPABASE
+           * =================================================
+           */
+
+          const result =
+            await syncQueuedDeletions(
+              userId
+            );
+
+          console.log(
+            "Résultat synchronisation :",
+            result
+          );
+
+          /*
+           * =================================================
+           * ÉTAPE 2 :
+           * RELIRE SUPABASE
+           * =================================================
+           */
+
           await fetchProductsOnline();
-        } catch (
-          error
-        ) {
+
+          if (result.failed > 0) {
+            setSyncState("error");
+
+            setSyncError(
+              `${result.failed} suppression(s) n'ont pas pu être envoyées. Elles seront réessayées automatiquement.`
+            );
+          } else {
+            setSyncState("online");
+          }
+        } catch (error) {
           console.error(
-            "Erreur reconnexion :",
+            "Erreur synchronisation au retour Internet :",
             error
           );
 
-          setSyncState(
-            "error"
-          );
+          setSyncState("error");
 
           setSyncError(
-            getErrorMessage(
-              error
-            )
+            getErrorMessage(error)
           );
+        } finally {
+          syncing = false;
         }
       };
 
-    const handleOffline =
-      () => {
-        setIsOnline(
-          false
-        );
+    const handleOnline = () => {
+      console.log(
+        "🌐 INTERNET DÉTECTÉ → synchronisation immédiate"
+      );
 
-        setSyncState(
-          "offline"
-        );
+      setIsOnline(true);
 
-        setSyncError(null);
-      };
+      /*
+       * Petit délai uniquement pour laisser
+       * le navigateur établir réellement la connexion.
+       * La synchronisation démarre ensuite immédiatement.
+       */
+      window.setTimeout(() => {
+        synchronizeImmediately();
+      }, 100);
+    };
+
+    const handleOffline = () => {
+      console.log(
+        "📴 INTERNET PERDU"
+      );
+
+      setIsOnline(false);
+      setSyncState("offline");
+      setSyncError(null);
+    };
 
     window.addEventListener(
       "online",
@@ -1628,6 +1407,25 @@ export default function ProductsPage() {
       handleOffline
     );
 
+    /*
+     * Vérification supplémentaire :
+     * certaines connexions peuvent redevenir disponibles
+     * sans déclencher correctement l'événement online.
+     */
+    const interval = window.setInterval(() => {
+      if (
+        navigator.onLine &&
+        !syncing
+      ) {
+        const userId =
+          getStoredUserId();
+
+        if (userId) {
+          synchronizeImmediately();
+        }
+      }
+    }, 5000);
+
     return () => {
       window.removeEventListener(
         "online",
@@ -1638,20 +1436,18 @@ export default function ProductsPage() {
         "offline",
         handleOffline
       );
+
+      window.clearInterval(interval);
     };
-  }, [
-    fetchProductsOnline,
-  ]);
+  }, [fetchProductsOnline]);
 
   /* =========================================================
-     PRODUIT AJOUTÉ — AFFICHAGE IMMÉDIAT
+     PRODUIT AJOUTÉ
   ========================================================= */
 
   useEffect(() => {
     const handleProductAdded =
-      async (
-        event: Event
-      ) => {
+      async (event: Event) => {
         try {
           const customEvent =
             event as CustomEvent<Product>;
@@ -1671,49 +1467,47 @@ export default function ProductsPage() {
               newProduct
             );
 
-          try {
-            await cacheProduct(
-              normalizedProduct
-            );
-          } catch (
-            error
-          ) {
-            console.error(
-              "Erreur cache produit ajouté :",
-              error
-            );
-          }
-
-          setProducts(
-            (current) => {
-              const exists =
-                current.some(
-                  (product) =>
-                    product.id ===
-                    normalizedProduct.id
-                );
-
-              if (exists) {
-                return current.map(
-                  (product) =>
-                    product.id ===
-                    normalizedProduct.id
-                      ? normalizedProduct
-                      : product
-                );
-              }
-
-              return [
-                normalizedProduct,
-                ...current,
-              ];
-            }
+          await cacheProduct(
+            normalizedProduct
           );
 
+          setProducts((current) => {
+            const exists =
+              current.some(
+                (product) =>
+                  product.id ===
+                  normalizedProduct.id
+              );
+
+            if (exists) {
+              return current.map(
+                (product) =>
+                  product.id ===
+                  normalizedProduct.id
+                    ? normalizedProduct
+                    : product
+              );
+            }
+
+            return [
+              normalizedProduct,
+              ...current,
+            ];
+          });
+
+          /*
+           * Si Internet est disponible,
+           * on vérifie immédiatement Supabase.
+           */
+          if (
+            typeof navigator !== "undefined" &&
+            navigator.onLine
+          ) {
+            await fetchProductsOnline();
+          }
+
           setSyncError(null);
-        } catch (
-          error
-        ) {
+        } catch (error) {
           console.error(
             "Erreur affichage produit ajouté :",
             error
@@ -1727,9 +1521,7 @@ export default function ProductsPage() {
     );
 
     const handleStorage =
-      async (
-        event: StorageEvent
-      ) => {
+      async (event: StorageEvent) => {
         if (
           event.key !==
             "biso-product-added" ||
@@ -1748,14 +1540,11 @@ export default function ProductsPage() {
             new CustomEvent(
               "biso-product-added",
               {
-                detail:
-                  product,
+                detail: product,
               }
             )
           );
-        } catch (
-          error
-        ) {
+        } catch (error) {
           console.error(
             "Erreur lecture produit ajouté :",
             error
@@ -1779,215 +1568,155 @@ export default function ProductsPage() {
         handleStorage
       );
     };
-  }, []);
+  }, [fetchProductsOnline]);
 
   /* =========================================================
      STATISTIQUES
   ========================================================= */
 
-  const stats =
-    useMemo(() => {
-      const rupture =
-        products.filter(
-          (p) =>
-            Number(
-              p.stock
-            ) <= 0
-        ).length;
+  const stats = useMemo(() => {
+    const rupture =
+      products.filter(
+        (p) =>
+          Number(p.stock) <= 0
+      ).length;
 
-      const faible =
-        products.filter(
-          (p) =>
-            Number(
-              p.stock
-            ) > 0 &&
-            Number(
-              p.stock
-            ) <= 5
-        ).length;
+    const faible =
+      products.filter(
+        (p) =>
+          Number(p.stock) > 0 &&
+          Number(p.stock) <= 5
+      ).length;
 
-      let valeurFC = 0;
-      let valeurUSD = 0;
+    let valeurFC = 0;
+    let valeurUSD = 0;
+    let beneficeFC = 0;
+    let beneficeUSD = 0;
 
-      let beneficeFC = 0;
-      let beneficeUSD = 0;
+    for (const p of products) {
+      const currency =
+        String(p.currency || "")
+          .trim()
+          .toUpperCase();
 
-      for (
-        const p of products
+      const stock =
+        Number(p.stock) || 0;
+
+      const purchase =
+        Number(p.purchase_price) || 0;
+
+      const selling =
+        Number(p.selling_price) || 0;
+
+      const value =
+        purchase * stock;
+
+      const profit =
+        (selling - purchase) *
+        stock;
+
+      if (
+        currency === "FC" ||
+        currency === "CDF" ||
+        currency ===
+          "FRANC CONGOLAIS"
       ) {
-        const currency =
-          String(
-            p.currency ||
-              ""
-          )
-            .trim()
-            .toUpperCase();
-
-        const stock =
-          Number(
-            p.stock
-          ) || 0;
-
-        const purchase =
-          Number(
-            p.purchase_price
-          ) || 0;
-
-        const selling =
-          Number(
-            p.selling_price
-          ) || 0;
-
-        const value =
-          purchase *
-          stock;
-
-        const profit =
-          (selling -
-            purchase) *
-          stock;
-
-        if (
-          currency ===
-            "FC" ||
-          currency ===
-            "CDF" ||
-          currency ===
-            "FRANC CONGOLAIS"
-        ) {
-          valeurFC +=
-            value;
-
-          beneficeFC +=
-            profit;
-        }
-
-        if (
-          currency ===
-            "$" ||
-          currency ===
-            "USD" ||
-          currency ===
-            "DOLLAR"
-        ) {
-          valeurUSD +=
-            value;
-
-          beneficeUSD +=
-            profit;
-        }
+        valeurFC += value;
+        beneficeFC += profit;
       }
 
-      return {
-        total:
-          products.length,
+      if (
+        currency === "$" ||
+        currency === "USD" ||
+        currency === "DOLLAR"
+      ) {
+        valeurUSD += value;
+        beneficeUSD += profit;
+      }
+    }
 
-        rupture,
-
-        faible,
-
-        valeurFC,
-
-        valeurUSD,
-
-        beneficeFC,
-
-        beneficeUSD,
-      };
-    }, [products]);
+    return {
+      total: products.length,
+      rupture,
+      faible,
+      valeurFC,
+      valeurUSD,
+      beneficeFC,
+      beneficeUSD,
+    };
+  }, [products]);
 
   /* =========================================================
      RECHERCHE
   ========================================================= */
 
-  const filteredProducts =
-    useMemo(() => {
-      const search =
-        searchTerm
-          .trim()
-          .toLowerCase();
+  const filteredProducts = useMemo(() => {
+    const search =
+      searchTerm.trim().toLowerCase();
 
-      const result =
-        products.filter(
-          (p) =>
-            (
-              p.name ||
-              ""
-            )
-              .toLowerCase()
-              .includes(
-                search
-              )
-        );
-
-      result.sort(
-        (a, b) => {
-          const aStock =
-            Number(
-              a.stock
-            );
-
-          const bStock =
-            Number(
-              b.stock
-            );
-
-          if (
-            aStock <= 0 &&
-            bStock > 0
-          ) {
-            return -1;
-          }
-
-          if (
-            bStock <= 0 &&
-            aStock > 0
-          ) {
-            return 1;
-          }
-
-          if (
-            aStock > 0 &&
-            aStock <= 5 &&
-            bStock > 5
-          ) {
-            return -1;
-          }
-
-          if (
-            bStock > 0 &&
-            bStock <= 5 &&
-            aStock > 5
-          ) {
-            return 1;
-          }
-
-          const aDate =
-            a.created_at
-              ? new Date(
-                  a.created_at
-                ).getTime()
-              : 0;
-
-          const bDate =
-            b.created_at
-              ? new Date(
-                  b.created_at
-                ).getTime()
-              : 0;
-
-          return (
-            bDate -
-            aDate
-          );
-        }
+    const result =
+      products.filter((p) =>
+        (p.name || "")
+          .toLowerCase()
+          .includes(search)
       );
 
-      return result;
-    }, [
-      products,
-      searchTerm,
-    ]);
+    result.sort((a, b) => {
+      const aStock =
+        Number(a.stock);
+
+      const bStock =
+        Number(b.stock);
+
+      if (
+        aStock <= 0 &&
+        bStock > 0
+      ) {
+        return -1;
+      }
+
+      if (
+        bStock <= 0 &&
+        aStock > 0
+      ) {
+        return 1;
+      }
+
+      if (
+        aStock > 0 &&
+        aStock <= 5 &&
+        bStock > 5
+      ) {
+        return -1;
+      }
+
+      if (
+        bStock > 0 &&
+        bStock <= 5 &&
+        aStock > 5
+      ) {
+        return 1;
+      }
+
+      const aDate =
+        a.created_at
+          ? new Date(
+              a.created_at
+            ).getTime()
+          : 0;
+
+      const bDate =
+        b.created_at
+          ? new Date(
+              b.created_at
+            ).getTime()
+          : 0;
+
+      return bDate - aDate;
+    });
+
+    return result;
+  }, [products, searchTerm]);
 
   /* =========================================================
      RENDU
@@ -1997,17 +1726,13 @@ export default function ProductsPage() {
     <main className="relative min-h-screen overflow-x-hidden bg-[#f5f7fb] pb-24 text-slate-900">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-indigo-200/20 blur-3xl" />
-
         <div className="absolute -right-24 top-80 h-72 w-72 rounded-full bg-cyan-200/15 blur-3xl" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-8">
-
         <header className="mb-4 rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm sm:mb-5 sm:rounded-[28px] sm:p-6">
           <div className="flex flex-col gap-4">
-
             <div className="flex min-w-0 items-center gap-3">
-
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm sm:h-14 sm:w-14">
                 <Package
                   size={22}
@@ -2016,9 +1741,7 @@ export default function ProductsPage() {
               </div>
 
               <div className="min-w-0 flex-1">
-
                 <div className="flex flex-wrap items-center gap-2">
-
                   <h1 className="text-xl font-black tracking-tight sm:text-3xl">
                     Produits
                   </h1>
@@ -2026,14 +1749,11 @@ export default function ProductsPage() {
                   <span className="rounded-full bg-indigo-50 px-2 py-1 text-[8px] font-black text-indigo-600 sm:text-[9px]">
                     STOCK
                   </span>
-
                 </div>
-
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-
               <div
                 className={`inline-flex min-h-[38px] items-center gap-2 rounded-xl px-3 text-[10px] font-black ${
                   isOnline
@@ -2042,13 +1762,9 @@ export default function ProductsPage() {
                 }`}
               >
                 {isOnline ? (
-                  <Wifi
-                    size={15}
-                  />
+                  <Wifi size={15} />
                 ) : (
-                  <WifiOff
-                    size={15}
-                  />
+                  <WifiOff size={15} />
                 )}
 
                 {isOnline
@@ -2056,31 +1772,22 @@ export default function ProductsPage() {
                   : "Hors connexion"}
               </div>
 
-              {syncState ===
-                "syncing" && (
+              {syncState === "syncing" && (
                 <div className="inline-flex min-h-[38px] items-center gap-2 rounded-xl bg-indigo-50 px-3 text-[10px] font-black text-indigo-600">
-
                   <Loader2
                     size={15}
                     className="animate-spin"
                   />
-
                   Synchronisation...
                 </div>
               )}
-
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-
               <button
                 type="button"
-                onClick={
-                  refreshProducts
-                }
-                disabled={
-                  refreshing
-                }
+                onClick={refreshProducts}
+                disabled={refreshing}
                 className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-60 sm:px-4"
               >
                 <RefreshCcw
@@ -2091,48 +1798,29 @@ export default function ProductsPage() {
                       : ""
                   }
                 />
-
                 Actualiser
               </button>
 
               <Link
                 href="/products/add"
-                onClick={(
-                  event
-                ) => {
-                  if (
-                    !requireConnection(
-                      "ajouter"
-                    )
-                  ) {
-                    event.preventDefault();
-                  }
-                }}
                 className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 sm:px-4"
               >
-                <Plus
-                  size={17}
-                />
-
+                <Plus size={17} />
                 Ajouter
               </Link>
-
             </div>
           </div>
         </header>
 
         {syncError && (
           <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-3.5">
-
             <div className="flex items-start gap-3">
-
               <AlertTriangle
                 size={18}
                 className="mt-0.5 shrink-0 text-amber-600"
               />
 
               <div className="min-w-0">
-
                 <p className="text-xs font-black text-amber-800">
                   Synchronisation
                 </p>
@@ -2140,33 +1828,24 @@ export default function ProductsPage() {
                 <p className="mt-1 break-words text-[11px] leading-5 text-amber-700">
                   {syncError}
                 </p>
-
               </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  setSyncError(
-                    null
-                  )
+                  setSyncError(null)
                 }
                 className="ml-auto rounded-lg p-1 text-amber-500 hover:bg-amber-100"
               >
                 <X size={15} />
               </button>
-
             </div>
           </div>
         )}
 
         <section className="mb-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-
           <StatCard
-            icon={
-              <ShoppingBag
-                size={18}
-              />
-            }
+            icon={<ShoppingBag size={18} />}
             label="Produits"
             value={stats.total.toLocaleString()}
             description="Catalogue"
@@ -2174,11 +1853,7 @@ export default function ProductsPage() {
           />
 
           <StatCard
-            icon={
-              <AlertTriangle
-                size={18}
-              />
-            }
+            icon={<AlertTriangle size={18} />}
             label="Rupture"
             value={stats.rupture.toLocaleString()}
             description="À réapprovisionner"
@@ -2186,11 +1861,7 @@ export default function ProductsPage() {
           />
 
           <StatCard
-            icon={
-              <Boxes
-                size={18}
-              />
-            }
+            icon={<Boxes size={18} />}
             label="Stock faible"
             value={stats.faible.toLocaleString()}
             description="5 unités ou moins"
@@ -2198,51 +1869,35 @@ export default function ProductsPage() {
           />
 
           <div className="min-w-0 rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm sm:p-4">
-
             <div className="flex items-center gap-2">
-
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                <CircleDollarSign
-                  size={17}
-                />
+                <CircleDollarSign size={17} />
               </div>
 
               <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
                 Valeur stock
               </p>
-
             </div>
 
             <div className="mt-3 space-y-1">
-
               <p className="truncate text-xs font-black text-emerald-600 sm:text-sm">
-                {stats.valeurFC.toLocaleString()}{" "}
-                FC
+                {stats.valeurFC.toLocaleString()} FC
               </p>
 
               <p className="truncate text-xs font-black text-emerald-600 sm:text-sm">
-                {stats.valeurUSD.toLocaleString()}{" "}
-                $
+                {stats.valeurUSD.toLocaleString()} $
               </p>
-
             </div>
-
           </div>
-
         </section>
 
         <section className="mb-4 overflow-hidden rounded-[22px] border border-indigo-100 bg-white shadow-sm">
-
           <div className="flex items-center gap-3 p-4">
-
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-              <TrendingUp
-                size={18}
-              />
+              <TrendingUp size={18} />
             </div>
 
             <div className="min-w-0">
-
               <h2 className="text-sm font-black">
                 Bénéfice potentiel
               </h2>
@@ -2250,54 +1905,39 @@ export default function ProductsPage() {
               <p className="mt-0.5 text-[10px] text-slate-500">
                 Estimation du stock disponible
               </p>
-
             </div>
-
           </div>
 
           <div className="grid grid-cols-2 border-t border-slate-100">
-
             <div className="p-4">
-
               <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
                 FC
               </p>
 
               <p className="mt-1 text-sm font-black text-slate-900 sm:text-xl">
-                {stats.beneficeFC.toLocaleString()}{" "}
-                FC
+                {stats.beneficeFC.toLocaleString()} FC
               </p>
-
             </div>
 
             <div className="border-l border-slate-100 p-4">
-
               <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
                 USD
               </p>
 
               <p className="mt-1 text-sm font-black text-slate-900 sm:text-xl">
-                {stats.beneficeUSD.toLocaleString()}{" "}
-                $
+                {stats.beneficeUSD.toLocaleString()} $
               </p>
-
             </div>
-
           </div>
         </section>
 
         <section className="mb-4 overflow-hidden rounded-[22px] border border-indigo-100 bg-white shadow-sm">
-
           <div className="flex items-center gap-3 p-4">
-
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-              <Info
-                size={18}
-              />
+              <Info size={18} />
             </div>
 
             <div className="min-w-0 flex-1">
-
               <h2 className="text-sm font-black">
                 Guide des produits
               </h2>
@@ -2305,28 +1945,21 @@ export default function ProductsPage() {
               <p className="mt-0.5 text-[10px] text-slate-500">
                 Comment utiliser votre inventaire.
               </p>
-
             </div>
 
             <button
               type="button"
               onClick={() =>
-                setShowGuide(
-                  !showGuide
-                )
+                setShowGuide(!showGuide)
               }
               className="shrink-0 rounded-xl bg-indigo-600 px-3 py-2 text-[10px] font-black text-white hover:bg-indigo-700"
             >
-              {showGuide
-                ? "Fermer"
-                : "Guide"}
+              {showGuide ? "Fermer" : "Guide"}
             </button>
-
           </div>
 
           {showGuide && (
             <div className="space-y-2 border-t border-slate-100 p-3">
-
               <GuideItem
                 number="1"
                 title="Ajouter"
@@ -2382,36 +2015,28 @@ export default function ProductsPage() {
                 text={
                   <>
                     Les produits déjà synchronisés restent
-                    accessibles sans Internet. L'ajout,
-                    la modification et la suppression
-                    nécessitent une connexion Internet.
+                    accessibles sans Internet. Une suppression
+                    effectuée hors connexion est enregistrée
+                    localement puis envoyée automatiquement
+                    à Supabase dès que la connexion revient.
                   </>
                 }
               />
-
             </div>
           )}
-
         </section>
 
         <section className="mb-4 rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
-
           <div className="flex gap-2">
-
             <div className="flex min-h-[48px] min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3">
-
               <Search
                 size={18}
                 className="shrink-0 text-slate-400"
               />
 
               <input
-                value={
-                  searchTerm
-                }
-                onChange={(
-                  e
-                ) =>
+                value={searchTerm}
+                onChange={(e) =>
                   setSearchTerm(
                     e.target.value
                   )
@@ -2424,47 +2049,26 @@ export default function ProductsPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setSearchTerm(
-                      ""
-                    )
+                    setSearchTerm("")
                   }
                   className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-200"
                 >
-                  <X
-                    size={15}
-                  />
+                  <X size={15} />
                 </button>
               )}
-
             </div>
 
             <Link
               href="/products/add"
-              onClick={(
-                event
-              ) => {
-                if (
-                  !requireConnection(
-                    "ajouter"
-                  )
-                ) {
-                  event.preventDefault();
-                }
-              }}
               className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
             >
-              <Plus
-                size={21}
-              />
+              <Plus size={21} />
             </Link>
-
           </div>
         </section>
 
         <div className="mb-3 flex items-end justify-between px-1">
-
           <div>
-
             <h2 className="text-lg font-black">
               Inventaire
             </h2>
@@ -2472,28 +2076,21 @@ export default function ProductsPage() {
             <p className="mt-0.5 text-[10px] font-medium text-slate-500">
               {filteredProducts.length.toLocaleString()}{" "}
               produit
-              {filteredProducts.length !==
-              1
+              {filteredProducts.length !== 1
                 ? "s"
                 : ""}
             </p>
-
           </div>
-
         </div>
 
         <section className="space-y-2.5">
-
           {loading ? (
             <div className="rounded-[22px] border border-slate-200 bg-white p-10 text-center shadow-sm">
-
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-
                 <RefreshCcw
                   size={22}
                   className="animate-spin"
                 />
-
               </div>
 
               <p className="mt-4 text-sm font-black">
@@ -2503,16 +2100,11 @@ export default function ProductsPage() {
               <p className="mt-1 text-xs text-slate-400">
                 Chargement du catalogue complet.
               </p>
-
             </div>
-          ) : filteredProducts.length ===
-            0 ? (
+          ) : filteredProducts.length === 0 ? (
             <div className="rounded-[22px] border border-slate-200 bg-white p-8 text-center shadow-sm">
-
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                <Package
-                  size={25}
-                />
+                <Package size={25} />
               </div>
 
               <p className="mt-4 font-black">
@@ -2526,60 +2118,34 @@ export default function ProductsPage() {
               {!searchTerm && (
                 <Link
                   href="/products/add"
-                  onClick={(
-                    event
-                  ) => {
-                    if (
-                      !requireConnection(
-                        "ajouter"
-                      )
-                    ) {
-                      event.preventDefault();
-                    }
-                  }}
                   className="mt-5 inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-black text-white"
                 >
-                  <Plus
-                    size={16}
-                  />
+                  <Plus size={16} />
                   Ajouter
                 </Link>
               )}
-
             </div>
           ) : (
-            filteredProducts.map(
-              (p) => (
-                <ProductCard
-                  key={
-                    p.id
-                  }
-                  product={
-                    p
-                  }
-                  deleting={deletingIds.has(
-                    p.id
-                  )}
-                  onDelete={() =>
-                    askDelete(
-                      p
-                    )
-                  }
-                />
-              )
-            )
+            filteredProducts.map((p) => (
+              <ProductCard
+                key={p.id}
+                product={p}
+                deleting={deletingIds.has(
+                  p.id
+                )}
+                onDelete={() =>
+                  askDelete(p)
+                }
+              />
+            ))
           )}
-
         </section>
-
       </div>
 
       {deleteModal.open &&
         deleteModal.product && (
           <DeleteModal
-            product={
-              deleteModal.product
-            }
+            product={deleteModal.product}
             deleting={deletingIds.has(
               deleteModal.product.id
             )}
@@ -2596,7 +2162,6 @@ export default function ProductsPage() {
             }
           />
         )}
-
     </main>
   );
 }
@@ -2624,28 +2189,21 @@ function StatCard({
   const styles = {
     indigo: {
       box: "bg-indigo-50 text-indigo-600",
-      value:
-        "text-slate-900",
+      value: "text-slate-900",
     },
-
     red: {
       box: "bg-red-50 text-red-500",
-      value:
-        "text-red-500",
+      value: "text-red-500",
     },
-
     amber: {
       box: "bg-amber-50 text-amber-500",
-      value:
-        "text-amber-500",
+      value: "text-amber-500",
     },
   };
 
   return (
     <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-
       <div className="flex items-center justify-between gap-2">
-
         <div
           className={`flex h-8 w-8 items-center justify-center rounded-xl ${styles[tone].box}`}
         >
@@ -2655,7 +2213,6 @@ function StatCard({
         <span className="hidden text-[8px] font-black uppercase tracking-wide text-slate-400 sm:block">
           {description}
         </span>
-
       </div>
 
       <p className="mt-3 text-[9px] font-semibold text-slate-500">
@@ -2667,7 +2224,6 @@ function StatCard({
       >
         {value}
       </p>
-
     </div>
   );
 }
@@ -2686,27 +2242,19 @@ function ProductCard({
   onDelete: () => void;
 }) {
   const stock =
-    Number(
-      product.stock
-    ) || 0;
+    Number(product.stock) || 0;
 
   const purchase =
-    Number(
-      product.purchase_price
-    ) || 0;
+    Number(product.purchase_price) || 0;
 
   const selling =
-    Number(
-      product.selling_price
-    ) || 0;
+    Number(product.selling_price) || 0;
 
   const profit =
-    (selling -
-      purchase) *
+    (selling - purchase) *
     stock;
 
-  const rupture =
-    stock <= 0;
+  const rupture = stock <= 0;
 
   const faible =
     stock > 0 &&
@@ -2714,11 +2262,8 @@ function ProductCard({
 
   return (
     <article className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-md">
-
       <div className="p-3 sm:p-4">
-
         <div className="flex min-w-0 items-center gap-3">
-
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
               rupture
@@ -2729,20 +2274,14 @@ function ProductCard({
             }`}
           >
             {rupture ? (
-              <AlertTriangle
-                size={18}
-              />
+              <AlertTriangle size={18} />
             ) : (
-              <Package
-                size={18}
-              />
+              <Package size={18} />
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-
               <h3 className="min-w-0 break-words text-sm font-black text-slate-900 sm:text-base">
                 {product.name ||
                   "Produit sans nom"}
@@ -2761,18 +2300,14 @@ function ProductCard({
                   Disponible
                 </span>
               )}
-
             </div>
 
             <p className="mt-0.5 truncate text-[10px] text-slate-500">
-              {product.unit ||
-                "Unité"}
+              {product.unit || "Unité"}
             </p>
-
           </div>
 
           <div className="shrink-0 text-right">
-
             <p
               className={`text-lg font-black ${
                 rupture
@@ -2788,15 +2323,11 @@ function ProductCard({
             <p className="text-[8px] font-bold text-slate-400">
               STOCK
             </p>
-
           </div>
-
         </div>
 
         <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-xl border border-slate-100">
-
           <div className="min-w-0 bg-slate-50 p-2.5">
-
             <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
               Achat
             </p>
@@ -2805,11 +2336,9 @@ function ProductCard({
               {purchase.toLocaleString()}{" "}
               {product.currency}
             </p>
-
           </div>
 
           <div className="min-w-0 border-l border-slate-100 bg-emerald-50/50 p-2.5">
-
             <p className="text-[8px] font-black uppercase tracking-wide text-emerald-500">
               Vente
             </p>
@@ -2818,11 +2347,9 @@ function ProductCard({
               {selling.toLocaleString()}{" "}
               {product.currency}
             </p>
-
           </div>
 
           <div className="min-w-0 border-l border-slate-100 bg-indigo-50/50 p-2.5">
-
             <p className="text-[8px] font-black uppercase tracking-wide text-indigo-500">
               Bénéfice
             </p>
@@ -2837,20 +2364,16 @@ function ProductCard({
               {profit.toLocaleString()}{" "}
               {product.currency}
             </p>
-
           </div>
-
         </div>
 
         <div className="mt-2.5 flex items-center gap-2">
-
           <Boxes
             size={14}
             className="shrink-0 text-slate-400"
           />
 
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-
             <div
               className={`h-full rounded-full ${
                 rupture
@@ -2872,92 +2395,53 @@ function ProductCard({
                       )}%`,
               }}
             />
-
           </div>
 
           <span className="shrink-0 text-[9px] font-bold text-slate-400">
-            {product.unit ||
-              "unité"}
+            {product.unit || "unité"}
           </span>
-
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
-
           <Link
             href={`/products/edit/${product.id}`}
-            onClick={(
-              event
-            ) => {
-              if (
-                !requireConnection(
-                  "modifier"
-                )
-              ) {
-                event.preventDefault();
-              }
-            }}
             className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-indigo-100 bg-indigo-50 px-2 text-[10px] font-black text-indigo-600 transition hover:bg-indigo-100"
           >
-
-            <Edit
-              size={14}
-            />
-
+            <Edit size={14} />
             Modifier
-
             <ChevronRight
               size={13}
               className="hidden sm:block"
             />
-
           </Link>
 
           <button
             type="button"
-            onClick={() => {
-              if (
-                !requireConnection(
-                  "supprimer"
-                )
-              ) {
-                return;
-              }
-
-              onDelete();
-            }}
-            disabled={
-              deleting
-            }
+            onClick={onDelete}
+            disabled={deleting}
             className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-2 text-[10px] font-black text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-
             {deleting ? (
               <Loader2
                 size={14}
                 className="animate-spin"
               />
             ) : (
-              <Trash2
-                size={14}
-              />
+              <Trash2 size={14} />
             )}
 
             {deleting
               ? "Suppression..."
               : "Supprimer"}
-
           </button>
-
         </div>
-
       </div>
     </article>
   );
 }
 
 /* =========================================================
-   MODAL SUPPRESSION
+   MODALE
 ========================================================= */
 
 function DeleteModal({
@@ -2973,26 +2457,19 @@ function DeleteModal({
 }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-
       <div
         className="w-full max-w-md overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-title"
       >
-
         <div className="p-5 sm:p-6">
-
           <div className="flex items-start gap-3">
-
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-              <Trash2
-                size={20}
-              />
+              <Trash2 size={20} />
             </div>
 
             <div className="min-w-0 flex-1">
-
               <h2
                 id="delete-title"
                 className="text-base font-black text-slate-900 sm:text-lg"
@@ -3004,39 +2481,26 @@ function DeleteModal({
                 Voulez-vous vraiment supprimer ce produit ?
                 Cette action est irréversible.
               </p>
-
             </div>
 
             <button
               type="button"
-              onClick={
-                onCancel
-              }
-              disabled={
-                deleting
-              }
+              onClick={onCancel}
+              disabled={deleting}
               className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
               aria-label="Fermer"
             >
-              <X
-                size={18}
-              />
+              <X size={18} />
             </button>
-
           </div>
 
           <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-
             <div className="flex items-center gap-3">
-
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                <Package
-                  size={18}
-                />
+                <Package size={18} />
               </div>
 
               <div className="min-w-0">
-
                 <p className="break-words text-sm font-black text-slate-900">
                   {product.name ||
                     "Produit sans nom"}
@@ -3044,29 +2508,18 @@ function DeleteModal({
 
                 <p className="mt-0.5 text-[10px] font-medium text-slate-500">
                   Stock :{" "}
-                  {Number(
-                    product.stock
-                  ) || 0}{" "}
-                  {product.unit ||
-                    "unité"}
+                  {Number(product.stock) || 0}{" "}
+                  {product.unit || "unité"}
                 </p>
-
               </div>
-
             </div>
-
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-2">
-
             <button
               type="button"
-              onClick={
-                onCancel
-              }
-              disabled={
-                deleting
-              }
+              onClick={onCancel}
+              disabled={deleting}
               className="min-h-[44px] rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
             >
               Annuler
@@ -3074,38 +2527,26 @@ function DeleteModal({
 
             <button
               type="button"
-              onClick={
-                onConfirm
-              }
-              disabled={
-                deleting
-              }
+              onClick={onConfirm}
+              disabled={deleting}
               className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-red-600 px-3 text-xs font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-
               {deleting ? (
                 <>
                   <Loader2
                     size={15}
                     className="animate-spin"
                   />
-
                   Suppression...
                 </>
               ) : (
                 <>
-                  <Trash2
-                    size={15}
-                  />
-
+                  <Trash2 size={15} />
                   Supprimer
                 </>
               )}
-
             </button>
-
           </div>
-
         </div>
       </div>
     </div>
@@ -3113,7 +2554,7 @@ function DeleteModal({
 }
 
 /* =========================================================
-   GUIDE ITEM
+   GUIDE
 ========================================================= */
 
 function GuideItem({
@@ -3127,15 +2568,12 @@ function GuideItem({
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-
       <div className="flex items-start gap-2.5">
-
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-[10px] font-black text-white">
           {number}
         </div>
 
         <div className="min-w-0">
-
           <h3 className="text-xs font-black text-slate-900">
             {title}
           </h3>
@@ -3143,11 +2581,8 @@ function GuideItem({
           <p className="mt-1 text-[10px] leading-5 text-slate-600 sm:text-xs">
             {text}
           </p>
-
         </div>
-
       </div>
-
     </div>
   );
 }

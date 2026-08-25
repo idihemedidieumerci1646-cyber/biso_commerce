@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase";
 ============================================================ */
 
 const DB_NAME = "biso-commerce-offline";
-const DB_VERSION = 10;
+const DB_VERSION = 12;
 
 /* ============================================================
    STORES

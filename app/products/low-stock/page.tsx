@@ -61,7 +61,7 @@ type PendingDelete = {
 */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 10;
+const DB_VERSION = 12;
 
 const PRODUCTS_STORE = "products";
 const DELETE_QUEUE_STORE = "delete_queue";
