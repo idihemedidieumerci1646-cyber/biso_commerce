@@ -2498,7 +2498,9 @@ const deleteSale = async (saleId: string) => {
 
   try {
     /*
+     * ============================================================
      * 1. SUPPRESSION IMMÉDIATE DE L'INTERFACE
+     * ============================================================
      */
     setSalesHistory((current) =>
       current.filter((sale) => sale.id !== saleId)
@@ -2509,23 +2511,35 @@ const deleteSale = async (saleId: string) => {
     );
 
     /*
-     * 2. SUPPRESSION DU CACHE LOCAL
+     * ============================================================
+     * 2. SUPPRESSION IMMÉDIATE DU CACHE LOCAL
+     * ============================================================
      */
     await removeLocalSale(saleId);
 
     /*
-     * 3. HORS CONNEXION
+     * ============================================================
+     * 3. ENREGISTRER LA SUPPRESSION DANS LA FILE
      *
-     * On enregistre la suppression dans la file.
-     * Elle sera envoyée à Supabase au retour d'Internet.
+     * IMPORTANT :
+     * On l'enregistre AVANT de contacter Supabase.
+     *
+     * Ainsi, même si la connexion coupe pendant la suppression,
+     * la suppression ne sera jamais oubliée.
+     * ============================================================
+     */
+    await addSaleDeleteToQueue({
+      id: saleId,
+      userId,
+      createdAt: Date.now(),
+    });
+
+    /*
+     * ============================================================
+     * 4. HORS CONNEXION
+     * ============================================================
      */
     if (!navigator.onLine) {
-      await addSaleDeleteToQueue({
-        id: saleId,
-        userId,
-        createdAt: Date.now(),
-      });
-
       setSyncState("offline");
 
       setNotice({
@@ -2538,9 +2552,9 @@ const deleteSale = async (saleId: string) => {
     }
 
     /*
-     * 4. EN LIGNE
-     *
-     * Suppression DIRECTE dans Supabase.
+     * ============================================================
+     * 5. EN LIGNE
+     * ============================================================
      */
     setSyncState("syncing");
 
@@ -2552,7 +2566,12 @@ const deleteSale = async (saleId: string) => {
       .select("id");
 
     /*
-     * Supabase a rencontré une vraie erreur.
+     * ============================================================
+     * 6. ERREUR SUPABASE
+     *
+     * La suppression est déjà dans la file.
+     * Elle pourra donc être retentée automatiquement.
+     * ============================================================
      */
     if (error) {
       console.error(
@@ -2560,61 +2579,56 @@ const deleteSale = async (saleId: string) => {
         error
       );
 
-      /*
-       * La suppression n'est pas perdue :
-       * on la remet dans la file.
-       */
-      await addSaleDeleteToQueue({
-        id: saleId,
-        userId,
-        createdAt: Date.now(),
-      });
-
       setSyncState("error");
 
       setNotice({
         type: "error",
         message:
-          "La vente a été supprimée de l'écran, mais la suppression serveur est en attente de synchronisation.",
+          "Vente supprimée localement. La suppression du serveur sera réessayée automatiquement.",
       });
 
       return;
     }
 
     /*
-     * Si aucune ligne n'a été supprimée,
-     * Supabase n'a probablement pas autorisé
-     * la suppression (souvent RLS).
+     * ============================================================
+     * 7. VÉRIFICATION DE LA SUPPRESSION
+     * ============================================================
      */
     if (!data || data.length === 0) {
       console.error(
-        "Aucune vente supprimée dans Supabase.",
+        "Supabase n'a supprimé aucune ligne :",
         {
           saleId,
           userId,
         }
       );
 
-      await addSaleDeleteToQueue({
-        id: saleId,
-        userId,
-        createdAt: Date.now(),
-      });
-
       setSyncState("error");
 
       setNotice({
         type: "error",
         message:
-          "La vente n'a pas été supprimée du serveur. Vérifiez les permissions RLS de la table sales.",
+          "La vente n'a pas été supprimée du serveur. Vérifiez la politique RLS de la table sales.",
       });
 
       return;
     }
 
     /*
-     * 5. SUPPRESSION SERVEUR CONFIRMÉE
+     * ============================================================
+     * 8. SUPPRESSION SERVEUR CONFIRMÉE
+     *
+     * La suppression a réussi.
+     * On retire maintenant cette suppression de la file.
+     *
+     * IMPORTANT :
+     * Cette partie nécessite une fonction
+     * removeSaleDeleteFromQueue().
+     * ============================================================
      */
+    await removeSaleDeleteFromQueue(saleId);
+
     setSyncState("online");
 
     setNotice({
@@ -2629,45 +2643,31 @@ const deleteSale = async (saleId: string) => {
     );
 
     /*
-     * En cas de problème inattendu,
-     * on conserve la suppression dans la file.
+     * ============================================================
+     * 9. ERREUR INATTENDUE
+     *
+     * La suppression est normalement déjà dans la file.
+     * On ne la recrée donc PAS ici.
+     *
+     * Cela évite d'avoir plusieurs suppressions identiques
+     * dans la file.
+     * ============================================================
      */
-    try {
-      await addSaleDeleteToQueue({
-        id: saleId,
-        userId,
-        createdAt: Date.now(),
-      });
+    setSyncState(
+      navigator.onLine
+        ? "error"
+        : "offline"
+    );
 
-      setSyncState(
+    setNotice({
+      type: "error",
+      message:
         navigator.onLine
-          ? "error"
-          : "offline"
-      );
-
-      setNotice({
-        type: "success",
-        message:
-          "Vente supprimée localement. La suppression sera synchronisée automatiquement.",
-      });
-
-    } catch (queueError) {
-      console.error(
-        "Erreur file de suppression :",
-        queueError
-      );
-
-      setSyncState("error");
-
-      setNotice({
-        type: "error",
-        message:
-          "Impossible d'enregistrer la suppression. Veuillez réessayer.",
-      });
-    }
+          ? "La vente a été supprimée localement, mais la synchronisation doit être vérifiée."
+          : "Vente supprimée de cet appareil. La suppression sera synchronisée dès le retour d'Internet.",
+    });
   }
 };
-
   /* ======================================================
      VENTES AFFICHÉES
   ====================================================== */
