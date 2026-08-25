@@ -2484,9 +2484,7 @@ const deleteSale = async (saleId: string) => {
     "Voulez-vous vraiment supprimer cette vente ? Cette action est irréversible."
   );
 
-  if (!confirmed) {
-    return;
-  }
+  if (!confirmed) return;
 
   const userId = getStoredUserId();
 
@@ -2500,8 +2498,8 @@ const deleteSale = async (saleId: string) => {
 
   try {
     /*
-      1. SUPPRESSION IMMÉDIATE DE L'INTERFACE
-    */
+     * 1. SUPPRESSION IMMÉDIATE DE L'INTERFACE
+     */
     setSalesHistory((current) =>
       current.filter((sale) => sale.id !== saleId)
     );
@@ -2511,14 +2509,16 @@ const deleteSale = async (saleId: string) => {
     );
 
     /*
-      2. SUPPRESSION DU STOCKAGE LOCAL
-    */
+     * 2. SUPPRESSION DU CACHE LOCAL
+     */
     await removeLocalSale(saleId);
 
     /*
-      3. HORS CONNEXION
-      On garde la suppression dans la file.
-    */
+     * 3. HORS CONNEXION
+     *
+     * On enregistre la suppression dans la file.
+     * Elle sera envoyée à Supabase au retour d'Internet.
+     */
     if (!navigator.onLine) {
       await addSaleDeleteToQueue({
         id: saleId,
@@ -2531,43 +2531,29 @@ const deleteSale = async (saleId: string) => {
       setNotice({
         type: "success",
         message:
-          "Vente supprimée de cet appareil. La suppression sera synchronisée automatiquement dès le retour d'Internet.",
+          "Vente supprimée de cet appareil. La suppression sera synchronisée dès le retour d'Internet.",
       });
 
       return;
     }
 
     /*
-      4. EN LIGNE
-      Suppression DIRECTE dans Supabase.
-    */
+     * 4. EN LIGNE
+     *
+     * Suppression DIRECTE dans Supabase.
+     */
     setSyncState("syncing");
 
-    const {
-  data: deletedSale,
-  error,
-} = await supabase
-  .from("sales")
-  .delete()
-  .eq("id", saleId)
-  .eq("user_id", userId)
-  .select("id");
-
-if (error) {
-  throw error;
-}
-
-if (!deletedSale || deletedSale.length === 0) {
-  throw new Error(
-    "La vente n'a pas été supprimée du serveur. Vérifiez les permissions Supabase (RLS)."
-  );
-}
+    const { data, error } = await supabase
+      .from("sales")
+      .delete()
+      .eq("id", saleId)
+      .eq("user_id", userId)
+      .select("id");
 
     /*
-      Si Supabase refuse la suppression,
-      on considère que la synchronisation n'est
-      pas terminée.
-    */
+     * Supabase a rencontré une vraie erreur.
+     */
     if (error) {
       console.error(
         "Erreur Supabase suppression vente :",
@@ -2575,10 +2561,9 @@ if (!deletedSale || deletedSale.length === 0) {
       );
 
       /*
-        On remet la suppression dans la file
-        pour éviter que la vente réapparaisse
-        plus tard.
-      */
+       * La suppression n'est pas perdue :
+       * on la remet dans la file.
+       */
       await addSaleDeleteToQueue({
         id: saleId,
         userId,
@@ -2597,14 +2582,44 @@ if (!deletedSale || deletedSale.length === 0) {
     }
 
     /*
-      5. SUPPRESSION SERVEUR TERMINÉE
-    */
+     * Si aucune ligne n'a été supprimée,
+     * Supabase n'a probablement pas autorisé
+     * la suppression (souvent RLS).
+     */
+    if (!data || data.length === 0) {
+      console.error(
+        "Aucune vente supprimée dans Supabase.",
+        {
+          saleId,
+          userId,
+        }
+      );
+
+      await addSaleDeleteToQueue({
+        id: saleId,
+        userId,
+        createdAt: Date.now(),
+      });
+
+      setSyncState("error");
+
+      setNotice({
+        type: "error",
+        message:
+          "La vente n'a pas été supprimée du serveur. Vérifiez les permissions RLS de la table sales.",
+      });
+
+      return;
+    }
+
+    /*
+     * 5. SUPPRESSION SERVEUR CONFIRMÉE
+     */
     setSyncState("online");
 
     setNotice({
       type: "success",
-      message:
-        "Vente supprimée définitivement.",
+      message: "Vente supprimée définitivement.",
     });
 
   } catch (error) {
@@ -2614,10 +2629,9 @@ if (!deletedSale || deletedSale.length === 0) {
     );
 
     /*
-      Si la connexion tombe pendant
-      la suppression, on ajoute quand même
-      la suppression dans la file.
-    */
+     * En cas de problème inattendu,
+     * on conserve la suppression dans la file.
+     */
     try {
       await addSaleDeleteToQueue({
         id: saleId,
@@ -2636,6 +2650,7 @@ if (!deletedSale || deletedSale.length === 0) {
         message:
           "Vente supprimée localement. La suppression sera synchronisée automatiquement.",
       });
+
     } catch (queueError) {
       console.error(
         "Erreur file de suppression :",

@@ -1593,37 +1593,79 @@ export default function SalesPage() {
 
     void loadProducts();
   }, [loadProducts]);
-
   /* =======================================================
      ONLINE / OFFLINE
   ======================================================= */
 
   useEffect(() => {
-    const handleOnline =
-      async () => {
-        setIsOnline(true);
+    const handleOnline = async () => {
+      setIsOnline(true);
+      setConnectionState("syncing");
 
-        setConnectionState(
-          "syncing"
-        );
-
+      try {
+        /*
+         * Quand Internet revient :
+         * 1. syncOfflineSales() sera appelé par loadProducts()
+         * 2. les ventes seront envoyées vers Supabase
+         * 3. le stock sera synchronisé
+         * 4. les ventes complètement synchronisées seront supprimées
+         *    d'IndexedDB
+         * 5. les produits seront ensuite rechargés depuis Supabase
+         */
         await loadProducts(false);
 
         setIsOnline(true);
+        setConnectionState("online");
+      } catch (error) {
+        console.error(
+          "[BISO-COMMERCE] Erreur au retour de connexion :",
+          error
+        );
+
+        setIsOnline(
+          typeof navigator !== "undefined"
+            ? navigator.onLine
+            : true
+        );
 
         setConnectionState(
-          "online"
+          typeof navigator !== "undefined" &&
+            navigator.onLine
+            ? "online"
+            : "offline"
         );
-      };
+      }
+    };
 
-    const handleOffline =
-      () => {
-        setIsOnline(false);
+    const handleOffline = () => {
+      setIsOnline(false);
+      setConnectionState("offline");
 
-        setConnectionState(
-          "offline"
-        );
-      };
+      /*
+       * On recharge immédiatement le cache local.
+       * Ainsi, si l'utilisateur perd Internet,
+       * il continue à voir les produits déjà enregistrés.
+       */
+      void (async () => {
+        const userId = getUserId();
+
+        if (!userId) {
+          return;
+        }
+
+        try {
+          const cached =
+            await getLocalProducts(userId);
+
+          setProducts(cached);
+        } catch (error) {
+          console.error(
+            "[BISO-COMMERCE] Chargement cache après passage offline :",
+            error
+          );
+        }
+      })();
+    };
 
     window.addEventListener(
       "online",
@@ -1646,7 +1688,10 @@ export default function SalesPage() {
         handleOffline
       );
     };
-  }, [loadProducts]);
+  }, [
+    getUserId,
+    loadProducts,
+  ]);
 
   /* =======================================================
      APRÈS SYNCHRONISATION
@@ -1655,22 +1700,30 @@ export default function SalesPage() {
   useEffect(() => {
     const handleOfflineSalesSynced =
       async () => {
-        await refreshPendingSalesCount();
-
-        const userId =
-          getUserId();
-
-        if (!userId) {
-          return;
-        }
-
         try {
+          await refreshPendingSalesCount();
+
+          const userId =
+            getUserId();
+
+          if (!userId) {
+            return;
+          }
+
+          /*
+           * Après une synchronisation réussie,
+           * on recharge les produits serveur.
+           *
+           * Si certaines ventes restent en attente,
+           * loadProducts() sait déjà préserver
+           * le stock local correspondant.
+           */
           if (
+            typeof navigator !==
+              "undefined" &&
             navigator.onLine
           ) {
-            await loadProducts(
-              true
-            );
+            await loadProducts(true);
           } else {
             const cached =
               await getLocalProducts(
@@ -1678,6 +1731,11 @@ export default function SalesPage() {
               );
 
             setProducts(cached);
+
+            setIsOnline(false);
+            setConnectionState(
+              "offline"
+            );
           }
         } catch (error) {
           console.error(
@@ -1719,6 +1777,11 @@ export default function SalesPage() {
         }
 
         try {
+          /*
+           * Toujours privilégier IndexedDB ici.
+           * C'est important pour que le stock diminué
+           * hors connexion reste immédiatement visible.
+           */
           const cached =
             await getLocalProducts(
               userId
@@ -2067,6 +2130,13 @@ export default function SalesPage() {
           "undefined" &&
         !navigator.onLine
       ) {
+        /*
+         * saveOfflineSale() fait deux choses
+         * dans UNE transaction IndexedDB :
+         *
+         * 1. enregistre la vente
+         * 2. diminue le stock local
+         */
         await saveOfflineSale(
           saleData
         );
@@ -2080,6 +2150,10 @@ export default function SalesPage() {
               userId,
           };
 
+        /*
+         * On garde aussi le state React
+         * synchronisé immédiatement.
+         */
         setProducts(
           (current) =>
             current.map(
@@ -2113,6 +2187,9 @@ export default function SalesPage() {
 
         await refreshPendingSalesCount();
 
+        /*
+         * Prévenir le dashboard et les autres pages.
+         */
         window.dispatchEvent(
           new CustomEvent(
             "biso-products-updated"
@@ -2136,6 +2213,13 @@ export default function SalesPage() {
         "syncing"
       );
 
+      /*
+       * On crée d'abord la vente.
+       *
+       * L'id est généré localement afin que,
+       * si Internet tombe ensuite, la même vente
+       * puisse être reprise sans doublon.
+       */
       const {
         error: saleError,
       } = await supabase
@@ -2166,7 +2250,7 @@ export default function SalesPage() {
 
       /* =====================================================
          SI LA VENTE SERVEUR ÉCHOUE
-         → ON PASSE EN FILE OFFLINE
+         → FILE OFFLINE
       ===================================================== */
 
       if (saleError) {
@@ -2175,6 +2259,10 @@ export default function SalesPage() {
           saleError
         );
 
+        /*
+         * La vente n'a pas pu être enregistrée sur Supabase.
+         * On la conserve localement.
+         */
         await saveOfflineSale(
           saleData
         );
@@ -2240,6 +2328,10 @@ export default function SalesPage() {
         return;
       }
 
+      /*
+       * À partir d'ici, la vente existe bien
+       * dans Supabase.
+       */
       saleData.sale_synced =
         true;
 
@@ -2282,6 +2374,16 @@ export default function SalesPage() {
           stockError
         );
 
+        /*
+         * IMPORTANT :
+         * La vente existe déjà sur Supabase.
+         *
+         * On NE remet donc PAS sale_synced à false.
+         *
+         * Au prochain passage online,
+         * syncOneOfflineSale() vérifiera d'abord
+         * si la vente existe déjà et ne la réinsérera pas.
+         */
         await saveOfflineSale({
           ...saleData,
           sale_synced:
@@ -2336,6 +2438,18 @@ export default function SalesPage() {
 
         await refreshPendingSalesCount();
 
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-products-updated"
+          )
+        );
+
+        window.dispatchEvent(
+          new CustomEvent(
+            "biso-sales-updated"
+          )
+        );
+
         return;
       }
 
@@ -2371,6 +2485,10 @@ export default function SalesPage() {
           currentServerProductError ||
           !currentServerProduct
         ) {
+          /*
+           * La vente existe déjà sur le serveur,
+           * mais le stock n'est pas confirmé.
+           */
           await saveOfflineSale({
             ...saleData,
             sale_synced:
@@ -2380,6 +2498,29 @@ export default function SalesPage() {
             synced:
               false,
           });
+
+          await saveLocalProduct({
+            ...selectedProduct,
+            stock:
+              stockAfter,
+            user_id:
+              userId,
+          });
+
+          setProducts(
+            (current) =>
+              current.map(
+                (product) =>
+                  product.id ===
+                  selectedProduct.id
+                    ? {
+                        ...product,
+                        stock:
+                          stockAfter,
+                      }
+                    : product
+              )
+          );
 
           setSuccessOffline(
             true
@@ -2404,6 +2545,10 @@ export default function SalesPage() {
           return;
         }
 
+        /*
+         * Le stock serveur est déjà exactement
+         * celui attendu.
+         */
         if (
           Number(
             currentServerProduct.stock
@@ -2415,6 +2560,12 @@ export default function SalesPage() {
           saleData.synced =
             true;
         } else {
+          /*
+           * Le serveur possède une autre valeur.
+           * On ne force surtout pas le stock :
+           * on conserve la vente pour une synchronisation
+           * contrôlée ultérieurement.
+           */
           await saveOfflineSale({
             ...saleData,
             sale_synced:
@@ -2424,6 +2575,29 @@ export default function SalesPage() {
             synced:
               false,
           });
+
+          await saveLocalProduct({
+            ...selectedProduct,
+            stock:
+              stockAfter,
+            user_id:
+              userId,
+          });
+
+          setProducts(
+            (current) =>
+              current.map(
+                (product) =>
+                  product.id ===
+                  selectedProduct.id
+                    ? {
+                        ...product,
+                        stock:
+                          stockAfter,
+                      }
+                    : product
+              )
+          );
 
           setSuccessOffline(
             true
@@ -2487,6 +2661,12 @@ export default function SalesPage() {
             userId,
         });
 
+        /*
+         * La vente est présente dans Supabase
+         * ET le stock est confirmé.
+         *
+         * On peut donc supprimer la file locale.
+         */
         await removeOfflineSale(
           saleData.id
         );
@@ -2777,9 +2957,9 @@ export default function SalesPage() {
     }
   };
 
-  /* =========================================================
+  /* =======================================================
      INTERFACE
-  ========================================================= */
+  ======================================================= */
 
   return (
     <main className="relative min-h-screen w-full overflow-x-hidden bg-[#f5f7fb] px-3 py-4 pb-32 text-slate-900 sm:px-6 sm:py-6">
@@ -2832,8 +3012,6 @@ export default function SalesPage() {
             </button>
 
           </div>
-
-          {/* CONNEXION */}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
 
@@ -3026,8 +3204,6 @@ export default function SalesPage() {
 
             </div>
 
-            {/* RÉSULTATS */}
-
             {searchTerm &&
               !productId && (
                 <div className="mt-2 max-h-72 overflow-y-auto overscroll-contain rounded-2xl border border-slate-800 bg-black shadow-xl">
@@ -3088,8 +3264,6 @@ export default function SalesPage() {
 
                 </div>
               )}
-
-            {/* PRODUIT SÉLECTIONNÉ */}
 
             {selectedProduct && (
               <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-3">
@@ -3249,9 +3423,7 @@ export default function SalesPage() {
 
           </div>
 
-          {/* =================================================
-              RÉSUMÉ
-          ================================================= */}
+          {/* RÉSUMÉ */}
 
           {selectedProduct &&
             Number(quantity) >
@@ -3318,8 +3490,6 @@ export default function SalesPage() {
 
                 </div>
 
-                {/* TOTAL */}
-
                 <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
 
                   <p className="text-xs font-black uppercase tracking-wider text-slate-400">
@@ -3334,8 +3504,6 @@ export default function SalesPage() {
                   </p>
 
                 </div>
-
-                {/* BÉNÉFICE */}
 
                 <div className="mt-3 flex items-start gap-2 rounded-xl bg-white/60 p-3 text-xs font-bold text-emerald-600">
 
@@ -3353,8 +3521,6 @@ export default function SalesPage() {
                   </span>
 
                 </div>
-
-                {/* STOCK FAIBLE */}
 
                 {stockAfterSale <=
                   5 && (
@@ -3380,9 +3546,7 @@ export default function SalesPage() {
               </div>
             )}
 
-          {/* =================================================
-              BOUTON VENTE
-          ================================================= */}
+          {/* BOUTON VENTE */}
 
           <button
             type="button"

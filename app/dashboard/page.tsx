@@ -761,101 +761,7 @@ export default function DashboardPage() {
      CHARGER LES VENTES POUR LE DASHBOARD
   ========================================================= */
 
-  const loadDashboardSales =
-    useCallback(async () => {
-      const userId =
-        userIdRef.current ||
-        localStorage.getItem("user_id");
-
-      if (!userId) {
-        return;
-      }
-
-      try {
-        const {
-          data,
-          error,
-        } = await supabase
-          .from("sales")
-          .select(`
-            id,
-            user_id,
-            product_id,
-            product_name,
-            quantity,
-            purchase_price,
-            selling_price,
-            total_sale,
-            profit,
-            currency,
-            created_at
-          `)
-          .eq(
-            "user_id",
-            userId
-          )
-          .order(
-            "created_at",
-            {
-              ascending: false,
-            }
-          );
-
-        if (error) {
-          console.error(
-            "[BISO-COMMERCE] Erreur chargement ventes Dashboard :",
-            error
-          );
-
-          return;
-        }
-
-        setSales(
-          (data || []) as Sale[]
-        );
-
-      } catch (error) {
-        console.error(
-          "[BISO-COMMERCE] Erreur ventes Dashboard :",
-          error
-        );
-      }
-    }, []);
-
-    useEffect(() => {
-  void loadDashboardSales();
-
-  const handleSalesUpdated = () => {
-    void loadDashboardSales();
-  };
-
-  const handleOfflineSalesSynced = () => {
-    void loadDashboardSales();
-  };
-
-  window.addEventListener(
-    "biso-sales-updated",
-    handleSalesUpdated
-  );
-
-  window.addEventListener(
-    "biso-offline-sales-synced",
-    handleOfflineSalesSynced
-  );
-
-  return () => {
-    window.removeEventListener(
-      "biso-sales-updated",
-      handleSalesUpdated
-    );
-
-    window.removeEventListener(
-      "biso-offline-sales-synced",
-      handleOfflineSalesSynced
-    );
-  };
-}, [loadDashboardSales]);
-
+ 
 
   /* ============================================================
      HORLOGE
@@ -1273,6 +1179,7 @@ export default function DashboardPage() {
       },
       []
     );
+    
 
   /* ============================================================
      CHARGEMENT DES DONNÉES
@@ -1289,70 +1196,38 @@ export default function DashboardPage() {
           ----------------------------------------------------
         */
 
-        if (
-          typeof window !==
-            "undefined" &&
-          !navigator.onLine
-        ) {
-          const cached =
-            getDashboardCache(
-              userId
-            );
+       if (
+  typeof window !== "undefined" &&
+  !navigator.onLine
+) {
+  const cached =
+    getDashboardCache(userId);
 
-          if (
-            cached
-          ) {
-            setSales(
-              cached.sales
-            );
+  if (cached) {
+    setSales(cached.sales || []);
+    setProducts(cached.products || []);
+    setExpenses(cached.expenses || []);
+    setDebts(cached.debts || []);
+    setClientsCount(cached.clientsCount || 0);
 
-            setProducts(
-              cached.products
-            );
+    const savedAt =
+      new Date(cached.savedAt);
 
-            setExpenses(
-              cached.expenses
-            );
+    if (!Number.isNaN(savedAt.getTime())) {
+      setLastSync(savedAt);
+    }
 
-            setDebts(
-              cached.debts
-            );
+    return;
+  }
 
-            setClientsCount(
-              cached.clientsCount
-            );
+  setSales([]);
+  setProducts([]);
+  setExpenses([]);
+  setDebts([]);
+  setClientsCount(0);
 
-            const savedAt =
-              new Date(
-                cached.savedAt
-              );
-
-            if (
-              !Number.isNaN(
-                savedAt.getTime()
-              )
-            ) {
-              setLastSync(
-                savedAt
-              );
-            }
-
-            return;
-          }
-
-          /*
-            Aucun cache :
-            Dashboard vide mais ouvert.
-          */
-
-          setSales([]);
-          setProducts([]);
-          setExpenses([]);
-          setDebts([]);
-          setClientsCount(0);
-
-          return;
-        }
+  return;
+}
 
         /*
           ----------------------------------------------------

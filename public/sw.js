@@ -1,4 +1,4 @@
-const CACHE_VERSION = "biso-commerce-v6";
+const CACHE_VERSION = "biso-commerce-v7";
 
 const APP_SHELL = [
   "/",
@@ -21,23 +21,25 @@ const APP_SHELL = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(CACHE_VERSION);
+      const cache =
+        await caches.open(CACHE_VERSION);
 
       /*
-       * Préchargement des pages principales.
+       * Pages principales.
        */
       for (const url of APP_SHELL) {
         try {
-          const response = await fetch(
-            new Request(url, {
-              method: "GET",
-              cache: "no-store",
-            })
-          );
+          const response =
+            await fetch(
+              new Request(url, {
+                method: "GET",
+                cache: "no-store",
+              })
+            );
 
           if (response.ok) {
             await cache.put(
-              new Request(url),
+              url,
               response.clone()
             );
           }
@@ -51,7 +53,7 @@ self.addEventListener("install", (event) => {
       }
 
       /*
-       * Active immédiatement le nouveau Service Worker.
+       * Active immédiatement le nouveau SW.
        */
       await self.skipWaiting();
     })()
@@ -65,15 +67,19 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const cacheNames = await caches.keys();
+      const cacheNames =
+        await caches.keys();
 
       await Promise.all(
         cacheNames
           .filter((name) =>
-            name.startsWith("biso-commerce-")
+            name.startsWith(
+              "biso-commerce-"
+            )
           )
           .filter(
-            (name) => name !== CACHE_VERSION
+            (name) =>
+              name !== CACHE_VERSION
           )
           .map((name) =>
             caches.delete(name)
@@ -96,27 +102,45 @@ self.addEventListener("activate", (event) => {
 
 function isSameOrigin(request) {
   try {
-    const url = new URL(request.url);
+    const url =
+      new URL(request.url);
 
     return (
-      url.origin === self.location.origin
+      url.origin ===
+      self.location.origin
     );
   } catch {
     return false;
   }
 }
 
+/* =========================================================
+   NEXT.JS STATIC
+========================================================= */
+
 function isNextStaticFile(url) {
-  return url.pathname.startsWith(
-    "/_next/static/"
+  return (
+    url.pathname.startsWith(
+      "/_next/static/"
+    )
   );
 }
 
+/* =========================================================
+   NEXT IMAGE
+========================================================= */
+
 function isNextImage(url) {
-  return url.pathname.startsWith(
-    "/_next/image"
+  return (
+    url.pathname.startsWith(
+      "/_next/image"
+    )
   );
 }
+
+/* =========================================================
+   MANIFEST
+========================================================= */
 
 function isManifest(url) {
   return (
@@ -124,6 +148,40 @@ function isManifest(url) {
     "/manifest.json"
   );
 }
+
+/* =========================================================
+   PRODUIT — ROUTE ÉDITION
+========================================================= */
+
+function isProductEditRoute(url) {
+  return (
+    url.pathname.startsWith(
+      "/products/edit/"
+    )
+  );
+}
+
+/* =========================================================
+   PRODUIT — ROUTES
+========================================================= */
+
+function isProductsRoute(url) {
+  return (
+    url.pathname ===
+      "/products" ||
+    url.pathname ===
+      "/products/" ||
+    url.pathname ===
+      "/products/add" ||
+    url.pathname.startsWith(
+      "/products/edit/"
+    )
+  );
+}
+
+/* =========================================================
+   METTRE EN CACHE
+========================================================= */
 
 async function putInCache(
   request,
@@ -156,268 +214,6 @@ async function putInCache(
 }
 
 /* =========================================================
-   TROUVER UNE PAGE ADAPTÉE HORS CONNEXION
-========================================================= */
-
-async function getOfflineNavigation(
-  url
-) {
-  /*
-   * =======================================================
-   * 1. URL EXACTE
-   *
-   * Exemple :
-   *
-   * /products/edit/123
-   *
-   * Si cette page a déjà été ouverte avec Internet,
-   * elle doit être utilisée directement.
-   * =======================================================
-   */
-
-  const exactRequest =
-    new Request(
-      url.href,
-      {
-        method: "GET",
-      }
-    );
-
-  const exact =
-    await caches.match(
-      exactRequest
-    );
-
-  if (exact) {
-    console.log(
-      "[BISO-COMMERCE] Page exacte trouvée dans le cache :",
-      url.pathname
-    );
-
-    return exact;
-  }
-
-  /*
-   * =======================================================
-   * 2. PATHNAME EXACT
-   * =======================================================
-   */
-
-  const pathnameRequest =
-    new Request(
-      url.pathname,
-      {
-        method: "GET",
-      }
-    );
-
-  const pathnameMatch =
-    await caches.match(
-      pathnameRequest
-    );
-
-  if (pathnameMatch) {
-    console.log(
-      "[BISO-COMMERCE] Pathname trouvé dans le cache :",
-      url.pathname
-    );
-
-    return pathnameMatch;
-  }
-
-  /*
-   * =======================================================
-   * 3. ROUTES PARTICULIÈRES
-   *
-   * On ne renvoie PLUS toutes les routes vers Dashboard.
-   *
-   * Chaque section possède son propre fallback.
-   * =======================================================
-   */
-
-  /*
-   * PRODUITS
-   *
-   * /products/edit/123
-   * /products/...
-   */
-  if (
-    url.pathname === "/products" ||
-    url.pathname.startsWith(
-      "/products/"
-    )
-  ) {
-    const productsPage =
-      await caches.match(
-        "/products"
-      );
-
-    if (productsPage) {
-      return productsPage;
-    }
-  }
-
-  /*
-   * VENTES
-   */
-  if (
-    url.pathname === "/sales" ||
-    url.pathname.startsWith(
-      "/sales/"
-    )
-  ) {
-    const salesPage =
-      await caches.match(
-        "/sales"
-      );
-
-    if (salesPage) {
-      return salesPage;
-    }
-  }
-
-  /*
-   * DETTES
-   */
-  if (
-    url.pathname === "/debts" ||
-    url.pathname.startsWith(
-      "/debts/"
-    )
-  ) {
-    const debtsPage =
-      await caches.match(
-        "/debts"
-      );
-
-    if (debtsPage) {
-      return debtsPage;
-    }
-  }
-
-  /*
-   * RAPPORTS
-   */
-  if (
-    url.pathname === "/reports" ||
-    url.pathname.startsWith(
-      "/reports/"
-    )
-  ) {
-    const reportsPage =
-      await caches.match(
-        "/reports"
-      );
-
-    if (reportsPage) {
-      return reportsPage;
-    }
-  }
-
-  /*
-   * DÉPENSES
-   */
-  if (
-    url.pathname === "/expenses" ||
-    url.pathname.startsWith(
-      "/expenses/"
-    )
-  ) {
-    const expensesPage =
-      await caches.match(
-        "/expenses"
-      );
-
-    if (expensesPage) {
-      return expensesPage;
-    }
-  }
-
-  /*
-   * ASSISTANT
-   */
-  if (
-    url.pathname === "/assistant" ||
-    url.pathname.startsWith(
-      "/assistant/"
-    )
-  ) {
-    const assistantPage =
-      await caches.match(
-        "/assistant"
-      );
-
-    if (assistantPage) {
-      return assistantPage;
-    }
-  }
-
-  /*
-   * ABONNEMENT
-   */
-  if (
-    url.pathname === "/subscription" ||
-    url.pathname.startsWith(
-      "/subscription/"
-    )
-  ) {
-    const subscriptionPage =
-      await caches.match(
-        "/subscription"
-      );
-
-    if (subscriptionPage) {
-      return subscriptionPage;
-    }
-  }
-
-  /*
-   * =======================================================
-   * 4. APP SHELL
-   *
-   * On essaie seulement les pages principales.
-   * =======================================================
-   */
-
-  if (
-    APP_SHELL.includes(
-      url.pathname
-    )
-  ) {
-    const shell =
-      await caches.match(
-        url.pathname
-      );
-
-    if (shell) {
-      return shell;
-    }
-  }
-
-  /*
-   * =======================================================
-   * 5. IMPORTANT
-   *
-   * PLUS DE FALLBACK AUTOMATIQUE VERS /dashboard.
-   *
-   * Avant :
-   *
-   * route inconnue
-   *       ↓
-   * Dashboard ❌
-   *
-   * Maintenant :
-   *
-   * route inconnue
-   *       ↓
-   * vraie page offline
-   * =======================================================
-   */
-
-  return offlinePage();
-}
-
-/* =========================================================
    FETCH
 ========================================================= */
 
@@ -429,10 +225,17 @@ self.addEventListener(
 
     /*
      * Seulement GET.
+     *
+     * IMPORTANT :
+     * POST / PUT / PATCH / DELETE
+     * ne sont PAS interceptés par ce SW.
+     *
+     * Les opérations d'ajout, modification
+     * et suppression sont donc laissées
+     * à ton application.
      */
     if (
-      request.method !==
-      "GET"
+      request.method !== "GET"
     ) {
       return;
     }
@@ -450,7 +253,7 @@ self.addEventListener(
       new URL(request.url);
 
     /* =======================================================
-       1. NAVIGATION
+       1. NAVIGATION / PAGES NEXT.JS
     ======================================================= */
 
     if (
@@ -461,7 +264,7 @@ self.addEventListener(
         (async () => {
           /*
            * =================================================
-           * INTERNET
+           * INTERNET D'ABORD
            * =================================================
            */
 
@@ -475,11 +278,9 @@ self.addEventListener(
                 }
               );
 
-            if (
-              response.ok
-            ) {
+            if (response.ok) {
               /*
-               * Mettre en cache l'URL exacte.
+               * Cache URL exacte.
                */
               await putInCache(
                 request,
@@ -487,8 +288,12 @@ self.addEventListener(
               );
 
               /*
-               * Mettre également le pathname
-               * en cache.
+               * Cache également
+               * le pathname.
+               *
+               * Exemple :
+               *
+               * /products/edit/123
                */
               try {
                 await putInCache(
@@ -507,9 +312,7 @@ self.addEventListener(
             throw new Error(
               `Navigation HTTP ${response.status}`
             );
-          } catch (
-            error
-          ) {
+          } catch (error) {
             /*
              * =================================================
              * HORS CONNEXION
@@ -521,9 +324,147 @@ self.addEventListener(
               url.pathname
             );
 
-            return getOfflineNavigation(
-              url
-            );
+            /*
+             * =================================================
+             * 1. URL EXACTE
+             * =================================================
+             */
+
+            const exact =
+              await caches.match(
+                request
+              );
+
+            if (exact) {
+              return exact;
+            }
+
+            /*
+             * =================================================
+             * 2. PATHNAME EXACT
+             *
+             * Très important pour :
+             *
+             * /products/edit/[id]
+             * =================================================
+             */
+
+            const pathnameMatch =
+              await caches.match(
+                new Request(
+                  url.pathname
+                )
+              );
+
+            if (pathnameMatch) {
+              return pathnameMatch;
+            }
+
+            /*
+             * =================================================
+             * 3. ROUTE ÉDITION PRODUIT
+             *
+             * Exemple :
+             *
+             * /products/edit/123
+             *
+             * On ne redirige JAMAIS vers Dashboard.
+             * =================================================
+             */
+
+            if (
+              isProductEditRoute(
+                url
+              )
+            ) {
+              console.warn(
+                "[BISO-COMMERCE] Édition produit hors connexion :",
+                url.pathname
+              );
+
+              /*
+               * La page exacte doit avoir été
+               * chargée auparavant pour être disponible
+               * dans le cache.
+               *
+               * Si elle n'existe pas, on affiche
+               * proprement l'écran hors connexion.
+               */
+              return offlinePage();
+            }
+
+            /*
+             * =================================================
+             * 4. ROUTES PRODUITS
+             * =================================================
+             */
+
+            if (
+              isProductsRoute(
+                url
+              )
+            ) {
+              const productsPage =
+                await caches.match(
+                  "/products"
+                );
+
+              if (productsPage) {
+                return productsPage;
+              }
+
+              return offlinePage();
+            }
+
+            /*
+             * =================================================
+             * 5. APP SHELL
+             * =================================================
+             */
+
+            if (
+              APP_SHELL.includes(
+                url.pathname
+              )
+            ) {
+              const shell =
+                await caches.match(
+                  url.pathname
+                );
+
+              if (shell) {
+                return shell;
+              }
+            }
+
+            /*
+             * =================================================
+             * 6. ACCUEIL
+             * =================================================
+             *
+             * PAS DE DASHBOARD FALLBACK.
+             *
+             * Une page demandée ne doit jamais
+             * être remplacée arbitrairement par
+             * le Dashboard.
+             */
+
+            const home =
+              await caches.match(
+                "/"
+              );
+
+            if (home) {
+              return home;
+            }
+
+            /*
+             * =================================================
+             * 7. ÉCRAN OFFLINE
+             * =================================================
+             */
+
+            return offlinePage();
           }
         })()
       );
@@ -532,7 +473,7 @@ self.addEventListener(
     }
 
     /* =======================================================
-       2. JAVASCRIPT / NEXT STATIC
+       2. CHUNKS NEXT.JS / JAVASCRIPT
     ======================================================= */
 
     if (
@@ -566,6 +507,11 @@ self.addEventListener(
 
             return response;
           } catch {
+            /*
+             * Hors connexion :
+             * utiliser le chunk déjà chargé.
+             */
+
             const cached =
               await caches.match(
                 request
@@ -579,6 +525,7 @@ self.addEventListener(
               "Ressource JavaScript indisponible hors connexion.",
               {
                 status: 503,
+
                 headers: {
                   "Content-Type":
                     "text/plain; charset=utf-8",
@@ -602,6 +549,10 @@ self.addEventListener(
     ) {
       event.respondWith(
         (async () => {
+          /*
+           * Cache d'abord.
+           */
+
           const cached =
             await caches.match(
               request
@@ -609,15 +560,13 @@ self.addEventListener(
 
           if (cached) {
             /*
-             * Mise à jour silencieuse.
+             * Mise à jour en arrière-plan.
              */
-            fetch(
-              request,
-              {
-                cache:
-                  "no-store",
-              }
-            )
+
+            fetch(request, {
+              cache:
+                "no-store",
+            })
               .then(
                 (response) => {
                   if (
@@ -631,12 +580,14 @@ self.addEventListener(
                   }
                 }
               )
-              .catch(
-                () => {}
-              );
+              .catch(() => {});
 
             return cached;
           }
+
+          /*
+           * Pas de cache.
+           */
 
           try {
             const response =
@@ -649,6 +600,7 @@ self.addEventListener(
               );
 
             if (
+              response &&
               response.ok
             ) {
               await putInCache(
@@ -817,6 +769,7 @@ self.addEventListener(
               "{}",
               {
                 status: 503,
+
                 headers: {
                   "Content-Type":
                     "application/manifest+json",
@@ -939,14 +892,20 @@ function offlinePage() {
 
       box-shadow:
         0 12px 45px
-        rgba(15, 23, 42, 0.08);
+        rgba(
+          15,
+          23,
+          42,
+          0.08
+        );
     }
 
     .icon {
       width: 64px;
       height: 64px;
 
-      margin: 0 auto 18px;
+      margin:
+        0 auto 18px;
 
       display: flex;
       align-items: center;
@@ -962,7 +921,8 @@ function offlinePage() {
     }
 
     h1 {
-      margin: 0 0 10px;
+      margin:
+        0 0 10px;
 
       font-size: 22px;
 
@@ -982,6 +942,7 @@ function offlinePage() {
 </head>
 
 <body>
+
   <div class="box">
 
     <div class="icon">
@@ -993,16 +954,20 @@ function offlinePage() {
     </h1>
 
     <p>
-      Cette page n'est pas encore disponible
+      BISO-COMMERCE est actuellement
       hors connexion.
       <br /><br />
 
-      Ouvrez cette page au moins une fois
-      avec Internet afin que BISO-COMMERCE
-      puisse la conserver sur l'appareil.
+      Cette page n'a pas encore été
+      chargée sur cet appareil.
+      <br /><br />
+
+      Les données déjà enregistrées
+      localement restent disponibles.
     </p>
 
   </div>
+
 </body>
 </html>
     `,
@@ -1021,12 +986,17 @@ function offlinePage() {
 }
 
 /* =========================================================
-   MESSAGE
+   MESSAGES
 ========================================================= */
 
 self.addEventListener(
   "message",
   (event) => {
+    /*
+     * Activer immédiatement
+     * le nouveau Service Worker.
+     */
+
     if (
       event.data &&
       event.data.type ===
@@ -1034,6 +1004,10 @@ self.addEventListener(
     ) {
       self.skipWaiting();
     }
+
+    /*
+     * Supprimer les anciens caches.
+     */
 
     if (
       event.data &&
