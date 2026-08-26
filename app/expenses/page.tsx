@@ -1469,37 +1469,10 @@ export default function ExpensesPage() {
               AUJOURD'HUI / HIER
           ====================================================== */}
 
-          {!showAll &&
-            !searchDate && (
-              <section
-                className="
-                  grid
-                  w-full
-                  min-w-0
-                  grid-cols-1
-                  gap-5
-                  md:grid-cols-2
-                "
-              >
-                <ExpenseList
-                  title="Aujourd'hui"
-                  data={todayExpenses}
-                  onDelete={
-                    requestDeleteExpense
-                  }
-                />
+         
+                
 
-                <ExpenseList
-                  title="Hier"
-                  data={
-                    yesterdayExpenses
-                  }
-                  onDelete={
-                    requestDeleteExpense
-                  }
-                />
-              </section>
-            )}
+               
 
           {/* ======================================================
               DATE RECHERCHEE
