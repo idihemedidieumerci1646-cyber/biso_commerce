@@ -1,8 +1,8 @@
-
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import IosInstallPrompt from "@/components/IosInstallPrompt";
 
 import Navbar from "../components/Navbar";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
@@ -101,6 +101,8 @@ export default function RootLayout({
         <Navbar />
 
         {children}
+
+        <IosInstallPrompt />
 
         <Toaster position="top-center" />
       </body>
