@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 // ============================================================
 
 const DB_NAME = "biso-commerce-offline";
-const DB_VERSION = 12;
+const DB_VERSION = 14;
 
 // Toutes les données que l'application pourra utiliser hors ligne
 export const STORES = {

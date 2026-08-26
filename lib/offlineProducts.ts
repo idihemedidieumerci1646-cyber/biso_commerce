@@ -13,7 +13,7 @@ export type OfflineProduct = {
 };
 
 const DB_NAME = "biso-commerce-db";
-const DB_VERSION = 12;
+const DB_VERSION = 14;
 const STORE_NAME = "products";
 
 function openDB(): Promise<IDBDatabase> {

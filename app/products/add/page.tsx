@@ -50,8 +50,9 @@ type LocalProduct = {
 ============================================================ */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 12;
+const DB_VERSION = 14;
 const STORE_NAME = "products";
+const DELETE_STORE_NAME = "delete_queue";
 
 /* ============================================================
    OUVRIR INDEXED DB
@@ -60,23 +61,16 @@ const STORE_NAME = "products";
 function openProductsDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined") {
-      reject(
-        new Error("IndexedDB indisponible")
-      );
+      reject(new Error("IndexedDB indisponible"));
       return;
     }
 
     if (!("indexedDB" in window)) {
-      reject(
-        new Error("IndexedDB non supporté")
-      );
+      reject(new Error("IndexedDB non supporté"));
       return;
     }
 
-    const request = indexedDB.open(
-      DB_NAME,
-      DB_VERSION
-    );
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -89,82 +83,42 @@ function openProductsDB(): Promise<IDBDatabase> {
       let productsStore: IDBObjectStore;
 
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        productsStore =
-          db.createObjectStore(
-            STORE_NAME,
-            {
-              keyPath: "id",
-            }
-          );
+        productsStore = db.createObjectStore(STORE_NAME, {
+          keyPath: "id",
+        });
       } else {
-        productsStore =
-          transaction.objectStore(
-            STORE_NAME
-          );
+        productsStore = transaction.objectStore(STORE_NAME);
       }
 
-      if (
-        !productsStore.indexNames.contains(
-          "user_id"
-        )
-      ) {
-        productsStore.createIndex(
-          "user_id",
-          "user_id",
-          {
-            unique: false,
-          }
-        );
+      if (!productsStore.indexNames.contains("user_id")) {
+        productsStore.createIndex("user_id", "user_id", {
+          unique: false,
+        });
       }
 
-      if (
-        !productsStore.indexNames.contains(
-          "synced"
-        )
-      ) {
-        productsStore.createIndex(
-          "synced",
-          "synced",
-          {
-            unique: false,
-          }
-        );
+      if (!productsStore.indexNames.contains("synced")) {
+        productsStore.createIndex("synced", "synced", {
+          unique: false,
+        });
       }
 
-      if (
-        !productsStore.indexNames.contains(
-          "created_at"
-        )
-      ) {
-        productsStore.createIndex(
-          "created_at",
-          "created_at",
-          {
-            unique: false,
-          }
-        );
+      if (!productsStore.indexNames.contains("created_at")) {
+        productsStore.createIndex("created_at", "created_at", {
+          unique: false,
+        });
       }
 
-      if (
-        !db.objectStoreNames.contains(
-          "delete_queue"
-        )
-      ) {
-        const deleteStore =
-          db.createObjectStore(
-            "delete_queue",
-            {
-              keyPath: "id",
-            }
-          );
-
-        deleteStore.createIndex(
-          "userId",
-          "userId",
+      if (!db.objectStoreNames.contains(DELETE_STORE_NAME)) {
+        const deleteStore = db.createObjectStore(
+          DELETE_STORE_NAME,
           {
-            unique: false,
+            keyPath: "id",
           }
         );
+
+        deleteStore.createIndex("userId", "userId", {
+          unique: false,
+        });
       }
     };
 
@@ -181,9 +135,7 @@ function openProductsDB(): Promise<IDBDatabase> {
     request.onerror = () => {
       reject(
         request.error ||
-          new Error(
-            "Impossible d'ouvrir IndexedDB"
-          )
+          new Error("Impossible d'ouvrir IndexedDB")
       );
     };
   });
@@ -196,56 +148,49 @@ function openProductsDB(): Promise<IDBDatabase> {
 function saveProductToIndexedDB(
   product: LocalProduct
 ): Promise<void> {
-  return new Promise(
-    async (resolve, reject) => {
-      try {
-        const db =
-          await openProductsDB();
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await openProductsDB();
 
-        const transaction =
-          db.transaction(
-            STORE_NAME,
-            "readwrite"
-          );
+      const transaction = db.transaction(
+        STORE_NAME,
+        "readwrite"
+      );
 
-        const store =
-          transaction.objectStore(
-            STORE_NAME
-          );
+      const store = transaction.objectStore(STORE_NAME);
 
-        store.put(product);
+      store.put(product);
 
-        transaction.oncomplete = () => {
-          db.close();
-          resolve();
-        };
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
 
-        transaction.onerror = () => {
-          db.close();
+      transaction.onerror = () => {
+        db.close();
 
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible d'enregistrer le produit localement."
-              )
-          );
-        };
+        reject(
+          transaction.error ||
+            new Error(
+              "Impossible d'enregistrer le produit localement."
+            )
+        );
+      };
 
-        transaction.onabort = () => {
-          db.close();
+      transaction.onabort = () => {
+        db.close();
 
-          reject(
-            transaction.error ||
-              new Error(
-                "L'enregistrement local a été interrompu."
-              )
-          );
-        };
-      } catch (error) {
-        reject(error);
-      }
+        reject(
+          transaction.error ||
+            new Error(
+              "L'enregistrement local a été interrompu."
+            )
+        );
+      };
+    } catch (error) {
+      reject(error);
     }
-  );
+  });
 }
 
 /* ============================================================
@@ -255,61 +200,48 @@ function saveProductToIndexedDB(
 function getProductsFromIndexedDB(): Promise<
   LocalProduct[]
 > {
-  return new Promise(
-    async (resolve, reject) => {
-      try {
-        const db =
-          await openProductsDB();
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await openProductsDB();
 
-        const transaction =
-          db.transaction(
-            STORE_NAME,
-            "readonly"
-          );
+      const transaction = db.transaction(
+        STORE_NAME,
+        "readonly"
+      );
 
-        const store =
-          transaction.objectStore(
-            STORE_NAME
-          );
+      const store = transaction.objectStore(STORE_NAME);
 
-        const request =
-          store.getAll();
+      const request = store.getAll();
 
-        request.onsuccess = () => {
-          db.close();
+      request.onsuccess = () => {
+        db.close();
 
-          const products =
-            (request.result as LocalProduct[]) ||
-            [];
+        const products =
+          (request.result as LocalProduct[]) || [];
 
-          products.sort(
-            (a, b) =>
-              new Date(
-                b.created_at
-              ).getTime() -
-              new Date(
-                a.created_at
-              ).getTime()
-          );
+        products.sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+        );
 
-          resolve(products);
-        };
+        resolve(products);
+      };
 
-        request.onerror = () => {
-          db.close();
+      request.onerror = () => {
+        db.close();
 
-          reject(
-            request.error ||
-              new Error(
-                "Impossible de récupérer les produits locaux."
-              )
-          );
-        };
-      } catch (error) {
-        reject(error);
-      }
+        reject(
+          request.error ||
+            new Error(
+              "Impossible de récupérer les produits locaux."
+            )
+        );
+      };
+    } catch (error) {
+      reject(error);
     }
-  );
+  });
 }
 
 /* ============================================================
@@ -319,29 +251,59 @@ function getProductsFromIndexedDB(): Promise<
 function updateProductInIndexedDB(
   product: LocalProduct
 ): Promise<void> {
-  return saveProductToIndexedDB(
-    product
+  return saveProductToIndexedDB(product);
+}
+
+/* ============================================================
+   ATTENDRE
+============================================================ */
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/* ============================================================
+   ÉMETTRE ÉVÉNEMENT PRODUITS
+============================================================ */
+
+function dispatchProductsUpdated(
+  product?: LocalProduct,
+  source = "sync"
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent("biso-products-updated", {
+      detail: {
+        product,
+        source,
+      },
+    })
   );
+
+  if (product) {
+    window.dispatchEvent(
+      new CustomEvent("biso-product-added", {
+        detail: product,
+      })
+    );
+  }
 }
 
 /* ============================================================
    RÉCUPÉRER USER ID
 ============================================================ */
 
-async function resolveUserId(): Promise<
-  string | null
-> {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
+async function resolveUserId(): Promise<string | null> {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  const savedUserId =
-    localStorage.getItem(
-      "user_id"
-    );
+  const savedUserId = localStorage.getItem("user_id");
 
   if (savedUserId) {
     return String(savedUserId);
@@ -351,10 +313,7 @@ async function resolveUserId(): Promise<
     return null;
   }
 
-  const phone =
-    localStorage.getItem(
-      "phone"
-    );
+  const phone = localStorage.getItem("phone");
 
   if (!phone) {
     return null;
@@ -370,20 +329,13 @@ async function resolveUserId(): Promise<
       .eq("phone", phone)
       .single();
 
-    if (
-      error ||
-      !user?.id
-    ) {
+    if (error || !user?.id) {
       return null;
     }
 
-    const userId =
-      String(user.id);
+    const userId = String(user.id);
 
-    localStorage.setItem(
-      "user_id",
-      userId
-    );
+    localStorage.setItem("user_id", userId);
 
     return userId;
   } catch {
@@ -392,176 +344,280 @@ async function resolveUserId(): Promise<
 }
 
 /* ============================================================
-   SYNCHRONISER PRODUITS AVEC SUPABASE
+   TENTATIVE UNIQUE DE SYNCHRONISATION
 ============================================================ */
 
-async function syncProductsWithSupabase() {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
-    return;
+async function syncProductsOnce(): Promise<boolean> {
+  if (typeof window === "undefined") {
+    return false;
   }
 
   if (!navigator.onLine) {
-    return;
+    return false;
   }
 
   try {
-    const products =
-      await getProductsFromIndexedDB();
+    const products = await getProductsFromIndexedDB();
 
-    let userId =
-      localStorage.getItem(
-        "user_id"
-      );
+    let userId = localStorage.getItem("user_id");
 
     if (!userId) {
-      userId =
-        await resolveUserId();
+      userId = await resolveUserId();
     }
 
-    const pendingProducts =
-      products.filter(
-        (product) =>
-          product.synced === false
-      );
+    const pendingProducts = products.filter(
+      (product) => product.synced !== true
+    );
 
-    if (
-      pendingProducts.length ===
-      0
-    ) {
-      window.dispatchEvent(
-        new CustomEvent(
-          "biso-products-updated"
-        )
-      );
+    if (pendingProducts.length === 0) {
+      dispatchProductsUpdated(undefined, "sync");
 
-      return;
+      return true;
     }
 
-    for (
-      const product of pendingProducts
-    ) {
+    /*
+     * IMPORTANT :
+     * Si le compte n'est pas encore identifiable,
+     * on ne considère PAS la synchronisation comme réussie.
+     *
+     * Cela permettra aux prochaines tentatives de réessayer.
+     */
+    if (!userId) {
+      console.warn(
+        "Synchronisation produits : user_id indisponible."
+      );
+
+      return false;
+    }
+
+    let allSucceeded = true;
+
+    for (const product of pendingProducts) {
+      if (!navigator.onLine) {
+        allSucceeded = false;
+        break;
+      }
+
       try {
         const productUserId =
-          product.user_id ||
-          userId;
+          product.user_id || userId;
 
         if (!productUserId) {
+          allSucceeded = false;
           continue;
         }
 
         const productData = {
-          id:
-            product.id,
-
-          user_id:
-            productUserId,
-
-          name:
-            product.name,
-
-          unit:
-            product.unit,
-
-          stock:
-            product.stock,
-
-          initial_stock:
-            product.initial_stock,
-
-          purchase_price:
-            product.purchase_price,
-
-          selling_price:
-            product.selling_price,
-
-          currency:
-            product.currency,
-
-          created_at:
-            product.created_at,
+          id: product.id,
+          user_id: productUserId,
+          name: product.name,
+          unit: product.unit,
+          stock: product.stock,
+          initial_stock: product.initial_stock,
+          purchase_price: product.purchase_price,
+          selling_price: product.selling_price,
+          currency: product.currency,
+          created_at: product.created_at,
         };
 
-        const {
-          error,
-        } = await supabase
+        const { error } = await supabase
           .from("products")
-          .upsert(
-            productData,
-            {
-              onConflict:
-                "id",
-            }
-          );
+          .upsert(productData, {
+            onConflict: "id",
+          });
 
+        /*
+         * Supabase n'a pas répondu correctement.
+         * Le produit RESTE synced:false.
+         */
         if (error) {
           console.error(
             "Erreur Supabase synchronisation :",
             error
           );
 
+          allSucceeded = false;
           continue;
         }
 
-        const synchronizedProduct: LocalProduct =
-          {
-            ...product,
-
-            user_id:
-              productUserId,
-
-            synced:
-              true,
-          };
+        /*
+         * SUPABASE A CONFIRMÉ LE PRODUIT.
+         *
+         * On marque immédiatement synced:true
+         * dans IndexedDB.
+         */
+        const synchronizedProduct: LocalProduct = {
+          ...product,
+          user_id: productUserId,
+          synced: true,
+        };
 
         await updateProductInIndexedDB(
           synchronizedProduct
         );
 
-        window.dispatchEvent(
-          new CustomEvent(
-            "biso-products-updated",
-            {
-              detail: {
-                product:
-                  synchronizedProduct,
-
-                source:
-                  "sync",
-              },
-            }
-          )
-        );
-
-        window.dispatchEvent(
-          new CustomEvent(
-            "biso-product-added",
-            {
-              detail:
-                synchronizedProduct,
-            }
-          )
+        /*
+         * IMPORTANT :
+         * On informe immédiatement les autres pages.
+         */
+        dispatchProductsUpdated(
+          synchronizedProduct,
+          "sync"
         );
       } catch (error) {
         console.error(
           "Erreur synchronisation produit :",
           error
         );
+
+        allSucceeded = false;
       }
     }
 
-    window.dispatchEvent(
-      new CustomEvent(
-        "biso-products-updated"
-      )
-    );
+    /*
+     * Dernière notification globale.
+     */
+    dispatchProductsUpdated(undefined, "sync");
+
+    return allSucceeded;
   } catch (error) {
     console.error(
       "Erreur synchronisation produits :",
       error
     );
+
+    return false;
+  }
+}
+
+/* ============================================================
+   SYNCHRONISATION AVEC RETRIES
+   ============================================================
+
+   1er essai : immédiatement
+   2e essai : +500 ms
+   3e essai : +1 seconde
+   4e essai : +2 secondes
+   5e essai : +3 secondes
+
+============================================================ */
+
+let syncInProgress = false;
+
+async function syncProductsWithSupabase(
+  force = false
+): Promise<boolean> {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (!navigator.onLine) {
+    return false;
+  }
+
+  /*
+   * Évite que plusieurs événements "online",
+   * plusieurs pages ou plusieurs appels simultanés
+   * lancent plusieurs synchronisations en même temps.
+   */
+  if (syncInProgress && !force) {
+    return false;
+  }
+
+  syncInProgress = true;
+
+  try {
+    /*
+     * Vérification immédiate.
+     */
+    let success = await syncProductsOnce();
+
+    if (success) {
+      return true;
+    }
+
+    /*
+     * RETRY 1
+     * 500 ms
+     */
+    if (navigator.onLine) {
+      await wait(500);
+
+      if (!navigator.onLine) {
+        return false;
+      }
+
+      success = await syncProductsOnce();
+
+      if (success) {
+        return true;
+      }
+    }
+
+    /*
+     * RETRY 2
+     * 1 seconde
+     */
+    if (navigator.onLine) {
+      await wait(1000);
+
+      if (!navigator.onLine) {
+        return false;
+      }
+
+      success = await syncProductsOnce();
+
+      if (success) {
+        return true;
+      }
+    }
+
+    /*
+     * RETRY 3
+     * 2 secondes
+     */
+    if (navigator.onLine) {
+      await wait(2000);
+
+      if (!navigator.onLine) {
+        return false;
+      }
+
+      success = await syncProductsOnce();
+
+      if (success) {
+        return true;
+      }
+    }
+
+    /*
+     * RETRY 4
+     * 3 secondes
+     */
+    if (navigator.onLine) {
+      await wait(3000);
+
+      if (!navigator.onLine) {
+        return false;
+      }
+
+      success = await syncProductsOnce();
+
+      if (success) {
+        return true;
+      }
+    }
+
+    /*
+     * Si Supabase n'a toujours pas répondu,
+     * le produit reste dans IndexedDB avec synced:false.
+     *
+     * Il sera repris lors du prochain événement online
+     * ou de la prochaine tentative.
+     */
+    return false;
+  } finally {
+    syncInProgress = false;
   }
 }
 
@@ -570,63 +626,42 @@ async function syncProductsWithSupabase() {
 ============================================================ */
 
 export default function AddProductPage() {
-  const [name, setName] =
-    useState("");
+  const [name, setName] = useState("");
 
-  const [type, setType] =
-    useState("Pièce");
+  const [type, setType] = useState("Pièce");
 
-  const [quantity, setQuantity] =
-    useState("");
+  const [quantity, setQuantity] = useState("");
 
   const [
     piecesPerUnit,
     setPiecesPerUnit,
   ] = useState("1");
 
-  const [
-    buyPrice,
-    setBuyPrice,
-  ] = useState("");
+  const [buyPrice, setBuyPrice] =
+    useState("");
 
-  const [
-    sellPrice,
-    setSellPrice,
-  ] = useState("");
+  const [sellPrice, setSellPrice] =
+    useState("");
 
-  const [
-    currency,
-    setCurrency,
-  ] = useState("FC");
+  const [currency, setCurrency] =
+    useState("FC");
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(false);
+  const [loading, setLoading] =
+    useState(false);
 
-  const [
-    stockMode,
-    setStockMode,
-  ] = useState<StockMode>(
-    "nouveau"
-  );
+  const [stockMode, setStockMode] =
+    useState<StockMode>("nouveau");
 
-  const [
-    showGuide,
-    setShowGuide,
-  ] = useState(false);
+  const [showGuide, setShowGuide] =
+    useState(false);
 
-  const [
-    isOnline,
-    setIsOnline,
-  ] = useState(true);
+  const [isOnline, setIsOnline] =
+    useState(true);
 
   const [
     successMessage,
     setSuccessMessage,
-  ] = useState<SuccessMessage>(
-    null
-  );
+  ] = useState<SuccessMessage>(null);
 
   const [
     showSuccessModal,
@@ -638,30 +673,33 @@ export default function AddProductPage() {
   ========================================================== */
 
   useEffect(() => {
-    if (
-      typeof window ===
-      "undefined"
-    ) {
+    if (typeof window === "undefined") {
       return;
     }
 
-    setIsOnline(
-      navigator.onLine
-    );
+    setIsOnline(navigator.onLine);
 
-    const handleOnline =
-      () => {
-        setIsOnline(true);
+    /*
+     * INTERNET REVIENT
+     *
+     * On lance la synchronisation immédiatement.
+     * La fonction possède ensuite ses propres retries :
+     *
+     * 0 ms
+     * 500 ms
+     * 1 s
+     * 2 s
+     * 3 s
+     */
+    const handleOnline = () => {
+      setIsOnline(true);
 
-        setTimeout(() => {
-          void syncProductsWithSupabase();
-        }, 300);
-      };
+      void syncProductsWithSupabase(true);
+    };
 
-    const handleOffline =
-      () => {
-        setIsOnline(false);
-      };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
 
     window.addEventListener(
       "online",
@@ -673,11 +711,32 @@ export default function AddProductPage() {
       handleOffline
     );
 
-    if (
-      navigator.onLine
-    ) {
+    /*
+     * Si la page est ouverte alors qu'Internet
+     * est déjà disponible, on synchronise aussi.
+     */
+    if (navigator.onLine) {
       void syncProductsWithSupabase();
     }
+
+    /*
+     * Événement envoyé par d'autres pages.
+     *
+     * Cela permet notamment à la page Produits
+     * de recevoir immédiatement les modifications.
+     */
+    const handleProductsUpdated = () => {
+      /*
+       * Pas besoin de relancer Supabase ici.
+       * Les pages Produits qui écoutent cet événement
+       * doivent simplement relire IndexedDB.
+       */
+    };
+
+    window.addEventListener(
+      "biso-products-updated",
+      handleProductsUpdated
+    );
 
     return () => {
       window.removeEventListener(
@@ -689,6 +748,11 @@ export default function AddProductPage() {
         "offline",
         handleOffline
       );
+
+      window.removeEventListener(
+        "biso-products-updated",
+        handleProductsUpdated
+      );
     };
   }, []);
 
@@ -698,315 +762,266 @@ export default function AddProductPage() {
 
   const totalPieces =
     type !== "Pièce"
-      ? Number(
-          quantity || 0
-        ) *
-        Number(
-          piecesPerUnit || 1
-        )
-      : Number(
-          quantity || 0
-        );
+      ? Number(quantity || 0) *
+        Number(piecesPerUnit || 1)
+      : Number(quantity || 0);
 
   const pricePerPiece =
     totalPieces > 0
-      ? Number(
-          buyPrice || 0
-        ) /
+      ? Number(buyPrice || 0) /
         totalPieces
       : 0;
 
   const profitPerPiece =
-    Number(
-      sellPrice || 0
-    ) -
+    Number(sellPrice || 0) -
     pricePerPiece;
 
   const totalProfit =
-    profitPerPiece *
-    totalPieces;
+    profitPerPiece * totalPieces;
 
   /* ==========================================================
      ENREGISTRER LE PRODUIT
   ========================================================== */
 
-  const saveProduct =
-    async () => {
-      if (loading) {
-        return;
-      }
+  const saveProduct = async () => {
+    if (loading) {
+      return;
+    }
 
-      setSuccessMessage(null);
-      setShowSuccessModal(false);
+    setSuccessMessage(null);
+    setShowSuccessModal(false);
 
-      /* ------------------------------------------------------
-         VALIDATION
-      ------------------------------------------------------ */
+    /* ------------------------------------------------------
+       VALIDATION
+    ------------------------------------------------------ */
 
-      if (
-        !name.trim() ||
-        !quantity ||
-        !buyPrice ||
-        !sellPrice
-      ) {
-        alert(
-          "Veuillez remplir tous les champs obligatoires."
-        );
-        return;
-      }
+    if (
+      !name.trim() ||
+      !quantity ||
+      !buyPrice ||
+      !sellPrice
+    ) {
+      alert(
+        "Veuillez remplir tous les champs obligatoires."
+      );
 
-      const nPieces =
-        type !== "Pièce"
-          ? Number(
-              piecesPerUnit || 1
-            )
-          : 1;
+      return;
+    }
 
-      if (
-        Number(quantity) <=
-        0
-      ) {
-        alert(
-          "La quantité doit être supérieure à 0."
-        );
-        return;
-      }
+    const nPieces =
+      type !== "Pièce"
+        ? Number(piecesPerUnit || 1)
+        : 1;
 
-      if (
-        nPieces <= 0
-      ) {
-        alert(
-          "Le nombre de pièces dans l'unité doit être supérieur à 0."
-        );
-        return;
-      }
+    if (Number(quantity) <= 0) {
+      alert(
+        "La quantité doit être supérieure à 0."
+      );
 
-      if (
-        Number(buyPrice) <
-          0 ||
-        Number(sellPrice) <
-          0
-      ) {
-        alert(
-          "Les prix ne peuvent pas être négatifs."
-        );
-        return;
-      }
+      return;
+    }
 
-      const totalStock =
-        Number(quantity) *
-        nPieces;
+    if (nPieces <= 0) {
+      alert(
+        "Le nombre de pièces dans l'unité doit être supérieur à 0."
+      );
 
-      if (
-        totalStock <=
-        0
-      ) {
-        alert(
-          "Le stock doit être supérieur à 0."
-        );
-        return;
-      }
+      return;
+    }
 
-      const unitCost =
-        Number(buyPrice) /
-        totalStock;
+    if (
+      Number(buyPrice) < 0 ||
+      Number(sellPrice) < 0
+    ) {
+      alert(
+        "Les prix ne peuvent pas être négatifs."
+      );
 
-      setLoading(true);
+      return;
+    }
 
-      try {
-        /* ----------------------------------------------------
-           USER ID
-        ---------------------------------------------------- */
+    const totalStock =
+      Number(quantity) * nPieces;
 
-        const userId =
-          await resolveUserId();
+    if (totalStock <= 0) {
+      alert(
+        "Le stock doit être supérieur à 0."
+      );
 
-        /* ----------------------------------------------------
-           CRÉER PRODUIT
-        ---------------------------------------------------- */
+      return;
+    }
 
-        const productId =
-          crypto.randomUUID();
+    const unitCost =
+      Number(buyPrice) / totalStock;
 
-        const createdAt =
-          new Date().toISOString();
+    setLoading(true);
 
-        const localProduct: LocalProduct =
-          {
-            id:
-              productId,
+    try {
+      /* ----------------------------------------------------
+         USER ID
+      ---------------------------------------------------- */
 
-            user_id:
-              userId,
+      const userId =
+        await resolveUserId();
 
-            name:
-              name.trim(),
+      /* ----------------------------------------------------
+         CRÉER PRODUIT
+      ---------------------------------------------------- */
 
-            unit:
-              type,
+      const productId =
+        crypto.randomUUID();
 
-            stock:
-              totalStock,
+      const createdAt =
+        new Date().toISOString();
 
-            initial_stock:
-              totalStock,
+      const localProduct: LocalProduct = {
+        id: productId,
 
-            purchase_price:
-              unitCost,
+        user_id: userId,
 
-            selling_price:
-              Number(
-                sellPrice
-              ),
+        name: name.trim(),
 
-            currency:
-              currency,
+        unit: type,
 
-            created_at:
-              createdAt,
+        stock: totalStock,
 
-            synced:
-              false,
-          };
+        initial_stock: totalStock,
 
-        /* ----------------------------------------------------
-           1. SAUVEGARDE LOCALE
-        ---------------------------------------------------- */
+        purchase_price: unitCost,
 
-        await saveProductToIndexedDB(
-          localProduct
-        );
+        selling_price:
+          Number(sellPrice),
+
+        currency: currency,
+
+        created_at: createdAt,
 
         /*
-          À partir de cette ligne,
-          le produit est réellement enregistré
-          sur l'appareil.
-        */
+         * TOUJOURS false au départ.
+         *
+         * Même avec Internet, on sauvegarde d'abord
+         * localement puis on synchronise.
+         */
+        synced: false,
+      };
 
-        /* ----------------------------------------------------
-           2. DÉTERMINER LE MESSAGE
-        ---------------------------------------------------- */
+      /* ----------------------------------------------------
+         1. SAUVEGARDE LOCALE
+      ---------------------------------------------------- */
 
-        let message: SuccessMessage;
+      await saveProductToIndexedDB(
+        localProduct
+      );
 
-        if (!navigator.onLine) {
-          message = "offline";
-        } else if (!userId) {
-          message = "local";
-        } else {
-          message = "syncing";
-        }
+      /*
+       * À partir d'ici le produit existe réellement
+       * dans IndexedDB.
+       */
 
-        setSuccessMessage(message);
+      /* ----------------------------------------------------
+         2. MESSAGE
+      ---------------------------------------------------- */
 
-        /* ----------------------------------------------------
-           3. INFORMER LES PAGES PRODUITS
-        ---------------------------------------------------- */
+      let message: SuccessMessage;
 
-        window.dispatchEvent(
-          new CustomEvent(
-            "biso-products-updated",
-            {
-              detail: {
-                product:
-                  localProduct,
-
-                source:
-                  "add-product",
-              },
-            }
-          )
-        );
-
-        window.dispatchEvent(
-          new CustomEvent(
-            "biso-product-added",
-            {
-              detail:
-                localProduct,
-            }
-          )
-        );
-
-        /* ----------------------------------------------------
-           4. AFFICHER LA FENÊTRE
-        ---------------------------------------------------- */
-
-        setShowSuccessModal(true);
-
-        /* ----------------------------------------------------
-           5. VIDER LE FORMULAIRE
-        ---------------------------------------------------- */
-
-        setName("");
-        setQuantity("");
-        setBuyPrice("");
-        setSellPrice("");
-        setPiecesPerUnit("1");
-        setStockMode("nouveau");
-
-        /* ----------------------------------------------------
-           6. SYNCHRONISATION EN ARRIÈRE-PLAN
-        ---------------------------------------------------- */
-
-        if (
-          navigator.onLine
-        ) {
-          void syncProductsWithSupabase()
-            .then(
-              async () => {
-                try {
-                  const products =
-                    await getProductsFromIndexedDB();
-
-                  const savedProduct =
-                    products.find(
-                      (
-                        product
-                      ) =>
-                        product.id ===
-                        productId
-                    );
-
-                  if (
-                    savedProduct?.synced
-                  ) {
-                    setSuccessMessage(
-                      "success"
-                    );
-                  } else {
-                    setSuccessMessage(
-                      "syncing"
-                    );
-                  }
-                } catch {
-                  setSuccessMessage(
-                    "syncing"
-                  );
-                }
-              }
-            )
-            .catch(() => {
-              setSuccessMessage(
-                "syncing"
-              );
-            });
-        }
-      } catch (error) {
-        console.error(
-          "Erreur ajout produit :",
-          error
-        );
-
-        setSuccessMessage(
-          "error"
-        );
-
-        setShowSuccessModal(true);
-      } finally {
-        setLoading(false);
+      if (!navigator.onLine) {
+        message = "offline";
+      } else if (!userId) {
+        message = "local";
+      } else {
+        message = "syncing";
       }
-    };
+
+      setSuccessMessage(message);
+
+      /* ----------------------------------------------------
+         3. AFFICHAGE IMMÉDIAT DU PRODUIT
+      ---------------------------------------------------- */
+
+      dispatchProductsUpdated(
+        localProduct,
+        "add-product"
+      );
+
+      /* ----------------------------------------------------
+         4. MODAL
+      ---------------------------------------------------- */
+
+      setShowSuccessModal(true);
+
+      /* ----------------------------------------------------
+         5. VIDER FORMULAIRE
+      ---------------------------------------------------- */
+
+      setName("");
+      setQuantity("");
+      setBuyPrice("");
+      setSellPrice("");
+      setPiecesPerUnit("1");
+      setStockMode("nouveau");
+
+      /* ----------------------------------------------------
+         6. SYNCHRONISATION IMMÉDIATE
+      ---------------------------------------------------- */
+
+      if (navigator.onLine) {
+        const synchronized =
+          await syncProductsWithSupabase(
+            true
+          );
+
+        /*
+         * On vérifie directement IndexedDB
+         * après la synchronisation.
+         */
+        try {
+          const products =
+            await getProductsFromIndexedDB();
+
+          const savedProduct =
+            products.find(
+              (product) =>
+                product.id === productId
+            );
+
+          if (
+            synchronized &&
+            savedProduct?.synced === true
+          ) {
+            setSuccessMessage("success");
+          } else if (
+            savedProduct?.synced === true
+          ) {
+            setSuccessMessage("success");
+          } else {
+            /*
+             * Le produit reste local mais n'est pas perdu.
+             * Les retries suivants / prochain online
+             * pourront le synchroniser.
+             */
+            setSuccessMessage("syncing");
+          }
+        } catch {
+          setSuccessMessage(
+            synchronized
+              ? "success"
+              : "syncing"
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Erreur ajout produit :",
+        error
+      );
+
+      setSuccessMessage("error");
+
+      setShowSuccessModal(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /* ==========================================================
      AFFICHAGE
@@ -1014,7 +1029,6 @@ export default function AddProductPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-
       <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-5 sm:py-6">
 
         {/* ====================================================
@@ -1022,19 +1036,15 @@ export default function AddProductPage() {
         ==================================================== */}
 
         <div className="mb-4">
-
           <div className="flex items-center justify-between gap-3">
 
             <div className="flex min-w-0 items-center gap-3">
 
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white">
-                <PackagePlus
-                  size={21}
-                />
+                <PackagePlus size={21} />
               </div>
 
               <div className="min-w-0">
-
                 <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
                   Nouveau produit
                 </h1>
@@ -1042,7 +1052,6 @@ export default function AddProductPage() {
                 <p className="mt-0.5 text-xs text-slate-500">
                   Ajoutez un produit à votre stock
                 </p>
-
               </div>
 
             </div>
@@ -1056,30 +1065,20 @@ export default function AddProductPage() {
                   : "bg-amber-50 text-amber-600"
               }`}
             >
-
               {isOnline ? (
                 <>
-                  <Cloud
-                    size={14}
-                  />
-
+                  <Cloud size={14} />
                   En ligne
                 </>
               ) : (
                 <>
-                  <CloudOff
-                    size={14}
-                  />
-
+                  <CloudOff size={14} />
                   Hors ligne
                 </>
               )}
-
             </div>
 
           </div>
-
-          {/* MESSAGE HORS LIGNE */}
 
           {!isOnline && (
             <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50 p-3">
@@ -1090,7 +1089,6 @@ export default function AddProductPage() {
               />
 
               <div>
-
                 <p className="text-xs font-black text-amber-700">
                   Mode hors connexion
                 </p>
@@ -1102,12 +1100,10 @@ export default function AddProductPage() {
                   automatiquement lorsque Internet
                   reviendra.
                 </p>
-
               </div>
 
             </div>
           )}
-
         </div>
 
         {/* ====================================================
@@ -1121,13 +1117,10 @@ export default function AddProductPage() {
             <div className="flex min-w-0 items-center gap-2">
 
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <Info
-                  size={19}
-                />
+                <Info size={19} />
               </div>
 
               <div className="min-w-0">
-
                 <h2 className="text-sm font-black text-slate-900">
                   Guide d'ajout
                 </h2>
@@ -1135,7 +1128,6 @@ export default function AddProductPage() {
                 <p className="truncate text-[11px] text-slate-500">
                   Comment ajouter votre stock
                 </p>
-
               </div>
 
             </div>
@@ -1143,9 +1135,7 @@ export default function AddProductPage() {
             <button
               type="button"
               onClick={() =>
-                setShowGuide(
-                  !showGuide
-                )
+                setShowGuide(!showGuide)
               }
               className="shrink-0 rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white transition active:scale-95"
             >
@@ -1158,8 +1148,6 @@ export default function AddProductPage() {
 
           {showGuide && (
             <div className="border-t border-slate-100 p-3">
-
-              {/* INTRODUCTION */}
 
               <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
 
@@ -1187,8 +1175,6 @@ export default function AddProductPage() {
                 </div>
 
               </div>
-
-              {/* SITUATION */}
 
               <GuideStep
                 number="1"
@@ -1253,8 +1239,6 @@ export default function AddProductPage() {
 
               </GuideStep>
 
-              {/* NOM */}
-
               <GuideStep
                 number="2"
                 color="purple"
@@ -1282,8 +1266,6 @@ export default function AddProductPage() {
                 </div>
 
               </GuideStep>
-
-              {/* UNITÉ */}
 
               <GuideStep
                 number="3"
@@ -1345,8 +1327,6 @@ export default function AddProductPage() {
 
               </GuideStep>
 
-              {/* QUANTITÉ */}
-
               <GuideStep
                 number="4"
                 color="emerald"
@@ -1392,8 +1372,6 @@ export default function AddProductPage() {
 
               </GuideStep>
 
-              {/* PRIX */}
-
               <GuideStep
                 number="5"
                 color="purple"
@@ -1409,23 +1387,17 @@ export default function AddProductPage() {
 
                   <p className="text-xs text-slate-600">
                     Achat total :{" "}
-                    <strong>
-                      100000 FC
-                    </strong>
+                    <strong>100000 FC</strong>
                   </p>
 
                   <p className="mt-1 text-xs text-slate-600">
                     Vente / pièce :{" "}
-                    <strong>
-                      2000 FC
-                    </strong>
+                    <strong>2000 FC</strong>
                   </p>
 
                 </div>
 
               </GuideStep>
-
-              {/* RAPPEL */}
 
               <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
 
@@ -1486,9 +1458,7 @@ export default function AddProductPage() {
             <input
               value={name}
               onChange={(e) =>
-                setName(
-                  e.target.value
-                )
+                setName(e.target.value)
               }
               placeholder="Exemple : Coca-Cola 33cl"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
@@ -1514,13 +1484,10 @@ export default function AddProductPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setStockMode(
-                    "nouveau"
-                  )
+                  setStockMode("nouveau")
                 }
                 className={`rounded-xl border p-3 text-left transition active:scale-[0.99] ${
-                  stockMode ===
-                  "nouveau"
+                  stockMode === "nouveau"
                     ? "border-indigo-500 bg-indigo-50"
                     : "border-slate-200 bg-slate-50"
                 }`}
@@ -1530,8 +1497,7 @@ export default function AddProductPage() {
 
                   <div
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                      stockMode ===
-                      "nouveau"
+                      stockMode === "nouveau"
                         ? "bg-indigo-100"
                         : "bg-white"
                     }`}
@@ -1558,13 +1524,10 @@ export default function AddProductPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setStockMode(
-                    "existant"
-                  )
+                  setStockMode("existant")
                 }
                 className={`rounded-xl border p-3 text-left transition active:scale-[0.99] ${
-                  stockMode ===
-                  "existant"
+                  stockMode === "existant"
                     ? "border-emerald-500 bg-emerald-50"
                     : "border-slate-200 bg-slate-50"
                 }`}
@@ -1574,8 +1537,7 @@ export default function AddProductPage() {
 
                   <div
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                      stockMode ===
-                      "existant"
+                      stockMode === "existant"
                         ? "bg-emerald-100"
                         : "bg-white"
                     }`}
@@ -1601,8 +1563,7 @@ export default function AddProductPage() {
 
             </div>
 
-            {stockMode ===
-              "nouveau" && (
+            {stockMode === "nouveau" && (
               <div className="mt-2.5 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
 
                 <div className="flex gap-2">
@@ -1633,8 +1594,7 @@ export default function AddProductPage() {
               </div>
             )}
 
-            {stockMode ===
-              "existant" && (
+            {stockMode === "existant" && (
               <div className="mt-2.5 overflow-hidden rounded-xl border border-emerald-100 bg-emerald-50">
 
                 <div className="p-3">
@@ -1697,9 +1657,7 @@ export default function AddProductPage() {
               <select
                 value={type}
                 onChange={(e) =>
-                  setType(
-                    e.target.value
-                  )
+                  setType(e.target.value)
                 }
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
               >
@@ -1727,8 +1685,7 @@ export default function AddProductPage() {
             <div>
 
               <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                {stockMode ===
-                "existant"
+                {stockMode === "existant"
                   ? "Stock actuel"
                   : "Quantité"}
               </label>
@@ -1750,8 +1707,7 @@ export default function AddProductPage() {
 
           </div>
 
-          {stockMode ===
-          "existant" ? (
+          {stockMode === "existant" ? (
             <p className="text-[11px] leading-4 text-emerald-600">
               💡 Indiquez uniquement ce qu'il vous reste
               actuellement.
@@ -1764,8 +1720,7 @@ export default function AddProductPage() {
 
           {/* PIÈCES PAR UNITÉ */}
 
-          {type !==
-            "Pièce" && (
+          {type !== "Pièce" && (
             <div>
 
               <label className="mb-1.5 block text-xs font-bold text-slate-700">
@@ -1776,9 +1731,7 @@ export default function AddProductPage() {
               <input
                 type="number"
                 min="1"
-                value={
-                  piecesPerUnit
-                }
+                value={piecesPerUnit}
                 onChange={(e) =>
                   setPiecesPerUnit(
                     e.target.value
@@ -1795,14 +1748,10 @@ export default function AddProductPage() {
                 </p>
 
                 <p className="mt-1 text-xs font-black text-slate-900">
-                  {Number(
-                    quantity ||
-                      0
-                  )}{" "}
+                  {Number(quantity || 0)}{" "}
                   ×{" "}
                   {Number(
-                    piecesPerUnit ||
-                      1
+                    piecesPerUnit || 1
                   )}{" "}
                   ={" "}
                   {totalPieces}{" "}
@@ -1827,9 +1776,7 @@ export default function AddProductPage() {
               <input
                 type="number"
                 min="0"
-                value={
-                  buyPrice
-                }
+                value={buyPrice}
                 onChange={(e) =>
                   setBuyPrice(
                     e.target.value
@@ -1850,9 +1797,7 @@ export default function AddProductPage() {
               <input
                 type="number"
                 min="0"
-                value={
-                  sellPrice
-                }
+                value={sellPrice}
                 onChange={(e) =>
                   setSellPrice(
                     e.target.value
@@ -1880,9 +1825,7 @@ export default function AddProductPage() {
             </label>
 
             <select
-              value={
-                currency
-              }
+              value={currency}
               onChange={(e) =>
                 setCurrency(
                   e.target.value
@@ -1912,9 +1855,7 @@ export default function AddProductPage() {
               <div className="flex items-center gap-2">
 
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                  <TrendingUp
-                    size={18}
-                  />
+                  <TrendingUp size={18} />
                 </div>
 
                 <div>
@@ -1936,18 +1877,12 @@ export default function AddProductPage() {
             <div className="grid grid-cols-2 gap-2 p-3">
 
               <SummaryCard
-                icon={
-                  <Boxes
-                    size={15}
-                  />
-                }
+                icon={<Boxes size={15} />}
                 title="Stock réel"
               >
 
                 <p className="text-lg font-black text-slate-900">
-                  {
-                    totalPieces
-                  }
+                  {totalPieces}
                 </p>
 
                 <p className="text-[11px] text-slate-500">
@@ -1958,9 +1893,7 @@ export default function AddProductPage() {
 
               <SummaryCard
                 icon={
-                  <CircleDollarSign
-                    size={15}
-                  />
+                  <CircleDollarSign size={15} />
                 }
                 title="Coût / pièce"
               >
@@ -1969,26 +1902,21 @@ export default function AddProductPage() {
                   {Math.round(
                     pricePerPiece
                   )}{" "}
-                  {
-                    currency
-                  }
+                  {currency}
                 </p>
 
               </SummaryCard>
 
               <SummaryCard
                 icon={
-                  <TrendingUp
-                    size={15}
-                  />
+                  <TrendingUp size={15} />
                 }
                 title="Bénéfice / pièce"
               >
 
                 <p
                   className={`text-lg font-black ${
-                    profitPerPiece >=
-                    0
+                    profitPerPiece >= 0
                       ? "text-emerald-600"
                       : "text-red-600"
                   }`}
@@ -1996,26 +1924,21 @@ export default function AddProductPage() {
                   {Math.round(
                     profitPerPiece
                   )}{" "}
-                  {
-                    currency
-                  }
+                  {currency}
                 </p>
 
               </SummaryCard>
 
               <SummaryCard
                 icon={
-                  <Sparkles
-                    size={15}
-                  />
+                  <Sparkles size={15} />
                 }
                 title="Bénéfice total"
               >
 
                 <p
                   className={`text-lg font-black ${
-                    totalProfit >=
-                    0
+                    totalProfit >= 0
                       ? "text-emerald-600"
                       : "text-red-600"
                   }`}
@@ -2023,9 +1946,7 @@ export default function AddProductPage() {
                   {Math.round(
                     totalProfit
                   )}{" "}
-                  {
-                    currency
-                  }
+                  {currency}
                 </p>
 
                 <p className="text-[10px] text-slate-500">
@@ -2056,8 +1977,7 @@ export default function AddProductPage() {
                     les prix et la monnaie.
                   </p>
 
-                  {stockMode ===
-                    "existant" && (
+                  {stockMode === "existant" && (
                     <p className="mt-1.5 text-[11px] font-bold leading-4 text-emerald-600">
                       📦 Stock existant : la quantité doit être
                       celle que vous avez actuellement.
@@ -2076,12 +1996,8 @@ export default function AddProductPage() {
 
           <button
             type="button"
-            onClick={
-              saveProduct
-            }
-            disabled={
-              loading
-            }
+            onClick={saveProduct}
+            disabled={loading}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
 
@@ -2096,9 +2012,7 @@ export default function AddProductPage() {
               </>
             ) : (
               <>
-                <PackagePlus
-                  size={18}
-                />
+                <PackagePlus size={18} />
 
                 Ajouter le produit
               </>
@@ -2139,7 +2053,6 @@ export default function AddProductPage() {
           </p>
 
         </div>
-
       </div>
 
       {/* ====================================================
@@ -2158,8 +2071,6 @@ export default function AddProductPage() {
 
             <div className="p-6 sm:p-7">
 
-              {/* ICÔNE */}
-
               <div
                 className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl ${
                   successMessage === "error"
@@ -2172,61 +2083,47 @@ export default function AddProductPage() {
                 }`}
               >
 
-                {successMessage ===
-                "syncing" ? (
+                {successMessage === "syncing" ? (
                   <Loader2
                     size={32}
                     className="animate-spin"
                   />
-                ) : successMessage ===
-                  "error" ? (
-                  <Info
-                    size={32}
-                  />
+                ) : successMessage === "error" ? (
+                  <Info size={32} />
                 ) : (
-                  <CheckCircle
-                    size={32}
-                  />
+                  <CheckCircle size={32} />
                 )}
 
               </div>
-
-              {/* TITRE */}
 
               <h2
                 id="success-title"
                 className="mt-5 text-center text-xl font-black text-slate-900"
               >
-                {successMessage ===
-                  "offline" &&
+
+                {successMessage === "offline" &&
                   "Produit bien enregistré"}
 
-                {successMessage ===
-                  "local" &&
+                {successMessage === "local" &&
                   "Produit bien enregistré"}
 
-                {successMessage ===
-                  "syncing" &&
+                {successMessage === "syncing" &&
                   "Produit bien enregistré"}
 
-                {successMessage ===
-                  "success" &&
+                {successMessage === "success" &&
                   "Produit enregistré avec succès"}
 
-                {successMessage ===
-                  "error" &&
+                {successMessage === "error" &&
                   "Enregistrement impossible"}
 
                 {!successMessage &&
                   "Produit enregistré"}
-              </h2>
 
-              {/* MESSAGE */}
+              </h2>
 
               <p className="mt-3 text-center text-sm leading-6 text-slate-600">
 
-                {successMessage ===
-                  "offline" && (
+                {successMessage === "offline" && (
                   <>
                     Votre produit est bien enregistré sur votre
                     appareil.
@@ -2240,8 +2137,7 @@ export default function AddProductPage() {
                   </>
                 )}
 
-                {successMessage ===
-                  "local" && (
+                {successMessage === "local" && (
                   <>
                     Votre produit est bien enregistré sur votre
                     appareil.
@@ -2252,8 +2148,7 @@ export default function AddProductPage() {
                   </>
                 )}
 
-                {successMessage ===
-                  "syncing" && (
+                {successMessage === "syncing" && (
                   <>
                     Votre produit est bien enregistré.
                     <br />
@@ -2265,8 +2160,7 @@ export default function AddProductPage() {
                   </>
                 )}
 
-                {successMessage ===
-                  "success" && (
+                {successMessage === "success" && (
                   <>
                     Votre produit est bien enregistré et
                     synchronisé avec BISO-COMMERCE.
@@ -2276,8 +2170,7 @@ export default function AddProductPage() {
                   </>
                 )}
 
-                {successMessage ===
-                  "error" && (
+                {successMessage === "error" && (
                   <>
                     Une erreur est survenue pendant
                     l'enregistrement de votre produit.
@@ -2294,13 +2187,8 @@ export default function AddProductPage() {
 
               </p>
 
-              {/* INFORMATION HORS CONNEXION */}
-
-              {(successMessage ===
-                "offline" ||
-                successMessage ===
-                  "local") && (
-
+              {(successMessage === "offline" ||
+                successMessage === "local") && (
                 <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50 p-3">
 
                   <div className="flex items-start gap-2.5">
@@ -2328,14 +2216,9 @@ export default function AddProductPage() {
                   </div>
 
                 </div>
-
               )}
 
-              {/* SYNCHRONISATION */}
-
-              {successMessage ===
-                "syncing" && (
-
+              {successMessage === "syncing" && (
                 <div className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50 p-3">
 
                   <div className="flex items-center gap-2.5">
@@ -2352,10 +2235,7 @@ export default function AddProductPage() {
                   </div>
 
                 </div>
-
               )}
-
-              {/* BOUTON OK */}
 
               <button
                 type="button"
@@ -2366,9 +2246,7 @@ export default function AddProductPage() {
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 active:scale-[0.98]"
               >
 
-                <CheckCircle
-                  size={18}
-                />
+                <CheckCircle size={18} />
 
                 OK, compris
 

@@ -67,7 +67,7 @@ type SuccessMessage =
 ========================================================= */
 
 const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 12;
+const DB_VERSION = 14;
 
 const PRODUCTS_STORE = "products";
 const DELETE_QUEUE_STORE = "delete_queue";
@@ -116,10 +116,6 @@ function openProductsDB(): Promise<IDBDatabase> {
         if (!transaction) {
           return;
         }
-
-        /* =====================================================
-           STORE PRODUITS
-        ===================================================== */
 
         let productsStore: IDBObjectStore;
 
@@ -184,10 +180,6 @@ function openProductsDB(): Promise<IDBDatabase> {
           );
         }
 
-        /* =====================================================
-           STORE SUPPRESSION
-        ===================================================== */
-
         let deleteStore: IDBObjectStore;
 
         if (
@@ -240,12 +232,6 @@ function openProductsDB(): Promise<IDBDatabase> {
 
       request.onsuccess = () => {
         const db = request.result;
-
-        /*
-          IMPORTANT :
-          On garde cette connexion ouverte.
-          On ne fait PAS db.close() après chaque transaction.
-        */
 
         db.onversionchange = () => {
           db.close();
@@ -636,13 +622,9 @@ async function syncProductToSupabase(
     error,
   } = await supabase
     .from("products")
-    .upsert(
-      productData,
-      {
-        onConflict:
-          "id",
-      }
-    )
+    .update(productData)
+    .eq("id", product.id)
+    .eq("user_id", userId)
     .select("*")
     .single();
 
@@ -813,10 +795,6 @@ export default function EditProductPage() {
   const productId =
     String(params.id);
 
-  /* =======================================================
-     ÉTATS
-  ======================================================= */
-
   const [loadingProduct, setLoadingProduct] =
     useState(true);
 
@@ -835,10 +813,6 @@ export default function EditProductPage() {
     useState<
       "edit" | "restock"
     >("edit");
-
-  /* =======================================================
-     FORMULAIRE MODIFICATION
-  ======================================================= */
 
   const [name, setName] =
     useState("");
@@ -861,10 +835,6 @@ export default function EditProductPage() {
   const [currency, setCurrency] =
     useState("FC");
 
-  /* =======================================================
-     RÉAPPROVISIONNEMENT
-  ======================================================= */
-
   const [restockQuantity, setRestockQuantity] =
     useState("");
 
@@ -877,19 +847,11 @@ export default function EditProductPage() {
   const [showGuide, setShowGuide] =
     useState(false);
 
-  /* =======================================================
-     CONNEXION
-  ======================================================= */
-
   const [isOnline, setIsOnline] =
     useState(true);
 
   const [syncing, setSyncing] =
     useState(false);
-
-  /* =======================================================
-     MESSAGE
-  ======================================================= */
 
   const [
     successMessage,
@@ -904,10 +866,6 @@ export default function EditProductPage() {
     setShowSuccessModal,
   ] =
     useState(false);
-
-  /* =======================================================
-     INITIALISATION INTERNET
-  ======================================================= */
 
   useEffect(() => {
     if (
@@ -1002,10 +960,6 @@ export default function EditProductPage() {
     };
   }, [productId]);
 
-  /* =======================================================
-     CHARGER PRODUIT
-  ======================================================= */
-
   useEffect(() => {
     let cancelled = false;
 
@@ -1015,12 +969,6 @@ export default function EditProductPage() {
           setLoadingProduct(
             true
           );
-
-          /*
-            --------------------------------------------------
-            1. CHARGEMENT LOCAL EN PREMIER
-            --------------------------------------------------
-          */
 
           let localProduct:
             | Product
@@ -1153,12 +1101,6 @@ export default function EditProductPage() {
             );
           }
 
-          /*
-            --------------------------------------------------
-            2. SI INTERNET : SYNCHRO + SERVEUR
-            --------------------------------------------------
-          */
-
           if (
             navigator.onLine
           ) {
@@ -1175,11 +1117,6 @@ export default function EditProductPage() {
                   productId,
                   userId
                 );
-
-              /*
-                On remplace le cache seulement
-                lorsqu'un produit serveur est trouvé.
-              */
 
               if (
                 serverProduct &&
@@ -1301,12 +1238,6 @@ export default function EditProductPage() {
             }
           }
 
-          /*
-            --------------------------------------------------
-            3. AUCUN PRODUIT
-            --------------------------------------------------
-          */
-
           if (
             !localProduct &&
             navigator.onLine
@@ -1364,10 +1295,6 @@ export default function EditProductPage() {
       cancelled = true;
     };
   }, [productId]);
-
-  /* =======================================================
-     CALCULS
-  ======================================================= */
 
   const totalPieces =
     useMemo(() => {
@@ -1550,10 +1477,6 @@ export default function EditProductPage() {
       newStockAfterRestock,
     ]);
 
-  /* =======================================================
-     CRÉER PRODUIT LOCAL MODIFIÉ
-  ======================================================= */
-
   const buildUpdatedProduct =
     (
       updatedData: Partial<Product>
@@ -1573,10 +1496,6 @@ export default function EditProductPage() {
         synced: false,
       });
     };
-
-  /* =======================================================
-     MODIFIER
-  ======================================================= */
 
   const updateProduct =
     async () => {
@@ -1744,12 +1663,6 @@ export default function EditProductPage() {
               nPieces,
           };
 
-        /*
-          ----------------------------------------------
-          TOUJOURS SAUVER LOCALEMENT D'ABORD
-          ----------------------------------------------
-        */
-
         const localUpdated =
           buildUpdatedProduct(
             updatedData
@@ -1777,12 +1690,6 @@ export default function EditProductPage() {
           )
         );
 
-        /*
-          ----------------------------------------------
-          MESSAGE
-          ----------------------------------------------
-        */
-
         if (
           !navigator.onLine
         ) {
@@ -1804,12 +1711,6 @@ export default function EditProductPage() {
         setShowSuccessModal(
           true
         );
-
-        /*
-          ----------------------------------------------
-          SYNCHRONISATION ONLINE
-          ----------------------------------------------
-        */
 
         if (
           navigator.onLine &&
@@ -1834,20 +1735,11 @@ export default function EditProductPage() {
               syncError
             );
 
-            /*
-              Le produit reste local
-              avec synced=false.
-            */
-
             setSuccessMessage(
               "syncing"
             );
           }
         }
-
-        /*
-          On garde la page ouverte.
-        */
       } catch (error) {
         console.error(
           "Erreur modification :",
@@ -1865,10 +1757,6 @@ export default function EditProductPage() {
         setLoading(false);
       }
     };
-
-  /* =======================================================
-     RÉAPPROVISIONNER
-  ======================================================= */
 
   const restockProduct =
     async () => {
@@ -2025,12 +1913,6 @@ export default function EditProductPage() {
                 : 1,
           };
 
-        /*
-          ----------------------------------------------
-          SAUVEGARDE LOCALE D'ABORD
-          ----------------------------------------------
-        */
-
         const localUpdated =
           buildUpdatedProduct(
             updatedData
@@ -2058,12 +1940,6 @@ export default function EditProductPage() {
           )
         );
 
-        /*
-          ----------------------------------------------
-          MESSAGE
-          ----------------------------------------------
-        */
-
         if (
           !navigator.onLine
         ) {
@@ -2085,12 +1961,6 @@ export default function EditProductPage() {
         setShowSuccessModal(
           true
         );
-
-        /*
-          ----------------------------------------------
-          SYNCHRONISATION
-          ----------------------------------------------
-        */
 
         if (
           navigator.onLine &&
@@ -2121,11 +1991,6 @@ export default function EditProductPage() {
           }
         }
 
-        /*
-          Réinitialiser le formulaire
-          du réapprovisionnement.
-        */
-
         setRestockQuantity(
           ""
         );
@@ -2153,10 +2018,6 @@ export default function EditProductPage() {
       }
     };
 
-  /* =======================================================
-     MODAL SUCCÈS
-  ======================================================= */
-
   const closeSuccessModal =
     () => {
       setShowSuccessModal(
@@ -2175,17 +2036,13 @@ export default function EditProductPage() {
       );
     };
 
-  /* =======================================================
-     CHARGEMENT
-  ======================================================= */
-
   if (
     loadingProduct
   ) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f8fc] px-4">
 
-        <div className="flex w-full max-w-sm items-center justify-center gap-3 rounded-[24px] bg-white px-5 py-5 text-sm font-semibold text-slate-600 shadow-sm">
+        <div className="flex w-full max-w-sm items-center justify-center gap-3 rounded-[26px] border border-slate-100 bg-white px-5 py-5 text-sm font-semibold text-slate-600 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
 
           <Loader2
             size={21}
@@ -2205,9 +2062,9 @@ export default function EditProductPage() {
     !product
   ) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f8fc] px-4">
 
-        <div className="w-full max-w-md rounded-[26px] bg-white p-6 text-center shadow-sm sm:p-8">
+        <div className="w-full max-w-md rounded-[28px] border border-slate-100 bg-white p-6 text-center shadow-[0_12px_40px_rgba(15,23,42,0.07)] sm:p-8">
 
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
 
@@ -2217,7 +2074,7 @@ export default function EditProductPage() {
 
           </div>
 
-          <p className="mt-4 text-xl font-black text-slate-900">
+          <p className="mt-4 text-xl font-black tracking-tight text-slate-900">
             Produit introuvable
           </p>
 
@@ -2232,7 +2089,7 @@ export default function EditProductPage() {
                 "/products"
               )
             }
-            className="mt-6 w-full rounded-2xl bg-indigo-600 px-5 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700"
+            className="mt-6 w-full rounded-2xl bg-indigo-600 px-5 py-3.5 text-sm font-black text-white shadow-[0_8px_20px_rgba(79,70,229,0.18)] transition duration-200 hover:bg-indigo-700 active:scale-[0.99]"
           >
             Retour aux produits
           </button>
@@ -2241,139 +2098,148 @@ export default function EditProductPage() {
     );
   }
 
-  /* =======================================================
-     JSX
-  ======================================================= */
-
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#f5f7fb] text-slate-900">
+    <div className="min-h-screen overflow-x-hidden bg-[#f6f8fc] text-slate-900">
 
-      <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-5 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
 
         {/* ======================================================
             HEADER
         ====================================================== */}
 
-        <div className="mb-5">
+        <div className="mb-5 sm:mb-6">
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:p-5 lg:p-6">
 
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 sm:h-12 sm:w-12">
+              <div className="flex min-w-0 items-center gap-3">
 
-                <Package
-                  size={22}
-                />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100 sm:h-12 sm:w-12">
 
-              </div>
-
-              <div className="min-w-0">
-
-                <div className="flex flex-wrap items-center gap-2">
-
-                  <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-3xl">
-                    Gestion du produit
-                  </h1>
-
-                  <div
-                    className={`
-                      inline-flex
-                      items-center
-                      gap-1.5
-                      rounded-xl
-                      px-2.5
-                      py-1.5
-                      text-[10px]
-                      font-black
-                      ${
-                        syncing
-                          ? "bg-indigo-50 text-indigo-600"
-                          : isOnline
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-amber-50 text-amber-600"
-                      }
-                    `}
-                  >
-                    {syncing ? (
-                      <>
-                        <Loader2
-                          size={12}
-                          className="animate-spin"
-                        />
-                        Synchronisation
-                      </>
-                    ) : isOnline ? (
-                      <>
-                        <Cloud
-                          size={12}
-                        />
-                        En ligne
-                      </>
-                    ) : (
-                      <>
-                        <CloudOff
-                          size={12}
-                        />
-                        Hors connexion
-                      </>
-                    )}
-                  </div>
+                  <Package
+                    size={22}
+                  />
 
                 </div>
 
-                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                  Modifier ou ajouter du stock
-                </p>
+                <div className="min-w-0">
+
+                  <div className="flex flex-wrap items-center gap-2">
+
+                    <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl lg:text-3xl">
+                      Gestion du produit
+                    </h1>
+
+                    <div
+                      className={`
+                        inline-flex
+                        shrink-0
+                        items-center
+                        gap-1.5
+                        rounded-full
+                        border
+                        px-2.5
+                        py-1.5
+                        text-[10px]
+                        font-black
+                        ${
+                          syncing
+                            ? "border-indigo-100 bg-indigo-50 text-indigo-600"
+                            : isOnline
+                            ? "border-emerald-100 bg-emerald-50 text-emerald-600"
+                            : "border-amber-100 bg-amber-50 text-amber-600"
+                        }
+                      `}
+                    >
+                      {syncing ? (
+                        <>
+                          <Loader2
+                            size={12}
+                            className="animate-spin"
+                          />
+                          Synchronisation
+                        </>
+                      ) : isOnline ? (
+                        <>
+                          <Cloud
+                            size={12}
+                          />
+                          En ligne
+                        </>
+                      ) : (
+                        <>
+                          <CloudOff
+                            size={12}
+                          />
+                          Hors connexion
+                        </>
+                      )}
+                    </div>
+
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                    Modifier ou ajouter du stock
+                  </p>
+
+                </div>
 
               </div>
 
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    "/products"
+                  )
+                }
+                disabled={
+                  loading ||
+                  loadingRestock
+                }
+                className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600 transition duration-200 hover:border-slate-300 hover:bg-white hover:text-slate-900 active:scale-[0.99] disabled:opacity-50 sm:w-auto"
+              >
+                <ArrowRight
+                  size={16}
+                  className="rotate-180"
+                />
+                Retour aux produits
+              </button>
+
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  "/products"
-                )
-              }
-              disabled={
-                loading ||
-                loadingRestock
-              }
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 sm:w-auto sm:px-5"
-            >
-              Retour aux produits
-            </button>
+            {!isOnline && (
+              <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50/70 p-3.5">
+
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-600 shadow-sm">
+
+                  <WifiOff
+                    size={17}
+                  />
+
+                </div>
+
+                <div>
+
+                  <p className="text-xs font-black text-amber-800">
+                    Mode hors connexion
+                  </p>
+
+                  <p className="mt-1 text-[11px] leading-5 text-amber-700">
+                    Vous pouvez modifier le produit et
+                    réapprovisionner le stock normalement.
+                    Les changements resteront enregistrés
+                    sur cet appareil puis seront synchronisés
+                    automatiquement lorsque Internet reviendra.
+                  </p>
+
+                </div>
+
+              </div>
+            )}
 
           </div>
-
-          {!isOnline && (
-            <div className="mt-3 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-3.5">
-
-              <WifiOff
-                size={18}
-                className="mt-0.5 shrink-0 text-amber-600"
-              />
-
-              <div>
-
-                <p className="text-xs font-black text-amber-800">
-                  Mode hors connexion
-                </p>
-
-                <p className="mt-1 text-[11px] leading-5 text-amber-700">
-                  Vous pouvez modifier le produit et
-                  réapprovisionner le stock normalement.
-                  Les changements resteront enregistrés
-                  sur cet appareil puis seront synchronisés
-                  automatiquement lorsque Internet reviendra.
-                </p>
-
-              </div>
-
-            </div>
-          )}
 
         </div>
 
@@ -2381,93 +2247,106 @@ export default function EditProductPage() {
             PRODUIT ACTUEL
         ====================================================== */}
 
-        <div className="mb-5 rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:mb-6 sm:rounded-[26px] sm:p-6">
+        <div className="mb-5 overflow-hidden rounded-[26px] border border-slate-100 bg-white shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:mb-6">
 
-          <div className="flex items-start gap-3 sm:gap-5">
+          <div className="p-4 sm:p-6">
 
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 sm:h-14 sm:w-14">
+            <div className="flex items-start gap-3 sm:gap-5">
 
-              <Package
-                size={24}
-              />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100 sm:h-14 sm:w-14">
 
-            </div>
+                <Package
+                  size={24}
+                />
 
-            <div className="min-w-0 flex-1">
+              </div>
 
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 sm:text-xs">
-                Produit sélectionné
-              </p>
+              <div className="min-w-0 flex-1">
 
-              <h2 className="mt-0.5 truncate text-lg font-black text-slate-900 sm:text-xl">
-                {product.name ||
-                  "Produit sans nom"}
-              </h2>
+                <div className="flex flex-wrap items-center gap-2">
 
-              <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:grid-cols-4 sm:gap-3">
-
-                <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
-
-                  <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
-                    Unité
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-500 sm:text-xs">
+                    Produit sélectionné
                   </p>
 
-                  <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-500">
                     {product.unit ||
                       "Pièce"}
-                  </p>
+                  </span>
 
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+                <h2 className="mt-1 break-words text-lg font-black tracking-tight text-slate-900 sm:text-xl lg:text-2xl">
+                  {product.name ||
+                    "Produit sans nom"}
+                </h2>
 
-                  <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
-                    Stock réel
-                  </p>
+                <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:grid-cols-4 sm:gap-3">
 
-                  <p className="mt-1 text-sm font-black text-slate-900 sm:text-base">
-                    {currentStock}
-                  </p>
+                  <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/80 p-3 sm:p-4">
 
-                  <p className="text-[10px] text-slate-400 sm:text-[11px]">
-                    pièces
-                  </p>
+                    <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
+                      Unité
+                    </p>
 
-                </div>
+                    <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
+                      {product.unit ||
+                        "Pièce"}
+                    </p>
 
-                <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+                  </div>
 
-                  <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
-                    Coût / pièce
-                  </p>
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3 sm:p-4">
 
-                  <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
-                    {Math.round(
-                      Number(
-                        product.purchase_price ||
-                          0
-                      )
-                    )}{" "}
-                    {product.currency}
-                  </p>
+                    <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
+                      Stock réel
+                    </p>
 
-                </div>
+                    <p className="mt-1 text-sm font-black text-slate-900 sm:text-base">
+                      {currentStock}
+                    </p>
 
-                <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+                    <p className="text-[10px] font-medium text-slate-400 sm:text-[11px]">
+                      pièces
+                    </p>
 
-                  <p className="text-[10px] font-semibold text-slate-400 sm:text-xs">
-                    Vente / pièce
-                  </p>
+                  </div>
 
-                  <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
-                    {Math.round(
-                      Number(
-                        product.selling_price ||
-                          0
-                      )
-                    )}{" "}
-                    {product.currency}
-                  </p>
+                  <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/80 p-3 sm:p-4">
+
+                    <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
+                      Coût / pièce
+                    </p>
+
+                    <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
+                      {Math.round(
+                        Number(
+                          product.purchase_price ||
+                            0
+                        )
+                      )}{" "}
+                      {product.currency}
+                    </p>
+
+                  </div>
+
+                  <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/80 p-3 sm:p-4">
+
+                    <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
+                      Vente / pièce
+                    </p>
+
+                    <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
+                      {Math.round(
+                        Number(
+                          product.selling_price ||
+                            0
+                        )
+                      )}{" "}
+                      {product.currency}
+                    </p>
+
+                  </div>
 
                 </div>
 
@@ -2483,13 +2362,13 @@ export default function EditProductPage() {
             GUIDE
         ====================================================== */}
 
-        <div className="mb-5 rounded-[24px] border border-slate-100 bg-white shadow-sm sm:mb-6 sm:rounded-[26px]">
+        <div className="mb-5 overflow-hidden rounded-[26px] border border-slate-100 bg-white shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:mb-6">
 
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
 
             <div className="flex min-w-0 items-center gap-3">
 
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100">
 
                 <Info
                   size={19}
@@ -2499,7 +2378,7 @@ export default function EditProductPage() {
 
               <div className="min-w-0">
 
-                <h2 className="truncate font-black text-slate-900">
+                <h2 className="truncate text-sm font-black text-slate-900 sm:text-base">
                   Guide de gestion du stock
                 </h2>
 
@@ -2518,8 +2397,11 @@ export default function EditProductPage() {
                   !showGuide
                 )
               }
-              className="w-full rounded-2xl bg-indigo-600 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700 sm:w-auto"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black text-white shadow-sm transition duration-200 hover:bg-slate-800 active:scale-[0.99] sm:w-auto"
             >
+              <Info
+                size={15}
+              />
               {showGuide
                 ? "Fermer le guide"
                 : "Voir le guide"}
@@ -2528,7 +2410,7 @@ export default function EditProductPage() {
           </div>
 
           {showGuide && (
-            <div className="border-t border-slate-100 p-4 sm:p-6">
+            <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6">
 
               <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
 
@@ -2536,7 +2418,7 @@ export default function EditProductPage() {
 
                   <div className="flex gap-3">
 
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
 
                       <Pencil
                         size={18}
@@ -2572,7 +2454,7 @@ export default function EditProductPage() {
 
                   <div className="flex gap-3">
 
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-600">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-green-600 shadow-sm">
 
                       <RefreshCcw
                         size={18}
@@ -2603,11 +2485,11 @@ export default function EditProductPage() {
 
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:p-5">
+                <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
 
                   <div className="flex gap-3">
 
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-indigo-600">
 
                       <Boxes
                         size={18}
@@ -2644,7 +2526,7 @@ export default function EditProductPage() {
                           </strong>
                         </p>
 
-                        <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-white p-3">
+                        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 p-3">
 
                           <span className="font-black text-slate-900">
                             5 cartons
@@ -2685,11 +2567,11 @@ export default function EditProductPage() {
 
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:p-5">
+                <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
 
                   <div className="flex gap-3">
 
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-indigo-600">
 
                       <CircleDollarSign
                         size={18}
@@ -2750,9 +2632,12 @@ export default function EditProductPage() {
                 onClick={() =>
                   setShowGuide(false)
                 }
-                className="mt-4 w-full rounded-2xl bg-indigo-600 px-5 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700"
+                className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(79,70,229,0.16)] transition duration-200 hover:bg-indigo-700 active:scale-[0.99]"
               >
-                ✓ J'ai compris
+                <CheckCircle
+                  size={17}
+                />
+                J'ai compris
               </button>
 
             </div>
@@ -2764,30 +2649,30 @@ export default function EditProductPage() {
             CHOIX DU MODE
         ====================================================== */}
 
-        <div className="mb-5 rounded-[24px] border border-slate-100 bg-white p-2.5 shadow-sm sm:mb-6 sm:rounded-[26px] sm:p-3">
+        <div className="mb-5 rounded-[26px] border border-slate-100 bg-white p-2 shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:mb-6 sm:p-2.5">
 
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2">
 
             <button
               type="button"
               onClick={() =>
                 setMode("edit")
               }
-              className={`min-w-0 rounded-2xl border p-3 text-left transition sm:p-4 ${
+              className={`min-w-0 rounded-2xl border p-3 transition duration-200 active:scale-[0.99] sm:p-4 ${
                 mode ===
                 "edit"
-                  ? "border-indigo-200 bg-indigo-50"
+                  ? "border-indigo-200 bg-indigo-50/80 shadow-sm"
                   : "border-transparent bg-slate-50 hover:bg-slate-100"
               }`}
             >
 
-              <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="flex items-center justify-center gap-2.5 sm:justify-start sm:gap-3">
 
                 <div
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                     mode ===
                     "edit"
-                      ? "bg-indigo-100 text-indigo-600"
+                      ? "bg-indigo-600 text-white shadow-sm"
                       : "bg-white text-slate-500"
                   }`}
                 >
@@ -2796,7 +2681,7 @@ export default function EditProductPage() {
                   />
                 </div>
 
-                <div className="min-w-0">
+                <div className="min-w-0 text-left">
 
                   <p className="truncate text-sm font-black text-slate-900 sm:text-base">
                     Modifier
@@ -2818,21 +2703,21 @@ export default function EditProductPage() {
                   "restock"
                 )
               }
-              className={`min-w-0 rounded-2xl border p-3 text-left transition sm:p-4 ${
+              className={`min-w-0 rounded-2xl border p-3 transition duration-200 active:scale-[0.99] sm:p-4 ${
                 mode ===
                 "restock"
-                  ? "border-green-200 bg-green-50"
+                  ? "border-green-200 bg-green-50/80 shadow-sm"
                   : "border-transparent bg-slate-50 hover:bg-slate-100"
               }`}
             >
 
-              <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="flex items-center justify-center gap-2.5 sm:justify-start sm:gap-3">
 
                 <div
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                     mode ===
                     "restock"
-                      ? "bg-green-100 text-green-600"
+                      ? "bg-green-600 text-white shadow-sm"
                       : "bg-white text-slate-500"
                   }`}
                 >
@@ -2843,7 +2728,7 @@ export default function EditProductPage() {
 
                 </div>
 
-                <div className="min-w-0">
+                <div className="min-w-0 text-left">
 
                   <p className="truncate text-sm font-black text-slate-900 sm:text-base">
                     Réapprovisionner
@@ -2869,11 +2754,11 @@ export default function EditProductPage() {
           "edit" && (
           <div className="space-y-5 sm:space-y-6">
 
-            <div className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
+            <div className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:p-6">
 
               <div className="mb-5 flex items-center gap-3 sm:mb-6">
 
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 sm:h-11 sm:w-11">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100 sm:h-11 sm:w-11">
                   <Pencil
                     size={19}
                   />
@@ -2881,7 +2766,7 @@ export default function EditProductPage() {
 
                 <div>
 
-                  <h2 className="font-black text-slate-900">
+                  <h2 className="text-sm font-black text-slate-900 sm:text-base">
                     Informations du produit
                   </h2>
 
@@ -2910,7 +2795,7 @@ export default function EditProductPage() {
                       )
                     }
                     placeholder="Exemple : Coca-Cola 33cl"
-                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   />
 
                 </div>
@@ -2928,7 +2813,7 @@ export default function EditProductPage() {
                         e.target.value
                       )
                     }
-                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   >
 
                     <option value="Pièce">
@@ -2973,7 +2858,7 @@ export default function EditProductPage() {
                         ? "Exemple : 50"
                         : `Nombre de ${type}(s)`
                     }
-                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   />
 
                   <p className="mt-2 text-[11px] leading-5 text-slate-400 sm:text-xs">
@@ -2990,7 +2875,7 @@ export default function EditProductPage() {
 
                 {type !==
                   "Pièce" && (
-                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3.5 sm:p-4">
+                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3.5 sm:p-4">
 
                     <label className="mb-2 block text-xs font-bold text-slate-600">
                       Nombre de pièces dans{" "}
@@ -3011,15 +2896,17 @@ export default function EditProductPage() {
                         )
                       }
                       placeholder="Exemple : 24"
-                      className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 sm:text-sm"
+                      className="min-h-[52px] w-full rounded-2xl border border-indigo-100 bg-white px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                     />
 
-                    <div className="mt-3 flex items-start gap-3 rounded-2xl bg-white p-3.5 sm:p-4">
+                    <div className="mt-3 flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm sm:p-4">
 
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+
                         <Calculator
                           size={17}
                         />
+
                       </div>
 
                       <div className="min-w-0">
@@ -3065,7 +2952,7 @@ export default function EditProductPage() {
                       )
                     }
                     placeholder="Exemple : 100000"
-                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   />
 
                   <p className="mt-2 text-[11px] text-slate-400 sm:text-xs">
@@ -3092,7 +2979,7 @@ export default function EditProductPage() {
                       )
                     }
                     placeholder="Exemple : 2000"
-                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   />
 
                 </div>
@@ -3113,7 +3000,7 @@ export default function EditProductPage() {
                           .value
                       )
                     }
-                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 sm:text-sm"
                   >
 
                     <option value="FC">
@@ -3133,11 +3020,11 @@ export default function EditProductPage() {
 
             {/* STATISTIQUES */}
 
-            <div className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
+            <div className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:p-6">
 
               <div className="mb-5 flex items-center gap-3">
 
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 sm:h-11 sm:w-11">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100 sm:h-11 sm:w-11">
                   <TrendingUp
                     size={19}
                   />
@@ -3145,7 +3032,7 @@ export default function EditProductPage() {
 
                 <div>
 
-                  <h2 className="font-black text-slate-900">
+                  <h2 className="text-sm font-black text-slate-900 sm:text-base">
                     Nouveau résumé
                   </h2>
 
@@ -3157,9 +3044,9 @@ export default function EditProductPage() {
 
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 transition hover:bg-white sm:p-4">
 
                   <div className="flex items-center gap-2.5 sm:gap-3">
 
@@ -3175,7 +3062,7 @@ export default function EditProductPage() {
                         Stock réel
                       </p>
 
-                      <p className="text-lg font-black text-slate-900 sm:text-xl">
+                      <p className="text-lg font-black tracking-tight text-slate-900 sm:text-xl">
                         {totalPieces}
                       </p>
 
@@ -3188,7 +3075,7 @@ export default function EditProductPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 transition hover:bg-white sm:p-4">
 
                   <div className="flex items-center gap-2.5 sm:gap-3">
 
@@ -3204,7 +3091,7 @@ export default function EditProductPage() {
                         Coût / pièce
                       </p>
 
-                      <p className="truncate text-lg font-black text-slate-900 sm:text-xl">
+                      <p className="truncate text-lg font-black tracking-tight text-slate-900 sm:text-xl">
                         {Math.round(
                           pricePerPiece
                         )}{" "}
@@ -3216,7 +3103,7 @@ export default function EditProductPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 transition hover:bg-white sm:p-4">
 
                   <div className="flex items-center gap-2.5 sm:gap-3">
 
@@ -3240,7 +3127,7 @@ export default function EditProductPage() {
                       </p>
 
                       <p
-                        className={`truncate text-lg font-black sm:text-xl ${
+                        className={`truncate text-lg font-black tracking-tight sm:text-xl ${
                           profitPerPiece >=
                           0
                             ? "text-green-600"
@@ -3258,7 +3145,7 @@ export default function EditProductPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-green-100 bg-green-50 p-3.5 sm:p-4">
+                <div className="rounded-2xl border border-green-100 bg-green-50/70 p-3.5 sm:p-4">
 
                   <div className="flex items-center gap-2.5 sm:gap-3">
 
@@ -3275,7 +3162,7 @@ export default function EditProductPage() {
                       </p>
 
                       <p
-                        className={`truncate text-lg font-black sm:text-xl ${
+                        className={`truncate text-lg font-black tracking-tight sm:text-xl ${
                           totalProfit >=
                           0
                             ? "text-green-600"
@@ -3304,7 +3191,7 @@ export default function EditProductPage() {
               disabled={
                 loading
               }
-              className="flex min-h-[54px] w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-4 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[56px]"
+              className="group flex min-h-[56px] w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-4 py-3.5 text-sm font-black text-white shadow-[0_10px_25px_rgba(79,70,229,0.18)] transition duration-200 hover:bg-indigo-700 hover:shadow-[0_12px_28px_rgba(79,70,229,0.22)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:min-h-[58px]"
             >
 
               {loading ? (
@@ -3320,6 +3207,7 @@ export default function EditProductPage() {
                 <>
                   <Pencil
                     size={19}
+                    className="transition-transform duration-200 group-hover:-rotate-6"
                   />
 
                   Enregistrer les modifications
@@ -3339,11 +3227,11 @@ export default function EditProductPage() {
           "restock" && (
           <div className="space-y-5 sm:space-y-6">
 
-            <div className="rounded-[24px] border border-green-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
+            <div className="rounded-[26px] border border-green-100 bg-white p-4 shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:p-6">
 
               <div className="flex items-start gap-3">
 
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-600 sm:h-11 sm:w-11">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-600 ring-1 ring-green-100 sm:h-11 sm:w-11">
 
                   <PackagePlus
                     size={20}
@@ -3353,7 +3241,7 @@ export default function EditProductPage() {
 
                 <div className="min-w-0">
 
-                  <h2 className="font-black text-slate-900">
+                  <h2 className="text-sm font-black text-slate-900 sm:text-base">
                     Réapprovisionner le stock
                   </h2>
 
@@ -3370,11 +3258,11 @@ export default function EditProductPage() {
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
+            <div className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:p-6">
 
               <div className="space-y-4 sm:space-y-5">
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 sm:p-4">
 
                   <div className="flex items-center gap-3">
 
@@ -3392,7 +3280,7 @@ export default function EditProductPage() {
                         Stock actuellement disponible
                       </p>
 
-                      <p className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
+                      <p className="mt-1 text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
                         {currentStock}
                       </p>
 
@@ -3434,14 +3322,14 @@ export default function EditProductPage() {
                             "unités"
                           } reçus`
                     }
-                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-green-400 focus:bg-white focus:ring-4 focus:ring-green-50 sm:text-sm"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-green-400 focus:bg-white focus:ring-4 focus:ring-green-50 sm:text-sm"
                   />
 
                 </div>
 
                 {product.unit !==
                   "Pièce" && (
-                  <div className="rounded-2xl border border-green-100 bg-green-50/50 p-3.5 sm:p-4">
+                  <div className="rounded-2xl border border-green-100 bg-green-50/60 p-3.5 sm:p-4">
 
                     <label className="mb-2 block text-xs font-bold text-slate-600">
                       Nombre de pièces dans{" "}
@@ -3462,10 +3350,10 @@ export default function EditProductPage() {
                         )
                       }
                       placeholder="Exemple : 24"
-                      className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-green-400 focus:ring-4 focus:ring-green-50 sm:text-sm"
+                      className="min-h-[52px] w-full rounded-2xl border border-green-100 bg-white px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 focus:border-green-400 focus:ring-4 focus:ring-green-50 sm:text-sm"
                     />
 
-                    <div className="mt-3 flex items-start gap-3 rounded-2xl bg-white p-3.5 sm:p-4">
+                    <div className="mt-3 flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm sm:p-4">
 
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600">
 
@@ -3524,7 +3412,7 @@ export default function EditProductPage() {
                       )
                     }
                     placeholder="Exemple : 240000"
-                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-green-400 focus:bg-white focus:ring-4 focus:ring-green-50 sm:text-sm"
+                    className="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-base font-medium text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-green-400 focus:bg-white focus:ring-4 focus:ring-green-50 sm:text-sm"
                   />
 
                   <p className="mt-2 text-[11px] leading-5 text-slate-400 sm:text-xs">
@@ -3537,11 +3425,11 @@ export default function EditProductPage() {
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm sm:rounded-[26px] sm:p-6">
+            <div className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-[0_6px_24px_rgba(15,23,42,0.045)] sm:p-6">
 
               <div className="mb-5 flex items-center gap-3">
 
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-600 sm:h-11 sm:w-11">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-600 ring-1 ring-green-100 sm:h-11 sm:w-11">
 
                   <RefreshCcw
                     size={19}
@@ -3551,7 +3439,7 @@ export default function EditProductPage() {
 
                 <div className="min-w-0">
 
-                  <h2 className="font-black text-slate-900">
+                  <h2 className="text-sm font-black text-slate-900 sm:text-base">
                     Aperçu du réapprovisionnement
                   </h2>
 
@@ -3563,15 +3451,15 @@ export default function EditProductPage() {
 
               </div>
 
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3 sm:p-4">
 
                   <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
                     Stock actuel
                   </p>
 
-                  <p className="mt-1.5 text-lg font-black text-slate-900 sm:mt-2 sm:text-2xl">
+                  <p className="mt-1.5 text-lg font-black tracking-tight text-slate-900 sm:mt-2 sm:text-2xl">
                     {currentStock}
                   </p>
 
@@ -3581,13 +3469,13 @@ export default function EditProductPage() {
 
                 </div>
 
-                <div className="rounded-2xl border border-green-100 bg-green-50 p-3 sm:p-4">
+                <div className="rounded-2xl border border-green-100 bg-green-50/70 p-3 sm:p-4">
 
                   <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
                     Nouvel arrivage
                   </p>
 
-                  <p className="mt-1.5 text-lg font-black text-green-600 sm:mt-2 sm:text-2xl">
+                  <p className="mt-1.5 text-lg font-black tracking-tight text-green-600 sm:mt-2 sm:text-2xl">
                     +{restockPieces}
                   </p>
 
@@ -3597,13 +3485,13 @@ export default function EditProductPage() {
 
                 </div>
 
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-3 sm:p-4">
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3 sm:p-4">
 
                   <p className="text-[10px] font-bold text-slate-400 sm:text-xs">
                     Nouveau stock
                   </p>
 
-                  <p className="mt-1.5 text-lg font-black text-indigo-600 sm:mt-2 sm:text-2xl">
+                  <p className="mt-1.5 text-lg font-black tracking-tight text-indigo-600 sm:mt-2 sm:text-2xl">
                     {
                       newStockAfterRestock
                     }
@@ -3619,7 +3507,7 @@ export default function EditProductPage() {
 
               <div className="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:grid-cols-2">
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 sm:p-4">
 
                   <div className="flex items-center gap-3">
 
@@ -3637,7 +3525,7 @@ export default function EditProductPage() {
                         Coût ancien
                       </p>
 
-                      <p className="mt-1 truncate text-lg font-black text-slate-900 sm:text-xl">
+                      <p className="mt-1 truncate text-lg font-black tracking-tight text-slate-900 sm:text-xl">
                         {Math.round(
                           Number(
                             product.purchase_price ||
@@ -3654,7 +3542,7 @@ export default function EditProductPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-green-100 bg-green-50 p-3.5 sm:p-4">
+                <div className="rounded-2xl border border-green-100 bg-green-50/70 p-3.5 sm:p-4">
 
                   <div className="flex items-center gap-3">
 
@@ -3672,7 +3560,7 @@ export default function EditProductPage() {
                         Nouveau coût moyen
                       </p>
 
-                      <p className="mt-1 truncate text-lg font-black text-green-600 sm:text-xl">
+                      <p className="mt-1 truncate text-lg font-black tracking-tight text-green-600 sm:text-xl">
                         {Math.round(
                           newAverageCost
                         )}{" "}
@@ -3731,7 +3619,7 @@ export default function EditProductPage() {
               disabled={
                 loadingRestock
               }
-              className="flex min-h-[54px] w-full items-center justify-center gap-3 rounded-2xl bg-green-600 px-4 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[56px]"
+              className="group flex min-h-[56px] w-full items-center justify-center gap-3 rounded-2xl bg-green-600 px-4 py-3.5 text-sm font-black text-white shadow-[0_10px_25px_rgba(22,163,74,0.16)] transition duration-200 hover:bg-green-700 hover:shadow-[0_12px_28px_rgba(22,163,74,0.2)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:min-h-[58px]"
             >
 
               {loadingRestock ? (
@@ -3747,6 +3635,7 @@ export default function EditProductPage() {
                 <>
                   <RefreshCcw
                     size={19}
+                    className="transition-transform duration-200 group-hover:rotate-90"
                   />
 
                   Ajouter au stock
@@ -3773,13 +3662,13 @@ export default function EditProductPage() {
             loading ||
             loadingRestock
           }
-          className="mt-5 min-h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 sm:mt-6"
+          className="mt-5 flex min-h-[52px] w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-600 shadow-sm transition duration-200 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99] disabled:opacity-50 sm:mt-6"
         >
           Annuler
         </button>
 
         <div className="px-2 py-5 text-center sm:py-6">
-          <p className="text-[10px] leading-5 text-slate-400 sm:text-xs">
+          <p className="text-[10px] font-medium leading-5 tracking-[0.12em] text-slate-400 sm:text-xs">
             BISO-COMMERCE
           </p>
         </div>
@@ -3799,9 +3688,11 @@ export default function EditProductPage() {
             flex
             items-center
             justify-center
-            bg-slate-950/50
+            overflow-y-auto
+            bg-slate-950/55
             px-4
-            backdrop-blur-sm
+            py-5
+            backdrop-blur-md
           "
           onMouseDown={(event) => {
             if (
@@ -3815,20 +3706,23 @@ export default function EditProductPage() {
 
           <div
             className="
+              my-auto
               w-full
               max-w-md
-              overflow-hidden
+              max-h-[calc(100vh-40px)]
+              overflow-y-auto
               rounded-[28px]
               border
-              border-slate-200
+              border-white/60
               bg-white
-              shadow-2xl
+              shadow-[0_25px_80px_rgba(15,23,42,0.24)]
             "
           >
 
             <div
               className={`
-                p-6
+                p-5
+                sm:p-6
                 ${
                   successMessage ===
                   "error"
@@ -3855,6 +3749,7 @@ export default function EditProductPage() {
                     items-center
                     justify-center
                     rounded-2xl
+                    shadow-sm
                     ${
                       successMessage ===
                       "error"
@@ -3894,7 +3789,7 @@ export default function EditProductPage() {
                   onClick={
                     closeSuccessModal
                   }
-                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 text-slate-400 transition hover:bg-white hover:text-slate-700"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 text-slate-400 shadow-sm transition duration-200 hover:bg-white hover:text-slate-700 active:scale-95"
                   aria-label="Fermer"
                 >
                   <X
@@ -3910,6 +3805,7 @@ export default function EditProductPage() {
                   className={`
                     text-xl
                     font-black
+                    tracking-tight
                     ${
                       successMessage ===
                       "error"
@@ -3993,9 +3889,17 @@ export default function EditProductPage() {
 
             </div>
 
-            <div className="grid grid-cols-2 gap-2 p-5">
+            <div className="grid grid-cols-2 gap-2.5 border-t border-slate-100 bg-white p-4 sm:p-5">
 
-              
+              <button
+                type="button"
+                onClick={
+                  closeSuccessModal
+                }
+                className="flex min-h-[50px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-600 transition duration-200 hover:bg-slate-100 active:scale-[0.99]"
+              >
+                Fermer
+              </button>
 
               <button
                 type="button"
@@ -4015,9 +3919,11 @@ export default function EditProductPage() {
                   text-sm
                   font-black
                   text-white
-                  shadow-sm
+                  shadow-[0_8px_20px_rgba(79,70,229,0.18)]
                   transition
+                  duration-200
                   hover:bg-indigo-700
+                  active:scale-[0.99]
                 "
               >
                 OK
@@ -4027,6 +3933,7 @@ export default function EditProductPage() {
               </button>
 
             </div>
+
           </div>
         </div>
       )}
