@@ -1539,23 +1539,7 @@ export default function DebtsPage() {
             </div>
           ) : (
             <>
-              {/* AUJOURD'HUI / HIER */}
-
-              {!showAll && (
-                <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <DebtList
-                    title="Aujourd'hui"
-                    data={todayDebts}
-                    onDelete={deleteDebt}
-                  />
-
-                  <DebtList
-                    title="Hier"
-                    data={yesterdayDebts}
-                    onDelete={deleteDebt}
-                  />
-                </div>
-              )}
+           
 
               {/* HISTORIQUE COMPLET */}
 
