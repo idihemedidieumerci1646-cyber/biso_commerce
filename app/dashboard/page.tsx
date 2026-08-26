@@ -1,17 +1,5 @@
 "use client";
 
-/**
- * BISO-COMMERCE — Dashboard
- * Next.js App Router : app/dashboard/page.tsx
- *
- * Fonctionnement :
- * - Dashboard visible hors connexion
- * - Données mises en cache dans localStorage
- * - Synchronisation automatique dès que la connexion revient
- * - Compteur d'abonnement calculé localement
- * - Après 30 jours : abonnement expiré
- * - Design conservé
- */
 
 import {
   useCallback,
@@ -352,6 +340,9 @@ function getSubscriptionCache(
 const nf =
   new Intl.NumberFormat("fr-FR");
 
+const APP_TIME_ZONE =
+  "Africa/Kinshasa";
+
 function fmt(n: number) {
   return nf.format(
     Math.round(
@@ -396,6 +387,13 @@ function addTo(
   }
 }
 
+/*
+  Les statistiques "aujourd'hui" utilisent volontairement
+  l'heure locale de l'appareil pour déterminer le début de journée.
+
+  Cela permet au changement de journée de fonctionner sans Internet.
+*/
+
 function startOfToday() {
   const d = new Date();
 
@@ -432,6 +430,30 @@ function startOfMonth() {
   return d;
 }
 
+/*
+  Heure utilisée pour le texte "Bonjour",
+  "Bon après-midi", etc., dans le fuseau de Kinshasa.
+*/
+
+function getKinshasaHour(
+  date: Date
+) {
+  const hour =
+    Number(
+      new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+          timeZone:
+            APP_TIME_ZONE,
+          hour: "2-digit",
+          hour12: false,
+        }
+      ).format(date)
+    );
+
+  return hour;
+}
+
 function greeting(h: number) {
   if (h < 12) {
     return "Bonjour";
@@ -444,23 +466,29 @@ function greeting(h: number) {
   return "Bonsoir";
 }
 
-function relative(
-  dateStr: string
-) {
-  const date =
-    new Date(dateStr);
+/*
+  Affichage des dates/heures corrigé avec Africa/Kinshasa.
 
-  return date.toLocaleString(
-    "fr-FR",
-    {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }
-  );
+  La date réellement enregistrée dans Supabase
+  n'est jamais modifiée.
+*/
+
+function relative(dateStr: string) {
+  const date = new Date(dateStr);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date inconnue";
+  }
+
+  return date.toLocaleString("fr-FR", {
+    timeZone: "Africa/Kinshasa",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function daysBetween(
@@ -516,6 +544,92 @@ function isDebtPaid(
       debt
     ) <= 0
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* CALCUL LOCAL DE L'ABONNEMENT                                       */
+/* ------------------------------------------------------------------ */
+
+/*
+  Cette fonction est utilisée aussi bien hors connexion
+  que lors d'une erreur Supabase.
+
+  Elle ne supprime aucune donnée.
+
+  Elle se contente de recalculer :
+  - jours utilisés
+  - jours restants
+  - statut
+*/
+
+function evaluateCachedSubscription(
+  cached: CachedSubscription
+) {
+  const start =
+    new Date(
+      cached.start_date
+    );
+
+  const end =
+    new Date(
+      cached.end_date
+    );
+
+  const current =
+    new Date();
+
+  if (
+    Number.isNaN(
+      start.getTime()
+    ) ||
+    Number.isNaN(
+      end.getTime()
+    )
+  ) {
+    return {
+      active: false,
+      used: 30,
+      left: 0,
+    };
+  }
+
+  const diffDays =
+    Math.floor(
+      (
+        current.getTime() -
+        start.getTime()
+      ) /
+        86400000
+    );
+
+  const used =
+    diffDays < 0
+      ? 0
+      : diffDays;
+
+  /*
+    L'expiration locale est basée sur la date
+    d'expiration conservée localement.
+  */
+
+  const active =
+    cached.is_active === true &&
+    end > current;
+
+  return {
+    active,
+    used: Math.min(
+      30,
+      used
+    ),
+    left: Math.max(
+      0,
+      Math.min(
+        30,
+        30 - used
+      )
+    ),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -757,28 +871,35 @@ export default function DashboardPage() {
       null
     );
 
-      /* =========================================================
-     CHARGER LES VENTES POUR LE DASHBOARD
+  /*
+    Permet de détecter précisément le passage :
+    23:59:59 -> 00:00:00
+
+    sans dépendre d'Internet.
+  */
+
+  const currentDayRef =
+    useRef<string | null>(
+      null
+    );
+
+  /* =========================================================
+     HORLOGE
   ========================================================= */
 
- 
-
-  /* ============================================================
-     HORLOGE
-  ============================================================ */
-
   useEffect(() => {
-    setNow(
-      new Date()
-    );
+    const updateClock =
+      () => {
+        setNow(
+          new Date()
+        );
+      };
+
+    updateClock();
 
     const timer =
       window.setInterval(
-        () => {
-          setNow(
-            new Date()
-          );
-        },
+        updateClock,
         1000
       );
 
@@ -789,9 +910,9 @@ export default function DashboardPage() {
     };
   }, []);
 
-  /* ============================================================
+  /* =========================================================
      ABONNEMENT
-  ============================================================ */
+  ========================================================= */
 
   const checkSubscription =
     useCallback(
@@ -815,68 +936,32 @@ export default function DashboardPage() {
             );
 
           if (cached) {
-            const start =
-              new Date(
-                cached.start_date
+            const result =
+              evaluateCachedSubscription(
+                cached
               );
-
-            const end =
-              new Date(
-                cached.end_date
-              );
-
-            const current =
-              new Date();
-
-            const diffDays =
-              Math.floor(
-                (
-                  current.getTime() -
-                  start.getTime()
-                ) /
-                  86400000
-              );
-
-            const used =
-              diffDays < 0
-                ? 0
-                : diffDays;
-
-            const active =
-              cached.is_active ===
-                true &&
-              end >
-                current;
 
             setDaysUsed(
-              Math.min(
-                30,
-                used
-              )
+              result.used
             );
 
             setDaysLeft(
-              Math.max(
-                0,
-                Math.min(
-                  30,
-                  30 - used
-                )
-              )
+              result.left
             );
 
             setStatus(
-              active
+              result.active
                 ? "active"
                 : "expired"
             );
 
-            return active;
+            return result.active;
           }
 
           /*
             S'il n'y a encore aucun cache,
-            on laisse le Dashboard visible.
+            on laisse le Dashboard visible,
+            comme dans le comportement existant.
           */
 
           setStatus(
@@ -924,6 +1009,12 @@ export default function DashboardPage() {
               error
             );
 
+            /*
+              En cas d'erreur Supabase,
+              le calcul local reste prioritaire
+              si un abonnement a déjà été enregistré.
+            */
+
             const cached =
               getSubscriptionCache(
                 userId
@@ -932,63 +1023,26 @@ export default function DashboardPage() {
             if (
               cached
             ) {
-              const start =
-                new Date(
-                  cached.start_date
+              const result =
+                evaluateCachedSubscription(
+                  cached
                 );
-
-              const end =
-                new Date(
-                  cached.end_date
-                );
-
-              const current =
-                new Date();
-
-              const diffDays =
-                Math.floor(
-                  (
-                    current.getTime() -
-                    start.getTime()
-                  ) /
-                    86400000
-                );
-
-              const used =
-                diffDays < 0
-                  ? 0
-                  : diffDays;
-
-              const active =
-                cached.is_active ===
-                  true &&
-                end >
-                  current;
 
               setDaysUsed(
-                Math.min(
-                  30,
-                  used
-                )
+                result.used
               );
 
               setDaysLeft(
-                Math.max(
-                  0,
-                  Math.min(
-                    30,
-                    30 - used
-                  )
-                )
+                result.left
               );
 
               setStatus(
-                active
+                result.active
                   ? "active"
                   : "expired"
               );
 
-              return active;
+              return result.active;
             }
 
             setStatus(
@@ -1018,8 +1072,9 @@ export default function DashboardPage() {
           }
 
           /*
-            Sauvegarder la vraie
-            information serveur localement.
+            Sauvegarder la vraie information serveur
+            localement afin que l'expiration continue
+            à fonctionner sans Internet.
           */
 
           saveSubscriptionCache(
@@ -1103,6 +1158,11 @@ export default function DashboardPage() {
             error
           );
 
+          /*
+            Même avec une panne réseau inattendue,
+            utiliser l'abonnement sauvegardé localement.
+          */
+
           const cached =
             getSubscriptionCache(
               userId
@@ -1111,63 +1171,26 @@ export default function DashboardPage() {
           if (
             cached
           ) {
-            const start =
-              new Date(
-                cached.start_date
+            const result =
+              evaluateCachedSubscription(
+                cached
               );
-
-            const end =
-              new Date(
-                cached.end_date
-              );
-
-            const current =
-              new Date();
-
-            const diffDays =
-              Math.floor(
-                (
-                  current.getTime() -
-                  start.getTime()
-                ) /
-                  86400000
-              );
-
-            const used =
-              diffDays < 0
-                ? 0
-                : diffDays;
-
-            const active =
-              cached.is_active ===
-                true &&
-              end >
-                current;
 
             setDaysUsed(
-              Math.min(
-                30,
-                used
-              )
+              result.used
             );
 
             setDaysLeft(
-              Math.max(
-                0,
-                Math.min(
-                  30,
-                  30 - used
-                )
-              )
+              result.left
             );
 
             setStatus(
-              active
+              result.active
                 ? "active"
                 : "expired"
             );
 
-            return active;
+            return result.active;
           }
 
           setStatus(
@@ -1179,7 +1202,6 @@ export default function DashboardPage() {
       },
       []
     );
-    
 
   /* ============================================================
      CHARGEMENT DES DONNÉES
@@ -1196,38 +1218,62 @@ export default function DashboardPage() {
           ----------------------------------------------------
         */
 
-       if (
-  typeof window !== "undefined" &&
-  !navigator.onLine
-) {
-  const cached =
-    getDashboardCache(userId);
+        if (
+          typeof window !== "undefined" &&
+          !navigator.onLine
+        ) {
+          const cached =
+            getDashboardCache(
+              userId
+            );
 
-  if (cached) {
-    setSales(cached.sales || []);
-    setProducts(cached.products || []);
-    setExpenses(cached.expenses || []);
-    setDebts(cached.debts || []);
-    setClientsCount(cached.clientsCount || 0);
+          if (cached) {
+            setSales(
+              cached.sales || []
+            );
 
-    const savedAt =
-      new Date(cached.savedAt);
+            setProducts(
+              cached.products || []
+            );
 
-    if (!Number.isNaN(savedAt.getTime())) {
-      setLastSync(savedAt);
-    }
+            setExpenses(
+              cached.expenses || []
+            );
 
-    return;
-  }
+            setDebts(
+              cached.debts || []
+            );
 
-  setSales([]);
-  setProducts([]);
-  setExpenses([]);
-  setDebts([]);
-  setClientsCount(0);
+            setClientsCount(
+              cached.clientsCount || 0
+            );
 
-  return;
-}
+            const savedAt =
+              new Date(
+                cached.savedAt
+              );
+
+            if (
+              !Number.isNaN(
+                savedAt.getTime()
+              )
+            ) {
+              setLastSync(
+                savedAt
+              );
+            }
+
+            return;
+          }
+
+          setSales([]);
+          setProducts([]);
+          setExpenses([]);
+          setDebts([]);
+          setClientsCount(0);
+
+          return;
+        }
 
         /*
           ----------------------------------------------------
@@ -1854,55 +1900,134 @@ export default function DashboardPage() {
   }, [loadAll]);
 
   /* ============================================================
+     DÉTECTION AUTOMATIQUE DU NOUVEAU JOUR
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !now
+    ) {
+      return;
+    }
+
+    /*
+      La clé est calculée avec la date locale
+      de l'appareil.
+
+      Exemple :
+      26/08/2026
+      puis
+      27/08/2026
+    */
+
+    const dayKey =
+      `${now.getFullYear()}-${String(
+        now.getMonth() + 1
+      ).padStart(
+        2,
+        "0"
+      )}-${String(
+        now.getDate()
+      ).padStart(
+        2,
+        "0"
+      )}`;
+
+    /*
+      Première initialisation :
+      on mémorise simplement le jour actuel.
+    */
+
+    if (
+      currentDayRef.current ===
+      null
+    ) {
+      currentDayRef.current =
+        dayKey;
+
+      return;
+    }
+
+    /*
+      Si la date change, un nouveau jour
+      vient de commencer.
+
+      AUCUNE donnée n'est supprimée.
+      Les statistiques sont simplement
+      recalculées grâce à now qui déclenche
+      le useMemo des statistiques.
+    */
+
+    if (
+      currentDayRef.current !==
+      dayKey
+    ) {
+      currentDayRef.current =
+        dayKey;
+
+      /*
+        Recalcul local immédiat de
+        l'abonnement, même sans Internet.
+      */
+
+      if (
+        userIdRef.current
+      ) {
+        void checkSubscription(
+          userIdRef.current
+        );
+
+        /*
+          Si Internet est disponible,
+          on resynchronise également les
+          données serveur.
+
+          Sans Internet, loadDashboard
+          utilise uniquement le cache local.
+        */
+
+        if (
+          navigator.onLine
+        ) {
+          void loadDashboard(
+            userIdRef.current
+          );
+        } else {
+          void loadDashboard(
+            userIdRef.current
+          );
+        }
+      }
+    }
+  }, [
+    now,
+    checkSubscription,
+    loadDashboard,
+  ]);
+
+  /* ============================================================
      STATISTIQUES
   ============================================================ */
 
   const stats =
     useMemo(() => {
+      /*
+        IMPORTANT :
+        Le produit le plus vendu est maintenant
+        calculé UNIQUEMENT avec les ventes
+        du jour actuel.
+      */
+
+      const dayStartDate =
+        startOfToday();
+
+      const dayStart =
+        dayStartDate.getTime();
+
       const productSales: Record<
         string,
         number
       > = {};
-
-      for (
-        const s of sales
-      ) {
-        const name =
-          s.product_name ||
-          "Inconnu";
-
-        productSales[name] =
-          (
-            productSales[name] ||
-            0
-          ) +
-          (
-            Number(
-              s.quantity
-            ) || 0
-          );
-      }
-
-      const bestProduct =
-        Object.entries(
-          productSales
-        ).sort(
-          (
-            a,
-            b
-          ) =>
-            b[1] -
-            a[1]
-        )[0];
-
-      const dayStart =
-        startOfToday().getTime();
-
-      const weekStart =
-        startOfWeek().getTime();
-
-      const monthStart =
-        startOfMonth().getTime();
 
       const salesToday =
         zero();
@@ -1933,6 +2058,12 @@ export default function DashboardPage() {
       let countWeek = 0;
       let countMonth = 0;
 
+      const weekStart =
+        startOfWeek().getTime();
+
+      const monthStart =
+        startOfMonth().getTime();
+
       for (
         const s of sales
       ) {
@@ -1945,6 +2076,32 @@ export default function DashboardPage() {
           Number.isNaN(t)
         ) {
           continue;
+        }
+
+        /*
+          --------------------------------------------------
+          PRODUIT LE PLUS VENDU — AUJOURD'HUI UNIQUEMENT
+          --------------------------------------------------
+        */
+
+        if (
+          t >=
+          dayStart
+        ) {
+          const name =
+            s.product_name ||
+            "Inconnu";
+
+          productSales[name] =
+            (
+              productSales[name] ||
+              0
+            ) +
+            (
+              Number(
+                s.quantity
+              ) || 0
+            );
         }
 
         if (
@@ -2009,6 +2166,23 @@ export default function DashboardPage() {
           );
         }
       }
+
+      /*
+        Le classement est construit APRÈS avoir
+        filtré les ventes du jour.
+      */
+
+      const bestProduct =
+        Object.entries(
+          productSales
+        ).sort(
+          (
+            a,
+            b
+          ) =>
+            b[1] -
+            a[1]
+        )[0];
 
       for (
         const e of expenses
@@ -2172,6 +2346,7 @@ export default function DashboardPage() {
       products,
       expenses,
       debts,
+      now,
     ]);
 
   /* ============================================================
@@ -2423,6 +2598,7 @@ export default function DashboardPage() {
     }, [
       sales,
       expenses,
+      now,
     ]);
 
   const recentSales =
@@ -2535,6 +2711,8 @@ export default function DashboardPage() {
       ? now.toLocaleDateString(
           "fr-FR",
           {
+            timeZone:
+              APP_TIME_ZONE,
             weekday:
               "long",
             day: "numeric",
@@ -2551,6 +2729,8 @@ export default function DashboardPage() {
       ? now.toLocaleTimeString(
           "fr-FR",
           {
+            timeZone:
+              APP_TIME_ZONE,
             hour:
               "2-digit",
             minute:
@@ -2560,6 +2740,15 @@ export default function DashboardPage() {
           }
         )
       : "--:--:--";
+
+  const greetingLabel =
+    now
+      ? greeting(
+          getKinshasaHour(
+            now
+          )
+        )
+      : "Bonjour";
 
   /* ============================================================
      ACCÈS RAPIDE
@@ -2636,7 +2825,8 @@ export default function DashboardPage() {
     stats.outOfStock
       .length > 0 && {
       key: "out",
-      icon: Boxes,
+      icon:
+        Boxes,
       text:
         `${stats.outOfStock.length} produit(s) en rupture`,
       href:
@@ -2745,11 +2935,7 @@ export default function DashboardPage() {
               </div>
 
               <p className="mt-2 text-sm font-semibold text-slate-200">
-                {now
-                  ? greeting(
-                      now.getHours()
-                    )
-                  : "Bonjour"}
+                {greetingLabel}
                 , PDG 👋
               </p>
 
@@ -2825,6 +3011,8 @@ export default function DashboardPage() {
               ? lastSync.toLocaleTimeString(
                   "fr-FR",
                   {
+                    timeZone:
+                      APP_TIME_ZONE,
                     hour:
                       "2-digit",
                     minute:
@@ -2833,10 +3021,10 @@ export default function DashboardPage() {
                 )
               : "—"}
 
-           {!isOnline &&
-  " • Hors connexion — Synchronisation automatique dès le retour de la connexion."}
-</p>
-</GlassCard>
+            {!isOnline &&
+              " • Hors connexion — Synchronisation automatique dès le retour de la connexion."}
+          </p>
+        </GlassCard>
 
         {/* ========================================================
             ABONNEMENT
@@ -2887,7 +3075,6 @@ export default function DashboardPage() {
 
           {!isOnline && (
             <p className="mt-3 rounded-xl bg-amber-500/10 p-2.5 text-[10px] font-semibold text-amber-300">
-              
             </p>
           )}
 
@@ -3575,47 +3762,7 @@ export default function DashboardPage() {
 
                 </div>
 
-                {/* HORS CONNEXION */}
-
-                <div className="rounded-[1.5rem] border border-amber-400/15 bg-amber-500/[0.04] p-4">
-
-                  <div className="flex items-start gap-3">
-
-                    <span className="rounded-xl bg-amber-500/10 p-2.5 text-lg">
-                      {isOnline
-                        ? "🌐"
-                        : "📴"}
-                    </span>
-
-                    <div>
-
-                      <p className="text-sm font-black text-white">
-                        Fonctionnement hors connexion
-                      </p>
-
-                      <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-                        Le Dashboard peut continuer à s'ouvrir sans Internet grâce aux données enregistrées localement sur votre appareil.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-
-                    <p className="text-[10px] font-bold text-amber-300">
-                      {isOnline
-                        ? "Vous êtes actuellement en ligne."
-                        : "Vous êtes actuellement hors connexion."}
-                    </p>
-
-                    <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-                      Les dernières données connues restent accessibles et l'abonnement continue à être calculé localement.
-                    </p>
-
-                  </div>
-
-                </div>
+               
 
                 {/* INSTALLATION */}
 

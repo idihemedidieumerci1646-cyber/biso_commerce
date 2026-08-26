@@ -16,11 +16,10 @@ import {
   ArrowLeft,
   ShieldCheck,
   Gift,
+  CheckCircle2,
 } from "lucide-react";
 
-
 export default function RegisterPage() {
-
   const router = useRouter();
 
   const [businessName, setBusinessName] = useState("");
@@ -30,792 +29,632 @@ export default function RegisterPage() {
 
   const [showPin, setShowPin] = useState(false);
 
-
-
   const handleRegister = async () => {
-
-    if (!businessName || !phone || !pin) {
-      alert("Veuillez remplir tous les champs");
+    if (!businessName.trim() || !phone.trim() || !pin.trim()) {
+      alert("Veuillez remplir tous les champs.");
       return;
     }
-
 
     setLoading(true);
 
+    try {
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .insert({
+          full_name: businessName.trim(),
+          phone: phone.trim(),
+          pin: pin.trim(),
+        })
+        .select()
+        .single();
 
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .insert({
-        full_name: businessName,
-        phone: phone,
-        pin: pin,
-      })
-      .select()
-      .single();
+      if (userError || !user) {
+        alert(
+          "Erreur utilisateur : " +
+            (userError?.message || "Impossible de créer le compte.")
+        );
+        return;
+      }
 
+      const startDate = new Date();
+      const endDate = new Date();
 
+      endDate.setDate(endDate.getDate() + 30);
 
-    if (userError || !user) {
+      const { error: subError } = await supabase
+        .from("subscriptions")
+        .insert({
+          user_id: user.id,
+          full_name: businessName.trim(),
+          phone: phone.trim(),
+          start_date: startDate.toISOString(),
+          end_date: endDate.toISOString(),
+          is_active: true,
+          status: "trial",
+        });
 
-      alert("Erreur utilisateur : " + userError?.message);
+      if (subError) {
+        alert(
+          "Erreur abonnement : " +
+            subError.message
+        );
+        return;
+      }
+
+      localStorage.setItem(
+        "phone",
+        phone.trim()
+      );
+
+      localStorage.setItem(
+        "user_id",
+        user.id
+      );
+
+      alert(
+        "Compte créé 🚀 30 jours gratuits activés."
+      );
+
+      router.push("/dashboard");
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        "Une erreur est survenue pendant la création du compte."
+      );
+    } finally {
       setLoading(false);
-      return;
-
     }
-
-
-
-
-    const startDate = new Date();
-
-    const endDate = new Date();
-
-    endDate.setDate(endDate.getDate() + 30);
-
-
-
-
-    const { error: subError } = await supabase
-      .from("subscriptions")
-      .insert({
-
-        user_id: user.id,
-
-        full_name: businessName,
-
-        phone: phone,
-
-        start_date: startDate.toISOString(),
-
-        end_date: endDate.toISOString(),
-
-        is_active: true,
-
-        status: "trial",
-
-      });
-
-
-
-    if (subError) {
-
-      alert("Erreur abonnement : " + subError.message);
-
-      setLoading(false);
-
-      return;
-
-    }
-
-
-
-    alert("Compte créé 🚀 30 jours gratuits activés");
-
-
-    localStorage.setItem("phone", phone);
-
-    localStorage.setItem("user_id", user.id);
-
-
-
-    setLoading(false);
-
-
-    router.push("/dashboard");
-
   };
 
-
-
-
   return (
-
     <main
       className="
-      min-h-screen
-      bg-[#f5f7fb]
-      px-4
-      py-8
-      text-slate-900
-      sm:px-6
+        relative
+        min-h-screen
+        overflow-hidden
+        bg-[#060d1b]
+        px-3
+        py-5
+        text-white
+        sm:px-5
+        sm:py-8
       "
     >
+      {/* ======================================================
+          FOND
+      ====================================================== */}
 
-
-      <div
-        className="
-        mx-auto
-        w-full
-        max-w-md
-        "
-      >
-
-
-        {/* =====================================================
-            RETOUR
-        ===================================================== */}
-
-        <Link
-          href="/"
+      <div className="pointer-events-none absolute inset-0">
+        <div
           className="
-          mb-5
-          inline-flex
-          items-center
-          gap-2
-          rounded-xl
-          px-2
-          py-2
-          text-sm
-          font-semibold
-          text-slate-500
-          transition
-          hover:bg-white
-          hover:text-indigo-600
+            absolute
+            left-1/2
+            top-0
+            h-72
+            w-72
+            -translate-x-1/2
+            rounded-full
+            bg-orange-500/10
+            blur-3xl
           "
-        >
-
-          <ArrowLeft size={16}/>
-
-          Retour
-
-        </Link>
-
-
-
-
-
-        {/* =====================================================
-            CARTE PRINCIPALE
-        ===================================================== */}
+        />
 
         <div
           className="
-          rounded-[26px]
-          border
-          border-slate-200
-          bg-white
-          p-6
-          shadow-[0_10px_35px_rgba(15,23,42,0.06)]
-          sm:p-8
+            absolute
+            bottom-0
+            right-0
+            h-64
+            w-64
+            rounded-full
+            bg-blue-500/10
+            blur-3xl
           "
-        >
-
-
-
-          {/* =====================================================
-              HEADER
-          ===================================================== */}
-
-          <div className="text-center">
-
-
-            <div
-              className="
-              mx-auto
-              mb-5
-              flex
-              h-16
-              w-16
-              items-center
-              justify-center
-              rounded-2xl
-              bg-indigo-50
-              "
-            >
-
-              <Store
-                className="text-indigo-600"
-                size={30}
-              />
-
-            </div>
-
-
-
-
-
-            <div className="mb-4 flex justify-center">
-
-              <span
-                className="
-                flex
-                items-center
-                gap-2
-                rounded-full
-                border
-                border-green-200
-                bg-green-50
-                px-4
-                py-2
-                text-xs
-                font-bold
-                text-green-600
-                "
-              >
-
-                <Gift size={14}/>
-
-                30 jours gratuits
-
-              </span>
-
-
-            </div>
-
-
-
-
-
-            <h1
-              className="
-              text-2xl
-              font-black
-              tracking-tight
-              text-slate-900
-              sm:text-3xl
-              "
-            >
-
-              Créer un compte
-
-            </h1>
-
-
-
-            <p
-              className="
-              mt-2
-              text-sm
-              leading-6
-              text-slate-500
-              "
-            >
-
-              Lancez votre commerce digital en quelques secondes
-
-            </p>
-
-
-
-          </div>
-
-
-
-
-
-
-          {/* =====================================================
-              FORM
-          ===================================================== */}
-
-          <div className="mt-8 space-y-5">
-
-
-
-
-
-            {/* =================================================
-                BUSINESS
-            ================================================= */}
-
-            <div>
-
-
-              <label
-                className="
-                mb-2
-                block
-                text-xs
-                font-bold
-                uppercase
-                tracking-wide
-                text-slate-500
-                "
-              >
-
-                NOM COMPLET
-
-
-              </label>
-
-
-
-              <div
-                className="
-                flex
-                items-center
-                rounded-2xl
-                border
-                border-slate-200
-                bg-slate-50
-                px-4
-                transition
-                focus-within:border-indigo-400
-                focus-within:bg-white
-                focus-within:ring-4
-                focus-within:ring-indigo-50
-                "
-              >
-
-
-                <div
-                  className="
-                  flex
-                  h-9
-                  w-9
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-indigo-50
-                  "
-                >
-
-                  <Store
-                    size={18}
-                    className="text-indigo-600"
-                  />
-
-                </div>
-
-
-                <input
-
-                  type="text"
-
-                  placeholder="Ex: Dieumerci idi"
-
-                  value={businessName}
-
-                  onChange={(e)=>setBusinessName(e.target.value)}
-
-                  className="
-                  w-full
-                  bg-transparent
-                  p-4
-                  text-sm
-                  font-medium
-                  text-slate-900
-                  outline-none
-                  placeholder:text-slate-400
-                  "
-
-                />
-
-
-              </div>
-
-
-            </div>
-
-
-
-
-
-
-
-
-
-            {/* =================================================
-                PHONE
-            ================================================= */}
-
-            <div>
-
-
-              <label
-                className="
-                mb-2
-                block
-                text-xs
-                font-bold
-                uppercase
-                tracking-wide
-                text-slate-500
-                "
-              >
-
-                TÉLÉPHONE
-
-              </label>
-
-
-
-              <div
-                className="
-                flex
-                items-center
-                rounded-2xl
-                border
-                border-slate-200
-                bg-slate-50
-                px-4
-                transition
-                focus-within:border-indigo-400
-                focus-within:bg-white
-                focus-within:ring-4
-                focus-within:ring-indigo-50
-                "
-              >
-
-
-                <div
-                  className="
-                  flex
-                  h-9
-                  w-9
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-indigo-50
-                  "
-                >
-
-                  <Phone
-                    size={18}
-                    className="text-indigo-600"
-                  />
-
-                </div>
-
-
-                <input
-
-                  type="tel"
-
-                  placeholder="XXXXXXXXXX"
-
-                  value={phone}
-
-                  onChange={(e)=>setPhone(e.target.value)}
-
-                  className="
-                  w-full
-                  bg-transparent
-                  p-4
-                  text-sm
-                  font-medium
-                  text-slate-900
-                  outline-none
-                  placeholder:text-slate-400
-                  "
-
-                />
-
-
-              </div>
-
-
-            </div>
-
-
-
-
-
-
-
-
-
-            {/* =================================================
-                PIN
-            ================================================= */}
-
-            <div>
-
-
-              <label
-                className="
-                mb-2
-                block
-                text-xs
-                font-bold
-                uppercase
-                tracking-wide
-                text-slate-500
-                "
-              >
-
-                CODE PIN
-
-              </label>
-
-
-
-              <div
-                className="
-                flex
-                items-center
-                rounded-2xl
-                border
-                border-slate-200
-                bg-slate-50
-                px-4
-                transition
-                focus-within:border-indigo-400
-                focus-within:bg-white
-                focus-within:ring-4
-                focus-within:ring-indigo-50
-                "
-              >
-
-
-                <div
-                  className="
-                  flex
-                  h-9
-                  w-9
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-indigo-50
-                  "
-                >
-
-                  <Lock
-                    size={18}
-                    className="text-indigo-600"
-                  />
-
-                </div>
-
-
-
-                <input
-
-                  type={showPin ? "text" : "password"}
-
-                  placeholder="••••"
-
-                  value={pin}
-
-                  onChange={(e)=>setPin(e.target.value)}
-
-                  className="
-                  w-full
-                  bg-transparent
-                  p-4
-                  text-sm
-                  font-medium
-                  text-slate-900
-                  outline-none
-                  placeholder:text-slate-400
-                  "
-
-                />
-
-
-
-
-                <button
-
-                  type="button"
-
-                  onClick={()=>setShowPin(!showPin)}
-
-                  className="
-                  flex
-                  h-9
-                  w-9
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-xl
-                  text-slate-400
-                  transition
-                  hover:bg-indigo-50
-                  hover:text-indigo-600
-                  "
-
-                >
-
-                  {
-                    showPin
-                    ?
-                    <EyeOff size={18}/>
-                    :
-                    <Eye size={18}/>
-                  }
-
-
-                </button>
-
-
-
-              </div>
-
-
-            </div>
-
-
-
-
-
-
-
-
-
-            {/* =================================================
-                BUTTON
-            ================================================= */}
-
-
-
-            <button
-
-              onClick={handleRegister}
-
-              disabled={loading}
-
-              className="
-              flex
-              w-full
-              items-center
-              justify-center
-              gap-2
-              rounded-2xl
-              bg-indigo-600
-              p-4
-              font-black
-              text-white
-              shadow-[0_8px_20px_rgba(79,70,229,0.18)]
-              transition
-              hover:bg-indigo-700
-              active:scale-[0.99]
-              disabled:cursor-not-allowed
-              disabled:opacity-50
-              "
-
-            >
-
-
-              {
-
-                loading
-
-                ?
-
-                <>
-
-                  <Loader2
-                    className="animate-spin"
-                    size={19}
-                  />
-
-                  Création...
-
-                </>
-
-
-                :
-
-                <>
-
-                  <Sparkles size={18}/>
-
-                  Créer mon compte
-
-                </>
-
-              }
-
-
-            </button>
-
-
-
-
-          </div>
-
-
-
-
-
-
-
-
-
-          {/* =====================================================
-              INFORMATIONS ESSAI
-          ===================================================== */}
-
-
-          <div
-            className="
-            mt-7
-            space-y-3
-            border-t
-            border-slate-100
-            pt-6
-            "
-          >
-
-
-            <div
-              className="
-              flex
-              items-center
-              justify-center
-              gap-2
-              text-center
-              text-xs
-              font-semibold
-              text-slate-600
-              "
-            >
-
-              <div
-                className="
-                flex
-                h-7
-                w-7
-                shrink-0
-                items-center
-                justify-center
-                rounded-lg
-                bg-green-50
-                "
-              >
-
-                <ShieldCheck
-                  size={15}
-                  className="text-green-600"
-                />
-
-              </div>
-
-              Aucun paiement nécessaire pendant l'essai
-
-            </div>
-
-
-
-            <p
-              className="
-              text-center
-              text-xs
-              text-slate-400
-              "
-            >
-
-              30 jours gratuits • Sans carte bancaire
-
-            </p>
-
-
-          </div>
-
-
-
-
-        </div>
-
-
+        />
       </div>
 
+      <div
+        className="
+          relative
+          z-10
+          mx-auto
+          flex
+          min-h-[calc(100vh-40px)]
+          w-full
+          max-w-md
+          items-center
+          justify-center
+          sm:min-h-[calc(100vh-64px)]
+        "
+      >
+        <div className="w-full">
+          {/* ==================================================
+              RETOUR
+          ================================================== */}
 
+          <Link
+            href="/"
+            className="
+              mb-4
+              inline-flex
+              items-center
+              gap-2
+              rounded-xl
+              px-2
+              py-2
+              text-sm
+              font-medium
+              text-slate-400
+              transition
+              hover:bg-white/5
+              hover:text-white
+            "
+          >
+            <ArrowLeft size={16} />
+            Retour
+          </Link>
+
+          {/* ==================================================
+              CARTE PRINCIPALE
+          ================================================== */}
+
+          <section
+            className="
+              overflow-hidden
+              rounded-[28px]
+              border
+              border-white/10
+              bg-white/[0.06]
+              shadow-2xl
+              backdrop-blur-2xl
+            "
+          >
+            {/* HEADER */}
+
+            <div
+              className="
+                border-b
+                border-white/10
+                bg-gradient-to-br
+                from-orange-500/10
+                via-white/[0.02]
+                to-transparent
+                px-4
+                py-5
+                sm:px-6
+                sm:py-6
+              "
+            >
+              <div className="text-center">
+                <div
+                  className="
+                    mx-auto
+                    mb-4
+                    flex
+                    h-14
+                    w-14
+                    items-center
+                    justify-center
+                    rounded-2xl
+                    bg-gradient-to-br
+                    from-orange-500
+                    to-yellow-400
+                    text-black
+                    shadow-lg
+                    shadow-orange-500/20
+                  "
+                >
+                  <Store size={25} />
+                </div>
+
+                <div className="mb-3 flex justify-center">
+                  <span
+                    className="
+                      inline-flex
+                      items-center
+                      gap-1.5
+                      rounded-full
+                      border
+                      border-orange-400/20
+                      bg-orange-500/10
+                      px-3
+                      py-1.5
+                      text-[11px]
+                      font-black
+                      text-orange-300
+                    "
+                  >
+                    <Gift size={13} />
+                    30 jours gratuits
+                  </span>
+                </div>
+
+                <h1
+                  className="
+                    text-2xl
+                    font-black
+                    tracking-tight
+                    sm:text-3xl
+                  "
+                >
+                  Créer un compte
+                </h1>
+
+                <p
+                  className="
+                    mx-auto
+                    mt-2
+                    max-w-sm
+                    text-xs
+                    leading-5
+                    text-slate-400
+                    sm:text-sm
+                  "
+                >
+                  Lancez votre commerce digital rapidement
+                  avec Biso-Commerce.
+                </p>
+              </div>
+            </div>
+
+            {/* FORMULAIRE */}
+
+            <div className="px-4 py-5 sm:px-6 sm:py-6">
+              <div className="space-y-4">
+                {/* NOM */}
+
+                <Field label="Nom du commerce">
+                  <div
+                    className="
+                      flex
+                      min-h-[52px]
+                      items-center
+                      rounded-2xl
+                      border
+                      border-white/10
+                      bg-black/25
+                      px-4
+                      transition
+                      focus-within:border-orange-400/40
+                      focus-within:bg-black/35
+                    "
+                  >
+                    <Store
+                      size={18}
+                      className="mr-3 shrink-0 text-orange-400"
+                    />
+
+                    <input
+                      type="text"
+                      value={businessName}
+                      onChange={(e) =>
+                        setBusinessName(
+                          e.target.value
+                        )
+                      }
+                      placeholder="Ex. Boutique Amani"
+                      className="
+                        min-w-0
+                        flex-1
+                        bg-transparent
+                        py-3.5
+                        text-[16px]
+                        text-white
+                        outline-none
+                        placeholder:text-slate-600
+                      "
+                    />
+                  </div>
+                </Field>
+
+                {/* TELEPHONE */}
+
+                <Field label="Téléphone">
+                  <div
+                    className="
+                      flex
+                      min-h-[52px]
+                      items-center
+                      rounded-2xl
+                      border
+                      border-white/10
+                      bg-black/25
+                      px-4
+                      transition
+                      focus-within:border-orange-400/40
+                      focus-within:bg-black/35
+                    "
+                  >
+                    <Phone
+                      size={18}
+                      className="mr-3 shrink-0 text-orange-400"
+                    />
+
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      value={phone}
+                      onChange={(e) =>
+                        setPhone(e.target.value)
+                      }
+                      placeholder="XXXXXXXXXX"
+                      className="
+                        min-w-0
+                        flex-1
+                        bg-transparent
+                        py-3.5
+                        text-[16px]
+                        text-white
+                        outline-none
+                        placeholder:text-slate-600
+                      "
+                    />
+                  </div>
+                </Field>
+
+                {/* PIN */}
+
+                <Field label="Code PIN">
+                  <div
+                    className="
+                      flex
+                      min-h-[52px]
+                      items-center
+                      rounded-2xl
+                      border
+                      border-white/10
+                      bg-black/25
+                      px-4
+                      transition
+                      focus-within:border-orange-400/40
+                      focus-within:bg-black/35
+                    "
+                  >
+                    <Lock
+                      size={18}
+                      className="mr-3 shrink-0 text-orange-400"
+                    />
+
+                    <input
+                      type={
+                        showPin
+                          ? "text"
+                          : "password"
+                      }
+                      inputMode="numeric"
+                      value={pin}
+                      onChange={(e) =>
+                        setPin(e.target.value)
+                      }
+                      placeholder="••••"
+                      className="
+                        min-w-0
+                        flex-1
+                        bg-transparent
+                        py-3.5
+                        text-[16px]
+                        text-white
+                        outline-none
+                        placeholder:text-slate-600
+                      "
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowPin(!showPin)
+                      }
+                      className="
+                        ml-2
+                        shrink-0
+                        rounded-xl
+                        p-2
+                        text-slate-500
+                        transition
+                        hover:bg-white/5
+                        hover:text-white
+                      "
+                      aria-label={
+                        showPin
+                          ? "Masquer le PIN"
+                          : "Afficher le PIN"
+                      }
+                    >
+                      {showPin ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </Field>
+
+                {/* AVANTAGES */}
+
+                <div
+                  className="
+                    grid
+                    grid-cols-2
+                    gap-2
+                  "
+                >
+                  <Benefit>
+                    <CheckCircle2
+                      size={15}
+                      className="shrink-0 text-green-400"
+                    />
+                    30 jours gratuits
+                  </Benefit>
+
+                  <Benefit>
+                    <ShieldCheck
+                      size={15}
+                      className="shrink-0 text-blue-400"
+                    />
+                    Sans carte bancaire
+                  </Benefit>
+                </div>
+
+                {/* BOUTON */}
+
+                <button
+                  type="button"
+                  onClick={handleRegister}
+                  disabled={loading}
+                  className="
+                    mt-2
+                    flex
+                    min-h-[54px]
+                    w-full
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-2xl
+                    bg-gradient-to-r
+                    from-orange-500
+                    to-yellow-400
+                    px-4
+                    py-4
+                    text-sm
+                    font-black
+                    text-black
+                    shadow-lg
+                    shadow-orange-500/10
+                    transition
+                    hover:brightness-110
+                    active:scale-[0.99]
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                  "
+                >
+                  {loading ? (
+                    <>
+                      <Loader2
+                        size={19}
+                        className="animate-spin"
+                      />
+                      Création du compte...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} />
+                      Créer mon compte
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* FOOTER INTERNE */}
+
+              <div
+                className="
+                  mt-5
+                  border-t
+                  border-white/10
+                  pt-4
+                  text-center
+                "
+              >
+                <div
+                  className="
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                    text-[11px]
+                    text-slate-400
+                  "
+                >
+                  <ShieldCheck
+                    size={14}
+                    className="text-orange-400"
+                  />
+
+                  Vos données restent associées
+                  à votre compte.
+                </div>
+
+                <p className="mt-2 text-[10px] text-slate-600">
+                  30 jours gratuits • Aucun paiement
+                  pendant l'essai
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* SIGNATURE */}
+
+          <p className="mt-4 text-center text-[10px] text-slate-600">
+            BISO-COMMERCE
+          </p>
+        </div>
+      </div>
     </main>
+  );
+}
 
+/* ======================================================
+   CHAMP
+====================================================== */
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <label
+        className="
+          mb-2
+          block
+          text-[11px]
+          font-black
+          uppercase
+          tracking-wide
+          text-slate-400
+        "
+      >
+        {label}
+      </label>
+
+      {children}
+    </div>
+  );
+}
+
+/* ======================================================
+   AVANTAGE
+====================================================== */
+
+function Benefit({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="
+        flex
+        min-w-0
+        items-center
+        gap-2
+        rounded-2xl
+        border
+        border-white/10
+        bg-black/20
+        px-3
+        py-3
+        text-[10px]
+        font-bold
+        text-slate-300
+        sm:text-[11px]
+      "
+    >
+      {children}
+    </div>
   );
 }

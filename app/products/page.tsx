@@ -1,14 +1,8 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 import {
   Package,
@@ -17,26 +11,21 @@ import {
   Trash2,
   Edit,
   AlertTriangle,
+  CheckCircle,
+  Sparkles,
   RefreshCcw,
   Boxes,
   TrendingUp,
   Info,
   X,
   CircleDollarSign,
-  ChevronRight,
-  ShoppingBag,
-  Wifi,
   WifiOff,
-  Loader2,
+  RotateCcw,
+  AlertCircle,
 } from "lucide-react";
-
-/* =========================================================
-   TYPES
-========================================================= */
 
 type Product = {
   id: string;
-  user_id?: string;
   name: string | null;
   stock: number;
   unit: string | null;
@@ -44,1982 +33,214 @@ type Product = {
   selling_price: number;
   currency: string;
   created_at?: string;
-  updated_at?: string;
 };
-
-type DeleteModalState = {
-  open: boolean;
-  product: Product | null;
-};
-
-type SyncState =
-  | "offline"
-  | "online"
-  | "syncing"
-  | "error";
-
-type DeleteQueueItem = {
-  id: string;
-  product_id: string;
-  user_id: string;
-  created_at: string;
-};
-
-/* =========================================================
-   INDEXED DB
-========================================================= */
-
-const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 14;
-
-const PRODUCTS_STORE = "products";
-const DELETE_QUEUE_STORE = "delete_queue";
-
-let dbPromise: Promise<IDBDatabase> | null = null;
-
-/* =========================================================
-   OUVRIR INDEXED DB
-========================================================= */
-
-function openProductsDB(): Promise<IDBDatabase> {
-  if (typeof window === "undefined") {
-    return Promise.reject(
-      new Error(
-        "IndexedDB est disponible uniquement dans le navigateur."
-      )
-    );
-  }
-
-  if (dbPromise) {
-    return dbPromise;
-  }
-
-  dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      const transaction = request.transaction;
-
-      if (!transaction) return;
-
-      let productsStore: IDBObjectStore;
-
-      if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {
-        productsStore = db.createObjectStore(PRODUCTS_STORE, {
-          keyPath: "id",
-        });
-      } else {
-        productsStore = transaction.objectStore(
-          PRODUCTS_STORE
-        );
-      }
-
-      if (!productsStore.indexNames.contains("user_id")) {
-        productsStore.createIndex("user_id", "user_id", {
-          unique: false,
-        });
-      }
-
-      if (!productsStore.indexNames.contains("created_at")) {
-        productsStore.createIndex(
-          "created_at",
-          "created_at",
-          {
-            unique: false,
-          }
-        );
-      }
-
-      let deleteQueueStore: IDBObjectStore;
-
-      if (!db.objectStoreNames.contains(DELETE_QUEUE_STORE)) {
-        deleteQueueStore = db.createObjectStore(
-          DELETE_QUEUE_STORE,
-          {
-            keyPath: "id",
-          }
-        );
-      } else {
-        deleteQueueStore =
-          transaction.objectStore(
-            DELETE_QUEUE_STORE
-          );
-      }
-
-      if (!deleteQueueStore.indexNames.contains("user_id")) {
-        deleteQueueStore.createIndex(
-          "user_id",
-          "user_id",
-          {
-            unique: false,
-          }
-        );
-      }
-
-      if (
-        !deleteQueueStore.indexNames.contains(
-          "product_id"
-        )
-      ) {
-        deleteQueueStore.createIndex(
-          "product_id",
-          "product_id",
-          {
-            unique: false,
-          }
-        );
-      }
-
-      if (
-        !deleteQueueStore.indexNames.contains(
-          "created_at"
-        )
-      ) {
-        deleteQueueStore.createIndex(
-          "created_at",
-          "created_at",
-          {
-            unique: false,
-          }
-        );
-      }
-    };
-
-    request.onsuccess = () => {
-      const db = request.result;
-
-      db.onversionchange = () => {
-        db.close();
-        dbPromise = null;
-      };
-
-      resolve(db);
-    };
-
-    request.onerror = () => {
-      dbPromise = null;
-
-      reject(
-        request.error ||
-          new Error(
-            "Impossible d'ouvrir IndexedDB."
-          )
-      );
-    };
-
-    request.onblocked = () => {
-      console.warn(
-        "Mise à jour IndexedDB bloquée. Fermez les autres onglets de Biso-Commerce."
-      );
-    };
-  });
-
-  return dbPromise;
-}
-
-/* =========================================================
-   ERREURS
-========================================================= */
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null
-  ) {
-    const e = error as {
-      message?: string;
-      details?: string;
-      hint?: string;
-      code?: string;
-    };
-
-    if (e.message) return e.message;
-    if (e.details) return e.details;
-    if (e.hint) return e.hint;
-    if (e.code) {
-      return `Erreur Supabase (${e.code})`;
-    }
-
-    try {
-      const json = JSON.stringify(error);
-
-      if (json && json !== "{}") {
-        return json;
-      }
-    } catch {
-      // Rien
-    }
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
-
-  return "Une erreur inconnue est survenue.";
-}
-
-function logSupabaseError(
-  title: string,
-  error: unknown
-) {
-  console.error(title, error);
-  console.error(
-    "Message erreur :",
-    getErrorMessage(error)
-  );
-}
-
-/* =========================================================
-   USER ID
-========================================================= */
-
-function getStoredUserId(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const userId = localStorage.getItem("user_id");
-
-  return userId ? String(userId) : null;
-}
-
-/* =========================================================
-   CACHE : LIRE
-========================================================= */
-
-async function getAllCachedProducts(
-  userId: string
-): Promise<Product[]> {
-  const db = await openProductsDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      PRODUCTS_STORE,
-      "readonly"
-    );
-
-    const store =
-      transaction.objectStore(
-        PRODUCTS_STORE
-      );
-
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-      const all =
-        (request.result || []) as Product[];
-
-      const result = all.filter(
-        (product) =>
-          String(product.user_id || "") ===
-          String(userId)
-      );
-
-      result.sort((a, b) => {
-        const dateA = a.created_at
-          ? new Date(
-              a.created_at
-            ).getTime()
-          : 0;
-
-        const dateB = b.created_at
-          ? new Date(
-              b.created_at
-            ).getTime()
-          : 0;
-
-        return dateB - dateA;
-      });
-
-      resolve(result);
-    };
-
-    request.onerror = () => {
-      reject(
-        request.error ||
-          new Error(
-            "Impossible de lire les produits hors connexion."
-          )
-      );
-    };
-  });
-}
-
-/* =========================================================
-   CACHE : AJOUTER / MODIFIER
-========================================================= */
-
-async function cacheProduct(
-  product: Product
-): Promise<void> {
-  const db = await openProductsDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      PRODUCTS_STORE,
-      "readwrite"
-    );
-
-    transaction
-      .objectStore(PRODUCTS_STORE)
-      .put(product);
-
-    transaction.oncomplete = () => resolve();
-
-    transaction.onerror = () => {
-      reject(
-        transaction.error ||
-          new Error(
-            "Impossible de sauvegarder le produit."
-          )
-      );
-    };
-  });
-}
-
-async function cacheProducts(
-  products: Product[]
-): Promise<void> {
-  if (!products.length) return;
-
-  const db = await openProductsDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      PRODUCTS_STORE,
-      "readwrite"
-    );
-
-    const store =
-      transaction.objectStore(
-        PRODUCTS_STORE
-      );
-
-    for (const product of products) {
-      store.put(product);
-    }
-
-    transaction.oncomplete = () => resolve();
-
-    transaction.onerror = () => {
-      reject(
-        transaction.error ||
-          new Error(
-            "Impossible de mettre en cache les produits."
-          )
-      );
-    };
-  });
-}
-
-/* =========================================================
-   CACHE : SUPPRIMER
-========================================================= */
-
-async function removeCachedProduct(
-  id: string
-): Promise<void> {
-  const db = await openProductsDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      PRODUCTS_STORE,
-      "readwrite"
-    );
-
-    transaction
-      .objectStore(PRODUCTS_STORE)
-      .delete(id);
-
-    transaction.oncomplete = () => resolve();
-
-    transaction.onerror = () => {
-      reject(
-        transaction.error ||
-          new Error(
-            "Impossible de supprimer le produit localement."
-          )
-      );
-    };
-  });
-}
-
-/* =========================================================
-   NETTOYER LE CACHE SELON SUPABASE
-   IMPORTANT :
-   Les anciens produits qui n'existent plus sur Supabase
-   sont également supprimés d'IndexedDB.
-========================================================= */
-
-async function reconcileProductsCache(
-  userId: string,
-  serverProducts: Product[]
-): Promise<void> {
-  const db = await openProductsDB();
-
-  const serverIds = new Set(
-    serverProducts.map(
-      (product) => String(product.id)
-    )
-  );
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      PRODUCTS_STORE,
-      "readwrite"
-    );
-
-    const store =
-      transaction.objectStore(
-        PRODUCTS_STORE
-      );
-
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-      const all =
-        (request.result || []) as Product[];
-
-      for (const cached of all) {
-        if (
-          String(cached.user_id || "") !==
-          String(userId)
-        ) {
-          continue;
-        }
-
-        if (
-          !serverIds.has(
-            String(cached.id)
-          )
-        ) {
-          store.delete(cached.id);
-        }
-      }
-
-      for (const product of serverProducts) {
-        store.put(product);
-      }
-    };
-
-    request.onerror = () => {
-      reject(
-        request.error ||
-          new Error(
-            "Impossible de réconcilier le cache des produits."
-          )
-      );
-    };
-
-    transaction.oncomplete = () => resolve();
-
-    transaction.onerror = () => {
-      reject(
-        transaction.error ||
-          new Error(
-            "Erreur pendant la réconciliation du cache."
-          )
-      );
-    };
-  });
-}
-
-/* =========================================================
-   FILE SUPPRESSION
-========================================================= */
-
-async function queueProductDeletion(
-  productId: string,
-  userId: string
-): Promise<void> {
-  const db = await openProductsDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      DELETE_QUEUE_STORE,
-      "readwrite"
-    );
-
-    const store =
-      transaction.objectStore(
-        DELETE_QUEUE_STORE
-      );
-
-    const item: DeleteQueueItem = {
-      id: `${userId}:${productId}`,
-      product_id: String(productId),
-      user_id: String(userId),
-      created_at:
-        new Date().toISOString(),
-    };
-
-    store.put(item);
-
-    transaction.oncomplete = () => resolve();
-
-    transaction.onerror = () => {
-      reject(
-        transaction.error ||
-          new Error(
-            "Impossible d'enregistrer la suppression hors connexion."
-          )
-      );
-    };
-  });
-}
-
-/* =========================================================
-   LIRE FILE SUPPRESSION
-========================================================= */
-
-async function getQueuedDeletions(
-  userId: string
-): Promise<DeleteQueueItem[]> {
-  const db = await openProductsDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      DELETE_QUEUE_STORE,
-      "readonly"
-    );
-
-    const store =
-      transaction.objectStore(
-        DELETE_QUEUE_STORE
-      );
-
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-      const all =
-        (request.result || []) as DeleteQueueItem[];
-
-      const result = all
-        .filter(
-          (item) =>
-            String(item.user_id) ===
-            String(userId)
-        )
-        .sort(
-          (a, b) =>
-            new Date(
-              a.created_at
-            ).getTime() -
-            new Date(
-              b.created_at
-            ).getTime()
-        );
-
-      resolve(result);
-    };
-
-    request.onerror = () => {
-      reject(
-        request.error ||
-          new Error(
-            "Impossible de lire la file de suppression."
-          )
-      );
-    };
-  });
-}
-
-/* =========================================================
-   RETIRER DE LA FILE
-========================================================= */
-
-async function removeDeletionFromQueue(
-  queueId: string
-): Promise<void> {
-  const db = await openProductsDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      DELETE_QUEUE_STORE,
-      "readwrite"
-    );
-
-    transaction
-      .objectStore(
-        DELETE_QUEUE_STORE
-      )
-      .delete(queueId);
-
-    transaction.oncomplete = () => resolve();
-
-    transaction.onerror = () => {
-      reject(
-        transaction.error ||
-          new Error(
-            "Impossible de retirer la suppression de la file locale."
-          )
-      );
-    };
-  });
-}
-
-/* =========================================================
-   SYNCHRONISATION DES SUPPRESSIONS
-========================================================= */
-
-async function syncQueuedDeletions(
-  userId: string
-): Promise<{
-  synced: number;
-  failed: number;
-}> {
-  if (
-    typeof navigator !== "undefined" &&
-    !navigator.onLine
-  ) {
-    return {
-      synced: 0,
-      failed: 0,
-    };
-  }
-
-  const queue =
-    await getQueuedDeletions(userId);
-
-  if (!queue.length) {
-    return {
-      synced: 0,
-      failed: 0,
-    };
-  }
-
-  let synced = 0;
-  let failed = 0;
-
-  console.log(
-    `🔄 ${queue.length} suppression(s) en attente. Synchronisation immédiate...`
-  );
-
-  for (const item of queue) {
-    try {
-      /*
-       * IMPORTANT :
-       * La suppression est effectuée directement sur Supabase.
-       */
-      const {
-        data,
-        error,
-      } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", item.product_id)
-        .eq("user_id", userId)
-        .select("id");
-
-      if (error) {
-        throw error;
-      }
-
-      /*
-       * Si Supabase retourne une ligne :
-       * suppression confirmée.
-       */
-      if (data && data.length > 0) {
-        console.log(
-          "✅ Produit supprimé de Supabase :",
-          item.product_id
-        );
-      } else {
-        /*
-         * Aucun résultat signifie que le produit
-         * est probablement déjà absent.
-         *
-         * On retire quand même la tâche de la file
-         * afin qu'elle ne reste pas bloquée éternellement.
-         */
-        console.log(
-          "ℹ️ Produit déjà absent de Supabase :",
-          item.product_id
-        );
-      }
-
-      /*
-       * IMPORTANT :
-       * On retire la tâche uniquement après la réponse
-       * de Supabase.
-       */
-      await removeDeletionFromQueue(
-        item.id
-      );
-
-      /*
-       * Sécurité supplémentaire :
-       * le produit ne doit plus rester dans IndexedDB.
-       */
-      await removeCachedProduct(
-        item.product_id
-      );
-
-      synced++;
-    } catch (error) {
-      failed++;
-
-      logSupabaseError(
-        `❌ Échec synchronisation ${item.product_id}`,
-        error
-      );
-
-      /*
-       * IMPORTANT :
-       * La tâche reste dans IndexedDB.
-       * Elle sera réessayée au prochain retour
-       * réel de connexion.
-       */
-    }
-  }
-
-  console.log(
-    `📦 Synchronisation terminée : ${synced} envoyée(s), ${failed} échec(s).`
-  );
-
-  return {
-    synced,
-    failed,
-  };
-}
-
-/* =========================================================
-   NORMALISER
-========================================================= */
-
-function normalizeProduct(
-  product: Product
-): Product {
-  return {
-    ...product,
-
-    id: String(product.id),
-
-    user_id: product.user_id
-      ? String(product.user_id)
-      : undefined,
-
-    name: product.name ?? null,
-
-    stock:
-      Number(product.stock) || 0,
-
-    purchase_price:
-      Number(product.purchase_price) || 0,
-
-    selling_price:
-      Number(product.selling_price) || 0,
-
-    currency: String(
-      product.currency || ""
-    ),
-
-    unit: product.unit ?? null,
-  };
-}
-
-/* =========================================================
-   PAGE
-========================================================= */
 
 export default function ProductsPage() {
-  const [products, setProducts] =
-    useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  // GUIDE
+  const [showGuide, setShowGuide] = useState(false);
 
-  const [refreshing, setRefreshing] =
-    useState(false);
+  // CONNEXION
+  const [isOnline, setIsOnline] = useState(true);
+  const [showOfflinePopup, setShowOfflinePopup] = useState(false);
 
-  const [searchTerm, setSearchTerm] =
-    useState("");
+  // ERREUR
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const [showGuide, setShowGuide] =
-    useState(false);
-
-  const [isOnline, setIsOnline] =
-    useState(true);
-
-  const [syncState, setSyncState] =
-    useState<SyncState>("online");
-
-  const [syncError, setSyncError] =
-    useState<string | null>(null);
-
-  const [deletingIds, setDeletingIds] =
-    useState<Set<string>>(new Set());
-
-  const [deleteModal, setDeleteModal] =
-    useState<DeleteModalState>({
-      open: false,
-      product: null,
-    });
+  // ACTION EN COURS
+  const [deletingId, setDeletingId] = useState<string | null>(
+    null
+  );
 
   /*
-   * Empêche les synchronisations simultanées.
-   */
-  const syncingRef =
-    useRef(false);
+  ==========================================
+  UTILITAIRE CONNEXION
+  ==========================================
+  */
+
+  const requireConnection = () => {
+    if (
+      typeof navigator !== "undefined" &&
+      !navigator.onLine
+    ) {
+      setIsOnline(false);
+      setShowOfflinePopup(true);
+      return false;
+    }
+
+    return true;
+  };
 
   /*
-   * Permet de savoir si le navigateur vient réellement
-   * de passer de offline -> online.
-   */
-  const lastOnlineRef =
-    useRef(false);
+  ==========================================
+  FERMER ERREUR
+  ==========================================
+  */
 
-  /* =========================================================
-     CACHE
-  ========================================================= */
+  const closeError = () => {
+    setErrorMessage("");
+  };
 
-  const loadCachedProducts =
-    useCallback(async () => {
-      const userId =
-        getStoredUserId();
+  /*
+  ==========================================
+  RECUPERATION PRODUITS
+  ==========================================
+  */
 
-      if (!userId) {
-        setProducts([]);
-        return;
-      }
-
-      try {
-        const cached =
-          await getAllCachedProducts(
-            userId
-          );
-
-        /*
-         * Les suppressions encore en attente doivent
-         * rester invisibles même si un ancien cache existe.
-         */
-        const queue =
-          await getQueuedDeletions(
-            userId
-          );
-
-        const pendingIds =
-          new Set(
-            queue.map(
-              (item) =>
-                String(
-                  item.product_id
-                )
-            )
-          );
-
-        const visibleCached =
-          cached.filter(
-            (product) =>
-              !pendingIds.has(
-                String(product.id)
-              )
-          );
-
-        setProducts(
-          visibleCached
-        );
-      } catch (error) {
-        console.error(
-          "Erreur lecture cache :",
-          error
-        );
-      }
-    }, []);
-
-  /* =========================================================
-     CHARGER DEPUIS SUPABASE
-  ========================================================= */
-
-  const fetchProductsOnline =
-    useCallback(async () => {
-      const userId =
-        getStoredUserId();
-
-      if (!userId) {
-        setProducts([]);
-        setLoading(false);
-
-        setSyncError(
-          "Utilisateur non identifié. Le user_id est absent du navigateur."
-        );
-
-        return;
-      }
-
+  const fetchProducts = async () => {
+    try {
       if (
-        typeof navigator !==
-          "undefined" &&
+        typeof navigator !== "undefined" &&
         !navigator.onLine
       ) {
-        setSyncState("offline");
+        setIsOnline(false);
+        setLoading(false);
+        setShowOfflinePopup(true);
         return;
       }
 
-      setSyncState("syncing");
-      setSyncError(null);
+      setLoading(true);
 
-      try {
-        /*
-         * =====================================================
-         * 1. SUPPRESSIONS EN ATTENTE
-         * =====================================================
-         */
-        const deletionResult =
-          await syncQueuedDeletions(
-            userId
-          );
-
-        if (
-          deletionResult.failed > 0
-        ) {
-          console.warn(
-            `${deletionResult.failed} suppression(s) n'ont pas encore pu être envoyées.`
-          );
-        }
-
-        /*
-         * =====================================================
-         * 2. RELIRE LA FILE APRÈS SYNCHRONISATION
-         * =====================================================
-         *
-         * Si une suppression a échoué, le produit doit rester
-         * caché localement et ne doit surtout pas réapparaître.
-         */
-        const remainingQueue =
-          await getQueuedDeletions(
-            userId
-          );
-
-        const pendingDeletionIds =
-          new Set(
-            remainingQueue.map(
-              (item) =>
-                String(
-                  item.product_id
-                )
-            )
-          );
-
-        /*
-         * =====================================================
-         * 3. RÉCUPÉRER TOUS LES PRODUITS SUPABASE
-         * =====================================================
-         */
-
-        const pageSize = 1000;
-        let from = 0;
-
-        const allProducts: Product[] =
-          [];
-
-        while (true) {
-          const to =
-            from +
-            pageSize -
-            1;
-
-          const {
-            data,
-            error,
-          } = await supabase
-            .from("products")
-            .select("*")
-            .eq(
-              "user_id",
-              userId
-            )
-            .order(
-              "created_at",
-              {
-                ascending: false,
-              }
-            )
-            .range(
-              from,
-              to
-            );
-
-          if (error) {
-            throw error;
-          }
-
-          const page =
-            (
-              (data || []) as Product[]
-            ).map(
-              normalizeProduct
-            );
-
-          allProducts.push(
-            ...page
-          );
-
-          if (
-            page.length <
-            pageSize
-          ) {
-            break;
-          }
-
-          from += pageSize;
-        }
-
-        /*
-         * =====================================================
-         * 4. NE PAS RÉAFFICHER UN PRODUIT SUPPRIMÉ EN ATTENTE
-         * =====================================================
-         */
-        const visibleProducts =
-          allProducts.filter(
-            (product) =>
-              !pendingDeletionIds.has(
-                String(product.id)
-              )
-          );
-
-        /*
-         * =====================================================
-         * 5. RÉCONCILIER LE CACHE
-         * =====================================================
-         *
-         * Cela évite qu'un ancien produit supprimé de Supabase
-         * reste dans IndexedDB et réapparaisse après refresh.
-         */
-        await reconcileProductsCache(
-          userId,
-          visibleProducts
-        );
-
-        /*
-         * =====================================================
-         * 6. AFFICHAGE IMMÉDIAT
-         * =====================================================
-         */
-
-        setProducts(
-          visibleProducts
-        );
-
-        setSyncState(
-          deletionResult.failed >
-          0
-            ? "error"
-            : "online"
-        );
-
-        if (
-          deletionResult.failed >
-          0
-        ) {
-          setSyncError(
-            `${deletionResult.failed} suppression(s) sont encore en attente. Elles seront réessayées automatiquement.`
-          );
-        } else {
-          setSyncError(null);
-        }
-
-        console.log(
-          `✅ Produits synchronisés : ${visibleProducts.length}`
-        );
-      } catch (error) {
-        logSupabaseError(
-          "Erreur chargement Supabase :",
-          error
-        );
-
-        try {
-          await loadCachedProducts();
-        } catch (cacheError) {
-          console.error(
-            "Erreur lecture cache après erreur Supabase :",
-            cacheError
-          );
-        }
-
-        setSyncState("error");
-
-        setSyncError(
-          getErrorMessage(
-            error
-          ) ||
-            "Impossible de synchroniser les produits avec Supabase."
-        );
-
-        throw error;
-      }
-    }, [loadCachedProducts]);
-
-  /* =========================================================
-     CHARGEMENT PRINCIPAL
-  ========================================================= */
-
-  const loadProducts =
-    useCallback(
-      async (
-        showFullLoader = true
-      ) => {
-        const userId =
-          getStoredUserId();
-
-        if (!userId) {
-          setProducts([]);
-          setLoading(false);
-
-          setSyncError(
-            "Utilisateur non identifié."
-          );
-
-          return;
-        }
-
-        if (showFullLoader) {
-          setLoading(true);
-        }
-
-        /*
-         * =====================================================
-         * 1. CACHE IMMÉDIAT
-         * =====================================================
-         */
-        try {
-          await loadCachedProducts();
-        } catch (error) {
-          console.error(
-            "Erreur cache :",
-            error
-          );
-        }
-
-        /*
-         * =====================================================
-         * 2. SERVEUR SI INTERNET DISPONIBLE
-         * =====================================================
-         */
-        if (
-          typeof navigator !==
-            "undefined" &&
-          navigator.onLine
-        ) {
-          try {
-            await fetchProductsOnline();
-          } catch {
-            /*
-             * Le cache est déjà affiché.
-             */
-          }
-        } else {
-          setSyncState(
-            "offline"
-          );
-        }
-
-        setLoading(false);
-      },
-      [
-        fetchProductsOnline,
-        loadCachedProducts,
-      ]
-    );
-
-  /* =========================================================
-     SUPPRESSION
-  ========================================================= */
-
-  const deleteProduct =
-    async (
-      product: Product
-    ) => {
-      const userId =
-        getStoredUserId();
+      const userId = localStorage.getItem("user_id");
 
       if (!userId) {
-        setDeleteModal({
-          open: false,
-          product: null,
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", {
+          ascending: false,
         });
 
-        setSyncError(
-          "Utilisateur non identifié."
-        );
-
-        return;
+      if (error) {
+        setErrorMessage(error.message);
+      } else {
+        setProducts(data || []);
       }
+    } catch (err) {
+      console.log(err);
 
       if (
-        deletingIds.has(
-          product.id
-        )
+        typeof navigator !== "undefined" &&
+        !navigator.onLine
       ) {
-        return;
-      }
-
-      setDeletingIds(
-        (current) => {
-          const next =
-            new Set(
-              current
-            );
-
-          next.add(
-            product.id
-          );
-
-          return next;
-        }
-      );
-
-      setDeleteModal({
-        open: false,
-        product: null,
-      });
-
-      const previousProducts =
-        products;
-
-      try {
-        setSyncError(null);
-
-        /*
-         * =====================================================
-         * SUPPRESSION OPTIMISTE
-         * =====================================================
-         *
-         * On retire immédiatement le produit de l'écran.
-         */
-        setProducts(
-          (current) =>
-            current.filter(
-              (item) =>
-                item.id !==
-                product.id
-            )
-        );
-
-        /*
-         * =====================================================
-         * HORS CONNEXION
-         * =====================================================
-         */
-        if (
-          typeof navigator !==
-            "undefined" &&
-          !navigator.onLine
-        ) {
-          /*
-           * 1. Supprimer du cache.
-           */
-          await removeCachedProduct(
-            product.id
-          );
-
-          /*
-           * 2. Ajouter à la file.
-           */
-          await queueProductDeletion(
-            product.id,
-            userId
-          );
-
-          setSyncState(
-            "offline"
-          );
-
-          setSyncError(
-            "Produit supprimé localement. Dès que la connexion revient, la suppression sera envoyée automatiquement à Supabase."
-          );
-
-          return;
-        }
-
-        /*
-         * =====================================================
-         * EN LIGNE
-         * =====================================================
-         */
-
-        setSyncState(
-          "syncing"
-        );
-
-        try {
-          const {
-            data,
-            error,
-          } = await supabase
-            .from("products")
-            .delete()
-            .eq(
-              "id",
-              product.id
-            )
-            .eq(
-              "user_id",
-              userId
-            )
-            .select("id");
-
-          if (error) {
-            throw error;
-          }
-
-          /*
-           * Supabase peut retourner zéro ligne si le produit
-           * est déjà absent.
-           *
-           * Dans ce cas, il n'y a plus rien à supprimer.
-           */
-          if (
-            !data ||
-            data.length === 0
-          ) {
-            console.warn(
-              "Supabase n'a retourné aucune ligne supprimée. Le produit peut déjà être absent."
-            );
-          }
-
-          /*
-           * Supprimer définitivement du cache local.
-           */
-          await removeCachedProduct(
-            product.id
-          );
-
-          /*
-           * Vérifier également qu'aucune tâche de suppression
-           * ne reste en attente.
-           */
-          const queued =
-            await getQueuedDeletions(
-              userId
-            );
-
-          const existingQueue =
-            queued.find(
-              (item) =>
-                String(
-                  item.product_id
-                ) ===
-                String(
-                  product.id
-                )
-            );
-
-          if (
-            existingQueue
-          ) {
-            await removeDeletionFromQueue(
-              existingQueue.id
-            );
-          }
-
-          setSyncState(
-            "online"
-          );
-
-          setSyncError(null);
-
-          console.log(
-            "✅ Produit supprimé définitivement :",
-            product.id
-          );
-        } catch (
-          onlineDeleteError
-        ) {
-          /*
-           * ===================================================
-           * IMPORTANT :
-           * Si Internet est revenu mais que Supabase n'est
-           * momentanément pas joignable, NE PAS remettre le
-           * produit à l'écran.
-           *
-           * On le place dans la file IndexedDB.
-           * ===================================================
-           */
-
-          logSupabaseError(
-            "Erreur suppression en ligne :",
-            onlineDeleteError
-          );
-
-          await removeCachedProduct(
-            product.id
-          );
-
-          await queueProductDeletion(
-            product.id,
-            userId
-          );
-
-          setSyncState(
-            "error"
-          );
-
-          setSyncError(
-            "Le produit a été supprimé de votre appareil. La suppression sera automatiquement envoyée à Supabase dès que la connexion sera réellement disponible."
-          );
-        }
-      } catch (error) {
-        /*
-         * Cette erreur concerne surtout IndexedDB.
-         *
-         * Si la sauvegarde locale échoue complètement,
-         * on remet l'état précédent.
-         */
-        logSupabaseError(
-          "Erreur suppression produit :",
-          error
-        );
-
-        setProducts(
-          previousProducts
-        );
-
-        setSyncState(
-          "error"
-        );
-
-        setSyncError(
-          getErrorMessage(
-            error
-          ) ||
-            "Impossible de supprimer le produit."
-        );
-      } finally {
-        setDeletingIds(
-          (current) => {
-            const next =
-              new Set(
-                current
-              );
-
-            next.delete(
-              product.id
-            );
-
-            return next;
-          }
+        setIsOnline(false);
+        setShowOfflinePopup(true);
+      } else {
+        setErrorMessage(
+          "Impossible de charger les produits."
         );
       }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  /* =========================================================
-     ACTUALISER
-  ========================================================= */
+  /*
+  ==========================================
+  ACTUALISER
+  ==========================================
+  */
 
-  const refreshProducts =
-    async () => {
-      if (refreshing) return;
+  const refreshProducts = async () => {
+    if (!requireConnection()) return;
 
-      setRefreshing(true);
+    if (refreshing) return;
 
-      try {
-        await loadProducts(
-          false
-        );
-      } catch (error) {
-        console.error(
-          "Erreur actualisation :",
-          error
-        );
-      } finally {
-        setRefreshing(false);
-      }
-    };
+    setRefreshing(true);
 
-  /* =========================================================
-     MODALE
-  ========================================================= */
+    try {
+      await fetchProducts();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
-  const askDelete =
-    (
-      product: Product
-    ) => {
-      if (
-        deletingIds.has(
-          product.id
-        )
-      ) {
-        return;
-      }
+  /*
+  ==========================================
+  SUPPRIMER PRODUIT
+  ==========================================
+  */
 
-      setDeleteModal({
-        open: true,
-        product,
-      });
-    };
+  const deleteProduct = async (id: string) => {
+    if (!requireConnection()) return;
 
-  /* =========================================================
-     INITIALISATION
-  ========================================================= */
+    if (deletingId) return;
 
-  useEffect(() => {
-    let mounted = true;
+    const ok = confirm(
+      "Voulez-vous supprimer ce produit ?"
+    );
 
-    const init =
-      async () => {
-        try {
-          await openProductsDB();
+    if (!ok) return;
 
-          if (!mounted) return;
-
-          const online =
-            typeof navigator !==
-              "undefined"
-              ? navigator.onLine
-              : true;
-
-          setIsOnline(
-            online
-          );
-
-          lastOnlineRef.current =
-            online;
-
-          await loadProducts(
-            true
-          );
-        } catch (error) {
-          console.error(
-            "Erreur initialisation :",
-            error
-          );
-
-          if (mounted) {
-            setLoading(false);
-
-            setSyncState(
-              "error"
-            );
-
-            setSyncError(
-              getErrorMessage(
-                error
-              )
-            );
-          }
-        }
-      };
-
-    init();
-
-    return () => {
-      mounted = false;
-    };
-  }, [loadProducts]);
-
-  /* =========================================================
-     REALTIME
-  ========================================================= */
-
-  useEffect(() => {
-    const userId =
-      getStoredUserId();
+    const userId = localStorage.getItem("user_id");
 
     if (!userId) return;
 
-    const channel =
-      supabase
-        .channel(
-          `products-user-${userId}`
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "products",
-            filter: `user_id=eq.${userId}`,
-          },
-          async (
-            payload
-          ) => {
-            console.log(
-              "Produit modifié Supabase :",
-              payload
-            );
+    setDeletingId(id);
 
-            /*
-             * Vérifier si le produit est actuellement
-             * dans la file des suppressions.
-             */
-            const queued =
-              await getQueuedDeletions(
-                userId
-              );
+    try {
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", userId);
 
-            const pendingIds =
-              new Set(
-                queued.map(
-                  (item) =>
-                    String(
-                      item.product_id
-                    )
-                )
-              );
+      if (error) {
+        setErrorMessage(error.message);
+      } else {
+        await fetchProducts();
+      }
+    } catch (err) {
+      console.log(err);
 
-            /* INSERT */
-            if (
-              payload.eventType ===
-                "INSERT" &&
-              payload.new
-            ) {
-              const product =
-                normalizeProduct(
-                  payload.new as Product
-                );
-
-              /*
-               * Si une suppression est encore en attente,
-               * ne surtout pas réafficher le produit.
-               */
-              if (
-                pendingIds.has(
-                  String(
-                    product.id
-                  )
-                )
-              ) {
-                return;
-              }
-
-              await cacheProduct(
-                product
-              );
-
-              setProducts(
-                (current) => {
-                  const exists =
-                    current.some(
-                      (item) =>
-                        item.id ===
-                        product.id
-                    );
-
-                  if (exists) {
-                    return current.map(
-                      (item) =>
-                        item.id ===
-                        product.id
-                          ? product
-                          : item
-                    );
-                  }
-
-                  return [
-                    product,
-                    ...current,
-                  ];
-                }
-              );
-
-              return;
-            }
-
-            /* UPDATE */
-            if (
-              payload.eventType ===
-                "UPDATE" &&
-              payload.new
-            ) {
-              const product =
-                normalizeProduct(
-                  payload.new as Product
-                );
-
-              if (
-                pendingIds.has(
-                  String(
-                    product.id
-                  )
-                )
-              ) {
-                return;
-              }
-
-              await cacheProduct(
-                product
-              );
-
-              setProducts(
-                (current) =>
-                  current.map(
-                    (item) =>
-                      item.id ===
-                      product.id
-                        ? product
-                        : item
-                  )
-              );
-
-              return;
-            }
-
-            /* DELETE */
-            if (
-              payload.eventType ===
-                "DELETE" &&
-              payload.old
-            ) {
-              const productId =
-                String(
-                  (
-                    payload.old as Product
-                  ).id
-                );
-
-              await removeCachedProduct(
-                productId
-              );
-
-              setProducts(
-                (current) =>
-                  current.filter(
-                    (item) =>
-                      item.id !==
-                      productId
-                  )
-              );
-            }
-          }
-        )
-        .subscribe(
-          (status) => {
-            console.log(
-              "Realtime products :",
-              status
-            );
-          }
+      if (
+        typeof navigator !== "undefined" &&
+        !navigator.onLine
+      ) {
+        setIsOnline(false);
+        setShowOfflinePopup(true);
+      } else {
+        setErrorMessage(
+          "Impossible de supprimer ce produit."
         );
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
-    return () => {
-      supabase.removeChannel(
-        channel
-      );
-    };
-  }, []);
-
-  /* =========================================================
-     RETOUR PAGE / FOCUS
-  ========================================================= */
+  /*
+  ==========================================
+  DETECTION CONNEXION
+  ==========================================
+  */
 
   useEffect(() => {
-    const handleVisibilityChange =
-      async () => {
-        if (
-          document.visibilityState ===
-          "visible"
-        ) {
-          try {
-            await loadProducts(
-              false
-            );
-          } catch (error) {
-            console.error(
-              "Erreur rechargement visibilité :",
-              error
-            );
-          }
-        }
-      };
+    const handleOnline = async () => {
+      setIsOnline(true);
+      setShowOfflinePopup(false);
 
-    const handleFocus =
-      async () => {
-        try {
-          await loadProducts(
-            false
-          );
-        } catch (error) {
-          console.error(
-            "Erreur rechargement focus :",
-            error
-          );
-        }
-      };
-
-    document.addEventListener(
-      "visibilitychange",
-      handleVisibilityChange
-    );
-
-    window.addEventListener(
-      "focus",
-      handleFocus
-    );
-
-    return () => {
-      document.removeEventListener(
-        "visibilitychange",
-        handleVisibilityChange
-      );
-
-      window.removeEventListener(
-        "focus",
-        handleFocus
-      );
+      // Recharge automatiquement les produits
+      await fetchProducts();
     };
-  }, [loadProducts]);
 
-  /* =========================================================
-     ONLINE / OFFLINE
-     SYNCHRONISATION IMMÉDIATE
-  ========================================================= */
+    const handleOffline = () => {
+      setIsOnline(false);
+      setShowOfflinePopup(true);
+    };
 
-  useEffect(() => {
-    const synchronizeImmediately =
-      async () => {
-        if (
-          syncingRef.current
-        ) {
-          return;
-        }
-
-        if (
-          typeof navigator !==
-            "undefined" &&
-          !navigator.onLine
-        ) {
-          return;
-        }
-
-        const userId =
-          getStoredUserId();
-
-        if (!userId) {
-          return;
-        }
-
-        syncingRef.current =
-          true;
-
-        setIsOnline(true);
-        setSyncState(
-          "syncing"
-        );
-        setSyncError(null);
-
-        try {
-          /*
-           * ÉTAPE 1 :
-           * Envoyer les suppressions immédiatement.
-           */
-          const result =
-            await syncQueuedDeletions(
-              userId
-            );
-
-          console.log(
-            "Résultat synchronisation :",
-            result
-          );
-
-          /*
-           * ÉTAPE 2 :
-           * Recharger Supabase immédiatement.
-           */
-          await fetchProductsOnline();
-
-          if (
-            result.failed > 0
-          ) {
-            setSyncState(
-              "error"
-            );
-
-            setSyncError(
-              `${result.failed} suppression(s) sont encore en attente. Nouvelle tentative automatique.`
-            );
-          } else {
-            setSyncState(
-              "online"
-            );
-          }
-
-          /*
-           * La connexion est considérée comme active.
-           */
-          lastOnlineRef.current =
-            true;
-        } catch (error) {
-          console.error(
-            "Erreur synchronisation au retour Internet :",
-            error
-          );
-
-          /*
-           * On laisse la connexion réseau comme online,
-           * mais le prochain contrôle pourra retenter.
-           */
-          setSyncState(
-            "error"
-          );
-
-          setSyncError(
-            getErrorMessage(
-              error
-            )
-          );
-        } finally {
-          syncingRef.current =
-            false;
-        }
-      };
-
-    /* =======================================================
-       INTERNET REVIENT
-    ======================================================= */
-
-    const handleOnline =
-      () => {
-        console.log(
-          "🌐 INTERNET DÉTECTÉ → synchronisation immédiate"
-        );
-
-        lastOnlineRef.current =
-          true;
-
-        setIsOnline(true);
-
-        /*
-         * 100 ms seulement pour laisser le navigateur
-         * finaliser son changement d'état réseau.
-         */
-        window.setTimeout(
-          () => {
-            synchronizeImmediately();
-          },
-          100
-        );
-      };
-
-    /* =======================================================
-       INTERNET PERDU
-    ======================================================= */
-
-    const handleOffline =
-      () => {
-        console.log(
-          "📴 INTERNET PERDU"
-        );
-
-        lastOnlineRef.current =
-          false;
-
-        setIsOnline(
-          false
-        );
-
-        setSyncState(
-          "offline"
-        );
-
-        setSyncError(null);
-      };
+    if (typeof navigator !== "undefined") {
+      setIsOnline(navigator.onLine);
+    }
 
     window.addEventListener(
       "online",
@@ -2031,103 +252,6 @@ export default function ProductsPage() {
       handleOffline
     );
 
-    /* =======================================================
-       VÉRIFICATION DE SÉCURITÉ
-       =======================================================
-
-       On ne recharge PAS Supabase toutes les 5 secondes.
-
-       Le contrôle sert uniquement à détecter :
-       offline -> online
-
-       Cela évite de faire des requêtes inutiles.
-    */
-    const interval =
-      window.setInterval(
-        async () => {
-          const browserOnline =
-            navigator.onLine;
-
-          if (
-            !browserOnline
-          ) {
-            if (
-              lastOnlineRef.current
-            ) {
-              lastOnlineRef.current =
-                false;
-
-              setIsOnline(
-                false
-              );
-
-              setSyncState(
-                "offline"
-              );
-            }
-
-            return;
-          }
-
-          /*
-           * Si le navigateur vient de repasser online
-           * mais que l'événement online n'a pas été envoyé,
-           * on synchronise immédiatement.
-           */
-          if (
-            !lastOnlineRef.current
-          ) {
-            console.log(
-              "🌐 Connexion retrouvée par vérification → synchronisation"
-            );
-
-            lastOnlineRef.current =
-              true;
-
-            setIsOnline(
-              true
-            );
-
-            await synchronizeImmediately();
-            return;
-          }
-
-          /*
-           * Si une suppression est encore en attente,
-           * on vérifie régulièrement sans recharger
-           * tout le catalogue inutilement.
-           */
-          const userId =
-            getStoredUserId();
-
-          if (
-            !userId ||
-            syncingRef.current
-          ) {
-            return;
-          }
-
-          try {
-            const queue =
-              await getQueuedDeletions(
-                userId
-              );
-
-            if (
-              queue.length > 0
-            ) {
-              await synchronizeImmediately();
-            }
-          } catch (error) {
-            console.error(
-              "Erreur vérification file suppression :",
-              error
-            );
-          }
-        },
-        3000
-      );
-
     return () => {
       window.removeEventListener(
         "online",
@@ -2138,654 +262,826 @@ export default function ProductsPage() {
         "offline",
         handleOffline
       );
-
-      window.clearInterval(
-        interval
-      );
     };
-  }, [fetchProductsOnline]);
+  }, []);
 
-  /* =========================================================
-     PRODUIT AJOUTÉ
-  ========================================================= */
+  /*
+  ==========================================
+  CHARGEMENT INITIAL
+  ==========================================
+  */
 
   useEffect(() => {
-    const handleProductAdded =
-      async (
-        event: Event
-      ) => {
-        try {
-          const customEvent =
-            event as CustomEvent<Product>;
+    fetchProducts();
+  }, []);
 
-          const newProduct =
-            customEvent.detail;
+  /*
+  ==========================================
+  STATISTIQUES
+  ==========================================
+  */
 
-          if (
-            !newProduct ||
-            !newProduct.id
-          ) {
-            return;
-          }
+  const stats = useMemo(() => {
+    const rupture =
+      products.filter(
+        (p) => Number(p.stock) <= 0
+      ).length;
 
-          const normalizedProduct =
-            normalizeProduct(
-              newProduct
-            );
+    const faible =
+      products.filter(
+        (p) =>
+          Number(p.stock) > 0 &&
+          Number(p.stock) <= 5
+      ).length;
 
-          const userId =
-            getStoredUserId();
+    /*
+    ==========================================
+    VALEUR STOCK FC
+    ==========================================
+    */
 
-          /*
-           * Ne pas afficher un produit qui serait déjà
-           * dans une file de suppression.
-           */
-          if (userId) {
-            const queue =
-              await getQueuedDeletions(
-                userId
-              );
-
-            const pending =
-              queue.some(
-                (item) =>
-                  String(
-                    item.product_id
-                  ) ===
-                  String(
-                    normalizedProduct.id
-                  )
-              );
-
-            if (pending) {
-              return;
-            }
-          }
-
-          await cacheProduct(
-            normalizedProduct
-          );
-
-          setProducts(
-            (current) => {
-              const exists =
-                current.some(
-                  (product) =>
-                    product.id ===
-                    normalizedProduct.id
-                );
-
-              if (exists) {
-                return current.map(
-                  (product) =>
-                    product.id ===
-                    normalizedProduct.id
-                      ? normalizedProduct
-                      : product
-                );
-              }
-
-              return [
-                normalizedProduct,
-                ...current,
-              ];
-            }
-          );
-
-          /*
-           * Si Internet est disponible,
-           * vérification immédiate avec Supabase.
-           */
-          if (
-            typeof navigator !==
-              "undefined" &&
-            navigator.onLine
-          ) {
-            try {
-              await fetchProductsOnline();
-            } catch {
-              /*
-               * Le produit local reste visible.
-               */
-            }
-          }
-
-          setSyncError(null);
-        } catch (error) {
-          console.error(
-            "Erreur affichage produit ajouté :",
-            error
-          );
-        }
-      };
-
-    window.addEventListener(
-      "biso-product-added",
-      handleProductAdded
-    );
-
-    const handleStorage =
-      async (
-        event: StorageEvent
-      ) => {
-        if (
-          event.key !==
-            "biso-product-added" ||
-          !event.newValue
-        ) {
-          return;
-        }
-
-        try {
-          const product =
-            JSON.parse(
-              event.newValue
-            ) as Product;
-
-          await handleProductAdded(
-            new CustomEvent(
-              "biso-product-added",
-              {
-                detail:
-                  product,
-              }
-            )
-          );
-        } catch (error) {
-          console.error(
-            "Erreur lecture produit ajouté :",
-            error
-          );
-        }
-      };
-
-    window.addEventListener(
-      "storage",
-      handleStorage
-    );
-
-    return () => {
-      window.removeEventListener(
-        "biso-product-added",
-        handleProductAdded
-      );
-
-      window.removeEventListener(
-        "storage",
-        handleStorage
-      );
-    };
-  }, [fetchProductsOnline]);
-
-  /* =========================================================
-     STATISTIQUES
-  ========================================================= */
-
-  const stats =
-    useMemo(() => {
-      const rupture =
-        products.filter(
-          (p) =>
-            Number(
-              p.stock
-            ) <= 0
-        ).length;
-
-      const faible =
-        products.filter(
-          (p) =>
-            Number(
-              p.stock
-            ) > 0 &&
-            Number(
-              p.stock
-            ) <= 5
-        ).length;
-
-      let valeurFC = 0;
-      let valeurUSD = 0;
-
-      let beneficeFC = 0;
-      let beneficeUSD = 0;
-
-      for (const p of products) {
+    const valeurFC = products.reduce(
+      (total, p) => {
         const currency =
-          String(
-            p.currency || ""
-          )
+          String(p.currency || "")
             .trim()
             .toUpperCase();
 
-        const stock =
-          Number(
-            p.stock
-          ) || 0;
-
-        const purchase =
-          Number(
-            p.purchase_price
-          ) || 0;
-
-        const selling =
-          Number(
-            p.selling_price
-          ) || 0;
-
-        const value =
-          purchase *
-          stock;
-
-        const profit =
-          (selling -
-            purchase) *
-          stock;
-
         if (
-          currency ===
-            "FC" ||
-          currency ===
-            "CDF" ||
-          currency ===
-            "FRANC CONGOLAIS"
+          currency === "FC" ||
+          currency === "CDF" ||
+          currency === "FRANC CONGOLAIS"
         ) {
-          valeurFC +=
-            value;
-
-          beneficeFC +=
-            profit;
-        }
-
-        if (
-          currency ===
-            "$" ||
-          currency ===
-            "USD" ||
-          currency ===
-            "DOLLAR"
-        ) {
-          valeurUSD +=
-            value;
-
-          beneficeUSD +=
-            profit;
-        }
-      }
-
-      return {
-        total:
-          products.length,
-
-        rupture,
-
-        faible,
-
-        valeurFC,
-
-        valeurUSD,
-
-        beneficeFC,
-
-        beneficeUSD,
-      };
-    }, [products]);
-
-  /* =========================================================
-     RECHERCHE
-  ========================================================= */
-
-  const filteredProducts =
-    useMemo(() => {
-      const search =
-        searchTerm
-          .trim()
-          .toLowerCase();
-
-      const result =
-        products.filter(
-          (p) =>
-            (
-              p.name ||
-              ""
-            )
-              .toLowerCase()
-              .includes(
-                search
-              )
-        );
-
-      result.sort(
-        (a, b) => {
-          const aStock =
-            Number(
-              a.stock
-            );
-
-          const bStock =
-            Number(
-              b.stock
-            );
-
-          if (
-            aStock <= 0 &&
-            bStock > 0
-          ) {
-            return -1;
-          }
-
-          if (
-            bStock <= 0 &&
-            aStock > 0
-          ) {
-            return 1;
-          }
-
-          if (
-            aStock > 0 &&
-            aStock <= 5 &&
-            bStock > 5
-          ) {
-            return -1;
-          }
-
-          if (
-            bStock > 0 &&
-            bStock <= 5 &&
-            aStock > 5
-          ) {
-            return 1;
-          }
-
-          const aDate =
-            a.created_at
-              ? new Date(
-                  a.created_at
-                ).getTime()
-              : 0;
-
-          const bDate =
-            b.created_at
-              ? new Date(
-                  b.created_at
-                ).getTime()
-              : 0;
-
           return (
-            bDate -
-            aDate
+            total +
+            (Number(p.purchase_price) || 0) *
+              (Number(p.stock) || 0)
           );
         }
-      );
 
-      return result;
-    }, [
-      products,
-      searchTerm,
-    ]);
+        return total;
+      },
+      0
+    );
 
-  /* =========================================================
-     RENDU
-  ========================================================= */
+    /*
+    ==========================================
+    VALEUR STOCK DOLLAR
+    ==========================================
+    */
+
+    const valeurUSD = products.reduce(
+      (total, p) => {
+        const currency =
+          String(p.currency || "")
+            .trim()
+            .toUpperCase();
+
+        if (
+          currency === "$" ||
+          currency === "USD" ||
+          currency === "DOLLAR"
+        ) {
+          return (
+            total +
+            (Number(p.purchase_price) || 0) *
+              (Number(p.stock) || 0)
+          );
+        }
+
+        return total;
+      },
+      0
+    );
+
+    /*
+    ==========================================
+    BENEFICE FC
+    ==========================================
+    */
+
+    const beneficeFC = products.reduce(
+      (total, p) => {
+        const currency =
+          String(p.currency || "")
+            .trim()
+            .toUpperCase();
+
+        if (
+          currency === "FC" ||
+          currency === "CDF" ||
+          currency === "FRANC CONGOLAIS"
+        ) {
+          return (
+            total +
+            (
+              (Number(p.selling_price) || 0) -
+              (Number(p.purchase_price) || 0)
+            ) *
+              (Number(p.stock) || 0)
+          );
+        }
+
+        return total;
+      },
+      0
+    );
+
+    /*
+    ==========================================
+    BENEFICE DOLLAR
+    ==========================================
+    */
+
+    const beneficeUSD = products.reduce(
+      (total, p) => {
+        const currency =
+          String(p.currency || "")
+            .trim()
+            .toUpperCase();
+
+        if (
+          currency === "$" ||
+          currency === "USD" ||
+          currency === "DOLLAR"
+        ) {
+          return (
+            total +
+            (
+              (Number(p.selling_price) || 0) -
+              (Number(p.purchase_price) || 0)
+            ) *
+              (Number(p.stock) || 0)
+          );
+        }
+
+        return total;
+      },
+      0
+    );
+
+    return {
+      total: products.length,
+      rupture,
+      faible,
+      valeurFC,
+      valeurUSD,
+      beneficeFC,
+      beneficeUSD,
+    };
+  }, [products]);
+
+  /*
+  ==========================================
+  RECHERCHE
+  ==========================================
+  */
+
+  const filteredProducts = useMemo(() => {
+    return products
+      .filter((p) =>
+        (p.name || "")
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase())
+      )
+      .sort((a, b) => {
+        const aStock = Number(a.stock);
+        const bStock = Number(b.stock);
+
+        // Rupture en premier
+        if (
+          aStock === 0 &&
+          bStock !== 0
+        )
+          return -1;
+
+        if (
+          bStock === 0 &&
+          aStock !== 0
+        )
+          return 1;
+
+        // Stock faible ensuite
+        if (
+          aStock <= 5 &&
+          bStock > 5
+        )
+          return -1;
+
+        if (
+          bStock <= 5 &&
+          aStock > 5
+        )
+          return 1;
+
+        return 0;
+      });
+  }, [products, searchTerm]);
+
+  /*
+  ==========================================
+  RENDU
+  ==========================================
+  */
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-[#f5f7fb] pb-24 text-slate-900">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-indigo-200/20 blur-3xl" />
+    <main
+      className="
+        relative
+        min-h-screen
+        overflow-x-hidden
+        bg-[#050b16]
+        pb-24
+        text-white
+      "
+    >
+      {/* =========================================
+          LUMIERE ARRIERE
+      ========================================= */}
 
-        <div className="absolute -right-24 top-80 h-72 w-72 rounded-full bg-cyan-200/15 blur-3xl" />
-      </div>
+      <div
+        className="
+          pointer-events-none
+          absolute
+          inset-0
+          bg-[radial-gradient(circle_at_top,rgba(249,115,22,0.20),transparent_35%)]
+        "
+      />
 
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-8">
-        <header className="mb-4 rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm sm:mb-5 sm:rounded-[28px] sm:p-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm sm:h-14 sm:w-14">
-                <Package
-                  size={22}
-                  className="sm:h-7 sm:w-7"
+      {/* =========================================
+          POPUP HORS CONNEXION
+      ========================================= */}
+
+      {showOfflinePopup && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-[100]
+            flex
+            items-center
+            justify-center
+            bg-black/75
+            px-4
+            backdrop-blur-md
+          "
+        >
+          <div
+            className="
+              relative
+              w-full
+              max-w-sm
+              overflow-hidden
+              rounded-[2rem]
+              border
+              border-white/10
+              bg-[#0b1424]
+              p-6
+              shadow-[0_30px_100px_-20px_rgba(0,0,0,0.95)]
+            "
+          >
+            {/* FERMER */}
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowOfflinePopup(false)
+              }
+              aria-label="Fermer"
+              className="
+                absolute
+                right-4
+                top-4
+                flex
+                h-9
+                w-9
+                items-center
+                justify-center
+                rounded-xl
+                bg-white/5
+                text-slate-400
+                transition
+                hover:bg-white/10
+                active:scale-95
+              "
+            >
+              <X size={17} />
+            </button>
+
+            {/* ICON */}
+
+            <div className="flex justify-center pt-2">
+              <div
+                className="
+                  flex
+                  h-16
+                  w-16
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-orange-500/15
+                  ring-1
+                  ring-orange-400/20
+                "
+              >
+                <WifiOff
+                  size={30}
+                  className="text-orange-400"
                 />
               </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-black tracking-tight sm:text-3xl">
-                    Produits
-                  </h1>
-
-                  <span className="rounded-full bg-indigo-50 px-2 py-1 text-[8px] font-black text-indigo-600 sm:text-[9px]">
-                    STOCK
-                  </span>
-                </div>
-              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div
-                className={`inline-flex min-h-[38px] items-center gap-2 rounded-xl px-3 text-[10px] font-black ${
-                  isOnline
-                    ? "bg-emerald-50 text-emerald-600"
-                    : "bg-slate-100 text-slate-600"
-                }`}
+            {/* TEXTE */}
+
+            <div className="mt-5 text-center">
+              <h2
+                className="
+                  text-xl
+                  font-black
+                  tracking-tight
+                "
               >
-                {isOnline ? (
-                  <Wifi size={15} />
-                ) : (
-                  <WifiOff size={15} />
-                )}
+                Connexion requise
+              </h2>
 
-                {isOnline
-                  ? "Connecté"
-                  : "Hors connexion"}
-              </div>
+              <p
+                className="
+                  mt-3
+                  text-sm
+                  leading-6
+                  text-slate-300
+                "
+              >
+                Cher client, cette requête
+                nécessite une connexion Internet.
+              </p>
 
-              {syncState ===
-                "syncing" && (
-                <div className="inline-flex min-h-[38px] items-center gap-2 rounded-xl bg-indigo-50 px-3 text-[10px] font-black text-indigo-600">
-                  <Loader2
-                    size={15}
-                    className="animate-spin"
-                  />
-                  Synchronisation...
-                </div>
-              )}
+              <p
+                className="
+                  mt-2
+                  text-xs
+                  leading-5
+                  text-slate-500
+                "
+              >
+                Vérifiez votre connexion puis
+                réessayez.
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+            {/* BOUTONS */}
+
+            <div className="mt-6 space-y-3">
               <button
                 type="button"
-                onClick={
-                  refreshProducts
-                }
-                disabled={
-                  refreshing
-                }
-                className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-60 sm:px-4"
-              >
-                <RefreshCcw
-                  size={16}
-                  className={
-                    refreshing
-                      ? "animate-spin"
-                      : ""
+                onClick={async () => {
+                  if (
+                    typeof navigator !==
+                      "undefined" &&
+                    navigator.onLine
+                  ) {
+                    setIsOnline(true);
+                    setShowOfflinePopup(false);
+                    await fetchProducts();
                   }
-                />
-
-                Actualiser
-              </button>
-
-              <Link
-                href="/products/add"
-                className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 sm:px-4"
+                }}
+                className="
+                  flex
+                  min-h-[50px]
+                  w-full
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-2xl
+                  bg-gradient-to-r
+                  from-orange-500
+                  to-yellow-400
+                  px-4
+                  text-sm
+                  font-black
+                  text-black
+                  shadow-lg
+                  shadow-orange-500/10
+                  transition
+                  hover:brightness-105
+                  active:scale-[0.98]
+                "
               >
-                <Plus size={17} />
-                Ajouter
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        {syncError && (
-          <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-3.5">
-            <div className="flex items-start gap-3">
-              <AlertTriangle
-                size={18}
-                className="mt-0.5 shrink-0 text-amber-600"
-              />
-
-              <div className="min-w-0">
-                <p className="text-xs font-black text-amber-800">
-                  Synchronisation
-                </p>
-
-                <p className="mt-1 break-words text-[11px] leading-5 text-amber-700">
-                  {syncError}
-                </p>
-              </div>
+                <RotateCcw size={17} />
+                Réessayer
+              </button>
 
               <button
                 type="button"
                 onClick={() =>
-                  setSyncError(
-                    null
-                  )
+                  setShowOfflinePopup(false)
                 }
-                className="ml-auto rounded-lg p-1 text-amber-500 hover:bg-amber-100"
+                className="
+                  flex
+                  min-h-[50px]
+                  w-full
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-white/5
+                  px-4
+                  text-sm
+                  font-bold
+                  text-slate-300
+                  transition
+                  hover:bg-white/10
+                  active:scale-[0.98]
+                "
               >
-                <X size={15} />
+                Fermer
               </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <section className="mb-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-          <StatCard
-            icon={
-              <ShoppingBag
-                size={18}
-              />
-            }
-            label="Produits"
-            value={stats.total.toLocaleString()}
-            description="Catalogue"
-            tone="indigo"
-          />
+      {/* =========================================
+          POPUP ERREUR
+      ========================================= */}
 
-          <StatCard
-            icon={
-              <AlertTriangle
-                size={18}
-              />
-            }
-            label="Rupture"
-            value={stats.rupture.toLocaleString()}
-            description="À réapprovisionner"
-            tone="red"
-          />
+      {errorMessage && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-[110]
+            flex
+            items-center
+            justify-center
+            bg-black/70
+            px-4
+            backdrop-blur-md
+          "
+        >
+          <div
+            className="
+              relative
+              w-full
+              max-w-sm
+              rounded-[2rem]
+              border
+              border-red-400/20
+              bg-[#0b1424]
+              p-6
+              shadow-[0_30px_100px_-20px_rgba(0,0,0,0.95)]
+            "
+          >
+            <button
+              type="button"
+              onClick={closeError}
+              className="
+                absolute
+                right-4
+                top-4
+                flex
+                h-9
+                w-9
+                items-center
+                justify-center
+                rounded-xl
+                bg-white/5
+                text-slate-400
+                transition
+                hover:bg-white/10
+              "
+            >
+              <X size={17} />
+            </button>
 
-          <StatCard
-            icon={
-              <Boxes size={18} />
-            }
-            label="Stock faible"
-            value={stats.faible.toLocaleString()}
-            description="5 unités ou moins"
-            tone="amber"
-          />
-
-          <div className="min-w-0 rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm sm:p-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                <CircleDollarSign
-                  size={17}
+            <div className="flex justify-center pt-2">
+              <div
+                className="
+                  flex
+                  h-14
+                  w-14
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-red-500/15
+                  ring-1
+                  ring-red-400/20
+                "
+              >
+                <AlertCircle
+                  size={27}
+                  className="text-red-400"
                 />
               </div>
-
-              <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
-                Valeur stock
-              </p>
             </div>
 
-            <div className="mt-3 space-y-1">
-              <p className="truncate text-xs font-black text-emerald-600 sm:text-sm">
-                {stats.valeurFC.toLocaleString()}{" "}
-                FC
-              </p>
-
-              <p className="truncate text-xs font-black text-emerald-600 sm:text-sm">
-                {stats.valeurUSD.toLocaleString()}{" "}
-                $
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-4 overflow-hidden rounded-[22px] border border-indigo-100 bg-white shadow-sm">
-          <div className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-              <TrendingUp
-                size={18}
-              />
-            </div>
-
-            <div className="min-w-0">
-              <h2 className="text-sm font-black">
-                Bénéfice potentiel
+            <div className="mt-5 text-center">
+              <h2 className="text-lg font-black">
+                Une erreur est survenue
               </h2>
 
-              <p className="mt-0.5 text-[10px] text-slate-500">
-                Estimation du stock disponible
+              <p
+                className="
+                  mt-3
+                  break-words
+                  text-sm
+                  leading-6
+                  text-slate-400
+                "
+              >
+                {errorMessage}
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={closeError}
+              className="
+                mt-6
+                flex
+                min-h-[48px]
+                w-full
+                items-center
+                justify-center
+                rounded-2xl
+                bg-white/10
+                text-sm
+                font-bold
+                text-white
+                transition
+                hover:bg-white/15
+                active:scale-[0.98]
+              "
+            >
+              Compris
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div
+        className="
+          relative
+          z-10
+          mx-auto
+          w-full
+          max-w-xl
+          px-3
+          py-4
+          min-[390px]:px-4
+          sm:px-5
+        "
+      >
+        {/* =========================================
+            HEADER
+        ========================================= */}
+
+        <div
+          className="
+            mb-6
+            flex
+            items-center
+            justify-between
+            gap-3
+            sm:mb-7
+          "
+        >
+          <div className="min-w-0 flex-1">
+            <div
+              className="
+                flex
+                items-center
+                gap-2
+              "
+            >
+              <span
+                className="
+                  flex
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-gradient-to-br
+                  from-orange-500
+                  to-yellow-400
+                  p-2
+                  shadow-lg
+                  shadow-orange-500/10
+                "
+              >
+                <Package
+                  className="text-black"
+                  size={21}
+                />
+              </span>
+
+              <h1
+                className="
+                  truncate
+                  text-2xl
+                  font-black
+                  tracking-tight
+                  min-[390px]:text-3xl
+                "
+              >
+                Produits
+              </h1>
+            </div>
+
+            <p
+              className="
+                mt-2
+                max-w-[280px]
+                text-[11px]
+                leading-5
+                text-slate-400
+                min-[390px]:text-xs
+              "
+            >
+              Gérez votre stock avec
+              BISO-COMMERCE
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 border-t border-slate-100">
-            <div className="p-4">
-              <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
-                FC
-              </p>
+          <button
+            type="button"
+            onClick={refreshProducts}
+            disabled={refreshing}
+            aria-label="Actualiser"
+            className="
+              flex
+              h-11
+              w-11
+              shrink-0
+              items-center
+              justify-center
+              rounded-2xl
+              border
+              border-white/10
+              bg-white/5
+              transition
+              hover:bg-white/10
+              active:scale-95
+              disabled:cursor-not-allowed
+              disabled:opacity-60
+              min-[390px]:h-12
+              min-[390px]:w-12
+            "
+          >
+            <RefreshCcw
+              size={19}
+              className={
+                refreshing
+                  ? "animate-spin text-orange-400"
+                  : "text-slate-400"
+              }
+            />
+          </button>
+        </div>
 
-              <p className="mt-1 text-sm font-black text-slate-900 sm:text-xl">
-                {stats.beneficeFC.toLocaleString()}{" "}
-                FC
-              </p>
-            </div>
+        {/* =========================================
+            INDICATEUR HORS CONNEXION
+        ========================================= */}
 
-            <div className="border-l border-slate-100 p-4">
-              <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
-                USD
-              </p>
+        {!isOnline && (
+          <button
+            type="button"
+            onClick={() =>
+              setShowOfflinePopup(true)
+            }
+            className="
+              mb-5
+              flex
+              w-full
+              items-center
+              gap-3
+              rounded-2xl
+              border
+              border-orange-400/20
+              bg-orange-500/10
+              px-4
+              py-3
+              text-left
+              transition
+              active:scale-[0.99]
+            "
+          >
+            <WifiOff
+              size={18}
+              className="shrink-0 text-orange-400"
+            />
 
-              <p className="mt-1 text-sm font-black text-slate-900 sm:text-xl">
-                {stats.beneficeUSD.toLocaleString()}{" "}
-                $
-              </p>
-            </div>
-          </div>
-        </section>
+            <span className="min-w-0 flex-1">
+              <span
+                className="
+                  block
+                  text-xs
+                  font-black
+                  text-orange-300
+                "
+              >
+                Hors connexion
+              </span>
 
-        <section className="mb-4 overflow-hidden rounded-[22px] border border-indigo-100 bg-white shadow-sm">
-          <div className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-              <Info size={18} />
-            </div>
+              <span
+                className="
+                  mt-0.5
+                  block
+                  text-[11px]
+                  text-slate-400
+                "
+              >
+                Internet requis pour cette page
+              </span>
+            </span>
+          </button>
+        )}
 
+        {/* =========================================
+            GUIDE
+        ========================================= */}
+
+        <div
+          className="
+            mb-6
+            rounded-[1.7rem]
+            border
+            border-orange-500/20
+            bg-orange-500/5
+            p-4
+            shadow-lg
+            shadow-black/10
+            sm:rounded-3xl
+            sm:p-5
+          "
+        >
+          <div
+            className="
+              flex
+              items-start
+              justify-between
+              gap-3
+            "
+          >
             <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-black">
-                Guide des produits
-              </h2>
+              <div
+                className="
+                  mb-2
+                  flex
+                  items-center
+                  gap-2
+                "
+              >
+                <Info
+                  size={19}
+                  className="shrink-0 text-orange-400"
+                />
 
-              <p className="mt-0.5 text-[10px] text-slate-500">
-                Comment utiliser votre inventaire.
+                <h2
+                  className="
+                    text-base
+                    font-black
+                    min-[390px]:text-lg
+                  "
+                >
+                  Guide
+                </h2>
+              </div>
+
+              <p
+                className="
+                  text-xs
+                  leading-5
+                  text-slate-400
+                  sm:text-sm
+                  sm:leading-6
+                "
+              >
+                Découvrez comment ajouter,
+                comprendre et gérer vos produits.
               </p>
             </div>
 
             <button
               type="button"
               onClick={() =>
-                setShowGuide(
-                  !showGuide
-                )
+                setShowGuide(!showGuide)
               }
-              className="shrink-0 rounded-xl bg-indigo-600 px-3 py-2 text-[10px] font-black text-white hover:bg-indigo-700"
+              className="
+                shrink-0
+                rounded-xl
+                bg-orange-500
+                px-3
+                py-2
+                text-[11px]
+                font-black
+                text-black
+                transition
+                active:scale-95
+                min-[390px]:px-4
+                min-[390px]:text-xs
+              "
             >
               {showGuide
                 ? "Fermer"
@@ -2794,690 +1090,1210 @@ export default function ProductsPage() {
           </div>
 
           {showGuide && (
-            <div className="space-y-2 border-t border-slate-100 p-3">
-              <GuideItem
-                number="1"
-                title="Ajouter"
-                text={
-                  <>
-                    Utilisez{" "}
-                    <strong>
-                      Ajouter
-                    </strong>{" "}
-                    pour enregistrer un nouveau produit.
-                  </>
-                }
-              />
-
-              <GuideItem
-                number="2"
-                title="Stock"
-                text={
-                  <>
-                    <strong className="text-emerald-600">
-                      Disponible
-                    </strong>
-                    ,{" "}
-                    <strong className="text-amber-600">
-                      faible
-                    </strong>{" "}
-                    ou{" "}
-                    <strong className="text-red-600">
-                      rupture
-                    </strong>{" "}
-                    selon la quantité.
-                  </>
-                }
-              />
-
-              <GuideItem
-                number="3"
-                title="Prix et bénéfice"
-                text={
-                  <>
-                    Le bénéfice potentiel est calculé avec{" "}
-                    <strong>
-                      prix de vente − prix d'achat
-                    </strong>{" "}
-                    × stock.
-                  </>
-                }
-              />
-
-              <GuideItem
-                number="4"
-                title="Hors connexion"
-                text={
-                  <>
-                    Les produits déjà synchronisés restent
-                    accessibles sans Internet. Une suppression
-                    effectuée hors connexion est enregistrée
-                    localement puis envoyée automatiquement
-                    à Supabase dès que la connexion revient.
-                  </>
-                }
-              />
-            </div>
-          )}
-        </section>
-
-        <section className="mb-4 rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="flex gap-2">
-            <div className="flex min-h-[48px] min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3">
-              <Search
-                size={18}
-                className="shrink-0 text-slate-400"
-              />
-
-              <input
-                value={
-                  searchTerm
-                }
-                onChange={(e) =>
-                  setSearchTerm(
-                    e.target
-                      .value
-                  )
-                }
-                placeholder="Chercher un produit"
-                className="min-w-0 w-full bg-transparent py-2 text-sm font-medium outline-none placeholder:text-slate-400"
-              />
-
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSearchTerm(
-                      ""
-                    )
-                  }
-                  className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-200"
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </div>
-
-            <Link
-              href="/products/add"
-              className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
-            >
-              <Plus size={21} />
-            </Link>
-          </div>
-        </section>
-
-        <div className="mb-3 flex items-end justify-between px-1">
-          <div>
-            <h2 className="text-lg font-black">
-              Inventaire
-            </h2>
-
-            <p className="mt-0.5 text-[10px] font-medium text-slate-500">
-              {filteredProducts.length.toLocaleString()}{" "}
-              produit
-              {filteredProducts.length !==
-              1
-                ? "s"
-                : ""}
-            </p>
-          </div>
-        </div>
-
-        <section className="space-y-2.5">
-          {loading ? (
-            <div className="rounded-[22px] border border-slate-200 bg-white p-10 text-center shadow-sm">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                <RefreshCcw
-                  size={22}
-                  className="animate-spin"
-                />
-              </div>
-
-              <p className="mt-4 text-sm font-black">
-                Chargement des produits...
-              </p>
-
-              <p className="mt-1 text-xs text-slate-400">
-                Chargement du catalogue complet.
-              </p>
-            </div>
-          ) : filteredProducts.length ===
-            0 ? (
-            <div className="rounded-[22px] border border-slate-200 bg-white p-8 text-center shadow-sm">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                <Package
-                  size={25}
-                />
-              </div>
-
-              <p className="mt-4 font-black">
-                Aucun produit trouvé
-              </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Ajoutez un produit ou modifiez votre recherche.
-              </p>
-
-              {!searchTerm && (
-                <Link
-                  href="/products/add"
-                  className="mt-5 inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-black text-white"
-                >
-                  <Plus size={16} />
-                  Ajouter
-                </Link>
-              )}
-            </div>
-          ) : (
-            filteredProducts.map(
-              (p) => (
-                <ProductCard
-                  key={p.id}
-                  product={p}
-                  deleting={deletingIds.has(
-                    p.id
-                  )}
-                  onDelete={() =>
-                    askDelete(p)
-                  }
-                />
-              )
-            )
-          )}
-        </section>
-      </div>
-
-      {deleteModal.open &&
-        deleteModal.product && (
-          <DeleteModal
-            product={
-              deleteModal.product
-            }
-            deleting={deletingIds.has(
-              deleteModal
-                .product.id
-            )}
-            onCancel={() =>
-              setDeleteModal({
-                open: false,
-                product: null,
-              })
-            }
-            onConfirm={() =>
-              deleteProduct(
-                deleteModal.product!
-              )
-            }
-          />
-        )}
-    </main>
-  );
-}
-
-/* =========================================================
-   STAT CARD
-========================================================= */
-
-function StatCard({
-  icon,
-  label,
-  value,
-  description,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  description: string;
-  tone:
-    | "indigo"
-    | "red"
-    | "amber";
-}) {
-  const styles = {
-    indigo: {
-      box: "bg-indigo-50 text-indigo-600",
-      value:
-        "text-slate-900",
-    },
-
-    red: {
-      box: "bg-red-50 text-red-500",
-      value:
-        "text-red-500",
-    },
-
-    amber: {
-      box: "bg-amber-50 text-amber-500",
-      value:
-        "text-amber-500",
-    },
-  };
-
-  return (
-    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-      <div className="flex items-center justify-between gap-2">
-        <div
-          className={`flex h-8 w-8 items-center justify-center rounded-xl ${styles[tone].box}`}
-        >
-          {icon}
-        </div>
-
-        <span className="hidden text-[8px] font-black uppercase tracking-wide text-slate-400 sm:block">
-          {description}
-        </span>
-      </div>
-
-      <p className="mt-3 text-[9px] font-semibold text-slate-500">
-        {label}
-      </p>
-
-      <p
-        className={`mt-0.5 text-xl font-black sm:text-2xl ${styles[tone].value}`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-/* =========================================================
-   PRODUCT CARD
-========================================================= */
-
-function ProductCard({
-  product,
-  deleting,
-  onDelete,
-}: {
-  product: Product;
-  deleting: boolean;
-  onDelete: () => void;
-}) {
-  const stock =
-    Number(
-      product.stock
-    ) || 0;
-
-  const purchase =
-    Number(
-      product.purchase_price
-    ) || 0;
-
-  const selling =
-    Number(
-      product.selling_price
-    ) || 0;
-
-  const profit =
-    (selling -
-      purchase) *
-    stock;
-
-  const rupture =
-    stock <= 0;
-
-  const faible =
-    stock > 0 &&
-    stock <= 5;
-
-  return (
-    <article className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-md">
-      <div className="p-3 sm:p-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-              rupture
-                ? "bg-red-50 text-red-500"
-                : faible
-                ? "bg-amber-50 text-amber-500"
-                : "bg-indigo-50 text-indigo-600"
-            }`}
-          >
-            {rupture ? (
-              <AlertTriangle
-                size={18}
-              />
-            ) : (
-              <Package size={18} />
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <h3 className="min-w-0 break-words text-sm font-black text-slate-900 sm:text-base">
-                {product.name ||
-                  "Produit sans nom"}
-              </h3>
-
-              {rupture ? (
-                <span className="rounded-full bg-red-50 px-2 py-0.5 text-[8px] font-black text-red-600">
-                  Rupture
-                </span>
-              ) : faible ? (
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black text-amber-600">
-                  Faible
-                </span>
-              ) : (
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black text-emerald-600">
-                  Disponible
-                </span>
-              )}
-            </div>
-
-            <p className="mt-0.5 truncate text-[10px] text-slate-500">
-              {product.unit ||
-                "Unité"}
-            </p>
-          </div>
-
-          <div className="shrink-0 text-right">
-            <p
-              className={`text-lg font-black ${
-                rupture
-                  ? "text-red-500"
-                  : faible
-                  ? "text-amber-500"
-                  : "text-slate-900"
-              }`}
-            >
-              {stock}
-            </p>
-
-            <p className="text-[8px] font-bold text-slate-400">
-              STOCK
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-xl border border-slate-100">
-          <div className="min-w-0 bg-slate-50 p-2.5">
-            <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
-              Achat
-            </p>
-
-            <p className="mt-1 truncate text-[10px] font-black text-slate-700 sm:text-xs">
-              {purchase.toLocaleString()}{" "}
-              {product.currency}
-            </p>
-          </div>
-
-          <div className="min-w-0 border-l border-slate-100 bg-emerald-50/50 p-2.5">
-            <p className="text-[8px] font-black uppercase tracking-wide text-emerald-500">
-              Vente
-            </p>
-
-            <p className="mt-1 truncate text-[10px] font-black text-emerald-700 sm:text-xs">
-              {selling.toLocaleString()}{" "}
-              {product.currency}
-            </p>
-          </div>
-
-          <div className="min-w-0 border-l border-slate-100 bg-indigo-50/50 p-2.5">
-            <p className="text-[8px] font-black uppercase tracking-wide text-indigo-500">
-              Bénéfice
-            </p>
-
-            <p
-              className={`mt-1 truncate text-[10px] font-black sm:text-xs ${
-                profit >= 0
-                  ? "text-indigo-700"
-                  : "text-red-500"
-              }`}
-            >
-              {profit.toLocaleString()}{" "}
-              {product.currency}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-2.5 flex items-center gap-2">
-          <Boxes
-            size={14}
-            className="shrink-0 text-slate-400"
-          />
-
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
             <div
-              className={`h-full rounded-full ${
-                rupture
-                  ? "bg-red-500"
-                  : faible
-                  ? "bg-amber-500"
-                  : "bg-indigo-600"
-              }`}
+              className="
+                mt-5
+                space-y-4
+                sm:mt-6
+                sm:space-y-5
+              "
+            >
+              {/* INTRODUCTION */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
+              >
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-2
+                  "
+                >
+                  <Sparkles
+                    size={18}
+                    className="text-orange-400"
+                  />
+
+                  <h3 className="text-sm font-black sm:text-base">
+                    👋 Bienvenue
+                  </h3>
+                </div>
+
+                <p
+                  className="
+                    text-xs
+                    leading-6
+                    text-slate-400
+                    sm:text-sm
+                    sm:leading-7
+                  "
+                >
+                  Cette page contient tous les
+                  produits enregistrés dans votre
+                  commerce.
+
+                  <br />
+                  <br />
+
+                  Vous pouvez voir le stock, les prix
+                  d'achat et de vente ainsi que la
+                  monnaie.
+
+                  <br />
+                  <br />
+
+                  Vous pouvez aussi modifier ou
+                  supprimer un produit.
+                </p>
+              </div>
+
+              {/* ETAPE 1 */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
+              >
+                <h3
+                  className="
+                    mb-2
+                    text-sm
+                    font-black
+                    sm:text-base
+                  "
+                >
+                  1️⃣ Ajouter un produit
+                </h3>
+
+                <p
+                  className="
+                    text-xs
+                    leading-6
+                    text-slate-400
+                    sm:text-sm
+                    sm:leading-7
+                  "
+                >
+                  Appuyez sur le bouton{" "}
+                  <strong className="text-orange-300">
+                    +
+                  </strong>{" "}
+                  à côté de la recherche.
+
+                  <br />
+                  <br />
+
+                  Renseignez le nom, la quantité, le
+                  prix d'achat, le prix de vente et
+                  la monnaie.
+                </p>
+              </div>
+
+              {/* ETAPE 2 */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
+              >
+                <h3
+                  className="
+                    mb-2
+                    text-sm
+                    font-black
+                    sm:text-base
+                  "
+                >
+                  2️⃣ Comprendre le stock
+                </h3>
+
+                <p
+                  className="
+                    text-xs
+                    leading-6
+                    text-slate-400
+                    sm:text-sm
+                    sm:leading-7
+                  "
+                >
+                  🟢{" "}
+                  <strong className="text-green-300">
+                    Disponible
+                  </strong>{" "}
+                  : produit disponible.
+
+                  <br />
+
+                  🟠{" "}
+                  <strong className="text-orange-300">
+                    Faible
+                  </strong>{" "}
+                  : 5 unités ou moins.
+
+                  <br />
+
+                  🔴{" "}
+                  <strong className="text-red-300">
+                    Rupture
+                  </strong>{" "}
+                  : stock à zéro.
+                </p>
+              </div>
+
+              {/* ETAPE 3 */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-green-400/20
+                  bg-green-500/5
+                  p-4
+                "
+              >
+                <h3
+                  className="
+                    mb-2
+                    text-sm
+                    font-black
+                    sm:text-base
+                  "
+                >
+                  3️⃣ FC et Dollar
+                </h3>
+
+                <p
+                  className="
+                    text-xs
+                    leading-6
+                    text-slate-400
+                    sm:text-sm
+                    sm:leading-7
+                  "
+                >
+                  BISO-COMMERCE garde les monnaies
+                  séparées.
+
+                  <br />
+                  <br />
+
+                  🇨🇩{" "}
+                  <strong className="text-white">
+                    FC
+                  </strong>{" "}
+                  reste en FC.
+
+                  <br />
+
+                  🇺🇸{" "}
+                  <strong className="text-white">
+                    $
+                  </strong>{" "}
+                  reste en dollars.
+
+                  <br />
+                  <br />
+
+                  Les valeurs sont calculées
+                  séparément.
+                </p>
+              </div>
+
+              {/* ETAPE 4 */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-blue-400/20
+                  bg-blue-500/5
+                  p-4
+                "
+              >
+                <h3
+                  className="
+                    mb-2
+                    text-sm
+                    font-black
+                    sm:text-base
+                  "
+                >
+                  4️⃣ Modifier
+                </h3>
+
+                <p
+                  className="
+                    text-xs
+                    leading-6
+                    text-slate-400
+                    sm:text-sm
+                    sm:leading-7
+                  "
+                >
+                  Appuyez sur{" "}
+                  <strong className="text-blue-300">
+                    Modifier
+                  </strong>{" "}
+                  pour corriger un produit ou changer
+                  son prix.
+                </p>
+              </div>
+
+              {/* ETAPE 5 */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-red-400/20
+                  bg-red-500/5
+                  p-4
+                "
+              >
+                <h3
+                  className="
+                    mb-2
+                    text-sm
+                    font-black
+                    sm:text-base
+                  "
+                >
+                  5️⃣ Supprimer
+                </h3>
+
+                <p
+                  className="
+                    text-xs
+                    leading-6
+                    text-slate-400
+                    sm:text-sm
+                    sm:leading-7
+                  "
+                >
+                  Appuyez sur{" "}
+                  <strong className="text-red-300">
+                    Supprimer
+                  </strong>
+                  . Une confirmation sera demandée.
+                </p>
+              </div>
+
+              {/* ETAPE 6 */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-yellow-400/20
+                  bg-yellow-500/5
+                  p-4
+                "
+              >
+                <h3
+                  className="
+                    mb-2
+                    text-sm
+                    font-black
+                    sm:text-base
+                  "
+                >
+                  6️⃣ Valeur du stock
+                </h3>
+
+                <p
+                  className="
+                    text-xs
+                    leading-6
+                    text-slate-400
+                    sm:text-sm
+                    sm:leading-7
+                  "
+                >
+                  La valeur du stock correspond à la
+                  valeur d'achat des produits encore
+                  disponibles.
+
+                  <br />
+                  <br />
+
+                  Exemple :
+
+                  <br />
+
+                  100 produits × 1 000 FC ={" "}
+                  <strong className="text-white">
+                    100 000 FC
+                  </strong>
+
+                  <br />
+                  <br />
+
+                  Les produits en dollars sont calculés
+                  séparément.
+                </p>
+              </div>
+
+              {/* ETAPE 7 */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-purple-400/20
+                  bg-purple-500/5
+                  p-4
+                "
+              >
+                <h3
+                  className="
+                    mb-2
+                    text-sm
+                    font-black
+                    sm:text-base
+                  "
+                >
+                  7️⃣ Bénéfice potentiel
+                </h3>
+
+                <p
+                  className="
+                    text-xs
+                    leading-6
+                    text-slate-400
+                    sm:text-sm
+                    sm:leading-7
+                  "
+                >
+                  Le bénéfice est calculé avec la
+                  différence entre le prix de vente et
+                  le prix d'achat.
+
+                  <br />
+                  <br />
+
+                  Le FC reste en FC et le dollar reste
+                  en dollars.
+                </p>
+              </div>
+
+              {/* FERMER */}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowGuide(false)
+                }
+                className="
+                  flex
+                  min-h-[48px]
+                  w-full
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-2xl
+                  bg-orange-500
+                  p-4
+                  text-sm
+                  font-black
+                  text-black
+                  transition
+                  hover:scale-[1.01]
+                  active:scale-[0.98]
+                "
+              >
+                <X size={18} />
+                Fermer le guide
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* =========================================
+            STATISTIQUES
+        ========================================= */}
+
+        <div
+          className="
+            mb-4
+            grid
+            grid-cols-2
+            gap-2.5
+            sm:gap-3
+          "
+        >
+          {/* TOTAL */}
+
+          <div
+            className="
+              min-w-0
+              rounded-[1.5rem]
+              border
+              border-white/10
+              bg-white/[0.05]
+              p-3.5
+              backdrop-blur-xl
+              sm:rounded-3xl
+              sm:p-4
+            "
+          >
+            <Package
+              size={20}
+              className="mb-2 text-orange-400"
+            />
+
+            <p className="truncate text-[11px] text-slate-400 sm:text-xs">
+              Produits
+            </p>
+
+            <p className="mt-1 text-2xl font-black sm:text-3xl">
+              {stats.total}
+            </p>
+          </div>
+
+          {/* RUPTURE */}
+
+          <div
+            className="
+              min-w-0
+              rounded-[1.5rem]
+              border
+              border-red-400/20
+              bg-red-500/10
+              p-3.5
+              sm:rounded-3xl
+              sm:p-4
+            "
+          >
+            <AlertTriangle
+              size={20}
+              className="mb-2 text-red-400"
+            />
+
+            <p className="truncate text-[11px] text-slate-400 sm:text-xs">
+              Rupture
+            </p>
+
+            <p
+              className="
+                mt-1
+                text-2xl
+                font-black
+                text-red-400
+                sm:text-3xl
+              "
+            >
+              {stats.rupture}
+            </p>
+          </div>
+
+          {/* FAIBLE */}
+
+          <div
+            className="
+              min-w-0
+              rounded-[1.5rem]
+              border
+              border-orange-400/20
+              bg-orange-500/10
+              p-3.5
+              sm:rounded-3xl
+              sm:p-4
+            "
+          >
+            <Boxes
+              size={20}
+              className="mb-2 text-orange-300"
+            />
+
+            <p className="truncate text-[11px] text-slate-400 sm:text-xs">
+              Stock faible
+            </p>
+
+            <p
+              className="
+                mt-1
+                text-2xl
+                font-black
+                text-orange-300
+                sm:text-3xl
+              "
+            >
+              {stats.faible}
+            </p>
+          </div>
+
+          {/* VALEUR STOCK */}
+
+          <div
+            className="
+              min-w-0
+              rounded-[1.5rem]
+              border
+              border-green-400/20
+              bg-green-500/10
+              p-3.5
+              sm:rounded-3xl
+              sm:p-4
+            "
+          >
+            <CircleDollarSign
+              size={20}
+              className="mb-2 text-green-400"
+            />
+
+            <p className="truncate text-[11px] text-slate-400 sm:text-xs">
+              Valeur stock
+            </p>
+
+            <div className="mt-2 space-y-2">
+              <div className="min-w-0">
+                <p
+                  className="
+                    truncate
+                    text-[9px]
+                    uppercase
+                    tracking-wide
+                    text-slate-400
+                    sm:text-[10px]
+                  "
+                >
+                  FC
+                </p>
+
+                <p
+                  className="
+                    truncate
+                    text-xs
+                    font-black
+                    text-green-300
+                    sm:text-sm
+                  "
+                >
+                  {stats.valeurFC.toLocaleString()} FC
+                </p>
+              </div>
+
+              <div className="min-w-0">
+                <p
+                  className="
+                    truncate
+                    text-[9px]
+                    uppercase
+                    tracking-wide
+                    text-slate-400
+                    sm:text-[10px]
+                  "
+                >
+                  Dollar
+                </p>
+
+                <p
+                  className="
+                    truncate
+                    text-xs
+                    font-black
+                    text-green-300
+                    sm:text-sm
+                  "
+                >
+                  {stats.valeurUSD.toLocaleString()} $
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* =========================================
+            BENEFICE
+        ========================================= */}
+
+        <div
+          className="
+            mb-5
+            rounded-[1.7rem]
+            border
+            border-purple-400/20
+            bg-purple-500/10
+            p-4
+            sm:mb-6
+            sm:rounded-3xl
+            sm:p-5
+          "
+        >
+          <div
+            className="
+              mb-4
+              flex
+              items-center
+              gap-2
+            "
+          >
+            <TrendingUp
+              className="shrink-0 text-purple-300"
+              size={21}
+            />
+
+            <p
+              className="
+                text-sm
+                font-black
+                sm:text-base
+              "
+            >
+              Bénéfice potentiel
+            </p>
+          </div>
+
+          <div
+            className="
+              grid
+              grid-cols-2
+              gap-2.5
+              sm:gap-3
+            "
+          >
+            <div
+              className="
+                min-w-0
+                rounded-2xl
+                bg-black/20
+                p-3.5
+                sm:p-4
+              "
+            >
+              <p className="text-[10px] text-slate-400 sm:text-xs">
+                Bénéfice FC
+              </p>
+
+              <p
+                className="
+                  mt-2
+                  truncate
+                  text-sm
+                  font-black
+                  text-white
+                  sm:text-base
+                "
+              >
+                {stats.beneficeFC.toLocaleString()} FC
+              </p>
+            </div>
+
+            <div
+              className="
+                min-w-0
+                rounded-2xl
+                bg-black/20
+                p-3.5
+                sm:p-4
+              "
+            >
+              <p className="text-[10px] text-slate-400 sm:text-xs">
+                Bénéfice $
+              </p>
+
+              <p
+                className="
+                  mt-2
+                  truncate
+                  text-sm
+                  font-black
+                  text-white
+                  sm:text-base
+                "
+              >
+                {stats.beneficeUSD.toLocaleString()} $
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* =========================================
+            RECHERCHE + AJOUT
+        ========================================= */}
+
+        <div
+          className="
+            mb-5
+            flex
+            gap-2.5
+            sm:mb-6
+            sm:gap-3
+          "
+        >
+          <div
+            className="
+              flex
+              min-w-0
+              flex-1
+              items-center
+              gap-2
+              rounded-2xl
+              border
+              border-white/10
+              bg-white/[0.06]
+              px-3.5
+              transition
+              focus-within:border-orange-400/40
+              focus-within:bg-white/[0.08]
+              sm:px-4
+            "
+          >
+            <Search
+              size={18}
+              className="shrink-0 text-slate-400"
+            />
+
+            <input
+              value={searchTerm}
+              onChange={(e) =>
+                setSearchTerm(e.target.value)
+              }
+              placeholder="Rechercher..."
+              className="
+                min-w-0
+                w-full
+                bg-transparent
+                py-3.5
+                text-sm
+                text-white
+                outline-none
+                placeholder:text-slate-500
+              "
               style={{
-                width:
-                  stock <= 0
-                    ? "0%"
-                    : `${Math.min(
-                        100,
-                        Math.max(
-                          8,
-                          stock * 4
-                        )
-                      )}%`,
+                color: "#ffffff",
+                WebkitTextFillColor: "#ffffff",
+                caretColor: "#ffffff",
               }}
             />
           </div>
 
-          <span className="shrink-0 text-[9px] font-bold text-slate-400">
-            {product.unit ||
-              "unité"}
-          </span>
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-2">
           <Link
-            href={`/products/edit/${product.id}`}
-            className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-indigo-100 bg-indigo-50 px-2 text-[10px] font-black text-indigo-600 transition hover:bg-indigo-100"
+            href="/products/add"
+            aria-label="Ajouter un produit"
+            onClick={(e) => {
+              if (!requireConnection()) {
+                e.preventDefault();
+              }
+            }}
+            className="
+              flex
+              h-[50px]
+              w-[50px]
+              shrink-0
+              items-center
+              justify-center
+              rounded-2xl
+              bg-gradient-to-r
+              from-orange-500
+              to-yellow-400
+              text-black
+              shadow-lg
+              shadow-orange-500/10
+              transition
+              hover:scale-[1.02]
+              active:scale-95
+              sm:h-[52px]
+              sm:w-[52px]
+            "
           >
-            <Edit size={14} />
-
-            Modifier
-
-            <ChevronRight
-              size={13}
-              className="hidden sm:block"
-            />
+            <Plus size={23} />
           </Link>
-
-          <button
-            type="button"
-            onClick={
-              onDelete
-            }
-            disabled={
-              deleting
-            }
-            className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-2 text-[10px] font-black text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {deleting ? (
-              <Loader2
-                size={14}
-                className="animate-spin"
-              />
-            ) : (
-              <Trash2
-                size={14}
-              />
-            )}
-
-            {deleting
-              ? "Suppression..."
-              : "Supprimer"}
-          </button>
         </div>
-      </div>
-    </article>
-  );
-}
 
-/* =========================================================
-   MODALE
-========================================================= */
+        {/* =========================================
+            LISTE PRODUITS
+        ========================================= */}
 
-function DeleteModal({
-  product,
-  deleting,
-  onCancel,
-  onConfirm,
-}: {
-  product: Product;
-  deleting: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-      <div
-        className="w-full max-w-md overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-title"
-      >
-        <div className="p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-              <Trash2
-                size={20}
+        <div className="space-y-3.5 sm:space-y-4">
+          {loading ? (
+            <div
+              className="
+                flex
+                flex-col
+                items-center
+                justify-center
+                rounded-3xl
+                border
+                border-white/10
+                bg-white/[0.04]
+                px-5
+                py-12
+                text-center
+                text-slate-400
+              "
+            >
+              <RefreshCcw
+                className="mb-3 animate-spin text-orange-400"
+                size={25}
               />
+
+              <span className="text-sm">
+                Chargement...
+              </span>
             </div>
+          ) : filteredProducts.length === 0 ? (
+            <div
+              className="
+                rounded-[1.7rem]
+                border
+                border-white/10
+                bg-white/[0.05]
+                p-7
+                text-center
+                backdrop-blur-xl
+                sm:rounded-3xl
+                sm:p-8
+              "
+            >
+              <Sparkles
+                className="
+                  mx-auto
+                  mb-3
+                  text-orange-400
+                "
+                size={33}
+              />
 
-            <div className="min-w-0 flex-1">
-              <h2
-                id="delete-title"
-                className="text-base font-black text-slate-900 sm:text-lg"
+              <p
+                className="
+                  text-sm
+                  font-bold
+                  text-slate-200
+                  sm:text-base
+                "
               >
-                Supprimer ce produit ?
-              </h2>
+                Aucun produit
+              </p>
 
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                Voulez-vous vraiment supprimer ce produit ?
-                Cette action est irréversible.
+              <p
+                className="
+                  mt-2
+                  text-xs
+                  leading-5
+                  text-slate-400
+                  sm:text-sm
+                "
+              >
+                Ajoutez un produit ou modifiez la
+                recherche.
               </p>
             </div>
+          ) : (
+            filteredProducts.map((p) => (
+              <div
+                key={p.id}
+                className="
+                  overflow-hidden
+                  rounded-[1.7rem]
+                  border
+                  border-white/10
+                  bg-white/[0.05]
+                  p-4
+                  backdrop-blur-xl
+                  shadow-[0_20px_50px_-25px_rgba(0,0,0,0.8)]
+                  transition
+                  hover:-translate-y-1
+                  hover:border-orange-400/30
+                  sm:rounded-[1.8rem]
+                  sm:p-5
+                "
+              >
+                {/* =====================================
+                    PRODUIT
+                ===================================== */}
 
-            <button
-              type="button"
-              onClick={
-                onCancel
-              }
-              disabled={
-                deleting
-              }
-              className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-              aria-label="Fermer"
-            >
-              <X size={18} />
-            </button>
-          </div>
+                <div
+                  className="
+                    flex
+                    min-w-0
+                    items-start
+                    justify-between
+                    gap-3
+                  "
+                >
+                  <div className="min-w-0 flex-1">
+                    <h2
+                      className="
+                        truncate
+                        text-base
+                        font-black
+                        text-white
+                        sm:text-lg
+                      "
+                    >
+                      {p.name || "Produit sans nom"}
+                    </h2>
 
-          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                <Package
-                  size={18}
-                />
+                    <p
+                      className="
+                        mt-2
+                        text-[11px]
+                        text-slate-400
+                        sm:text-xs
+                      "
+                    >
+                      Stock :{" "}
+                      <span className="font-bold text-white">
+                        {p.stock} {p.unit || "unité"}
+                      </span>
+                    </p>
+
+                    {/* PRIX COTE A COTE */}
+
+                    <div
+                      className="
+                        mt-2
+                        flex
+                        min-w-0
+                        flex-wrap
+                        items-center
+                        gap-x-2
+                        gap-y-1
+                        text-[10px]
+                        text-slate-400
+                        sm:text-xs
+                      "
+                    >
+                      <span className="whitespace-nowrap">
+                        Achat :{" "}
+                        <strong className="text-slate-200">
+                          {Number(
+                            p.purchase_price || 0
+                          ).toLocaleString()}{" "}
+                          {p.currency}
+                        </strong>
+                      </span>
+
+                      <span className="text-slate-600">
+                        •
+                      </span>
+
+                      <span className="whitespace-nowrap">
+                        Vente :{" "}
+                        <strong className="text-green-300">
+                          {Number(
+                            p.selling_price || 0
+                          ).toLocaleString()}{" "}
+                          {p.currency}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* =====================================
+                      STATUT
+                  ===================================== */}
+
+                  {Number(p.stock) === 0 ? (
+                    <span
+                      className="
+                        flex
+                        shrink-0
+                        items-center
+                        gap-1
+                        rounded-full
+                        bg-red-500/20
+                        px-2.5
+                        py-1.5
+                        text-[10px]
+                        font-black
+                        text-red-300
+                        sm:px-3
+                        sm:text-xs
+                      "
+                    >
+                      <AlertTriangle size={12} />
+
+                      <span className="hidden min-[370px]:inline">
+                        Rupture
+                      </span>
+
+                      <span className="min-[370px]:hidden">
+                        0
+                      </span>
+                    </span>
+                  ) : Number(p.stock) <= 5 ? (
+                    <span
+                      className="
+                        flex
+                        shrink-0
+                        items-center
+                        gap-1
+                        rounded-full
+                        bg-orange-500/20
+                        px-2.5
+                        py-1.5
+                        text-[10px]
+                        font-black
+                        text-orange-300
+                        sm:px-3
+                        sm:text-xs
+                      "
+                    >
+                      <AlertTriangle size={12} />
+
+                      <span className="hidden min-[370px]:inline">
+                        Faible
+                      </span>
+
+                      <span className="min-[370px]:hidden">
+                        !
+                      </span>
+                    </span>
+                  ) : (
+                    <span
+                      className="
+                        flex
+                        shrink-0
+                        items-center
+                        gap-1
+                        rounded-full
+                        bg-green-500/20
+                        px-2.5
+                        py-1.5
+                        text-[10px]
+                        font-black
+                        text-green-300
+                        sm:px-3
+                        sm:text-xs
+                      "
+                    >
+                      <CheckCircle size={12} />
+
+                      <span className="hidden min-[370px]:inline">
+                        Disponible
+                      </span>
+
+                      <span className="min-[370px]:hidden">
+                        OK
+                      </span>
+                    </span>
+                  )}
+                </div>
+
+                {/* =====================================
+                    ACTIONS
+                ===================================== */}
+
+                <div
+                  className="
+                    mt-4
+                    grid
+                    grid-cols-2
+                    gap-2.5
+                    sm:mt-5
+                    sm:gap-3
+                  "
+                >
+                  <Link
+                    href={`/products/edit/${p.id}`}
+                    onClick={(e) => {
+                      if (!requireConnection()) {
+                        e.preventDefault();
+                      }
+                    }}
+                    className="
+                      flex
+                      min-h-[48px]
+                      items-center
+                      justify-center
+                      gap-1.5
+                      rounded-2xl
+                      bg-blue-500/20
+                      px-2
+                      py-3
+                      text-xs
+                      font-bold
+                      text-blue-300
+                      transition
+                      hover:bg-blue-500/30
+                      active:scale-[0.98]
+                      sm:gap-2
+                      sm:text-sm
+                    "
+                  >
+                    <Edit size={15} />
+
+                    <span>
+                      Modifier
+                    </span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    disabled={
+                      deletingId === p.id ||
+                      deletingId !== null
+                    }
+                    onClick={() =>
+                      deleteProduct(p.id)
+                    }
+                    className="
+                      flex
+                      min-h-[48px]
+                      items-center
+                      justify-center
+                      gap-1.5
+                      rounded-2xl
+                      bg-red-500/20
+                      px-2
+                      py-3
+                      text-xs
+                      font-bold
+                      text-red-300
+                      transition
+                      hover:bg-red-500/30
+                      active:scale-[0.98]
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+                      sm:gap-2
+                      sm:text-sm
+                    "
+                  >
+                    {deletingId === p.id ? (
+                      <>
+                        <RefreshCcw
+                          size={15}
+                          className="animate-spin"
+                        />
+
+                        <span>
+                          Suppression...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={15} />
+
+                        <span>
+                          Supprimer
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-
-              <div className="min-w-0">
-                <p className="break-words text-sm font-black text-slate-900">
-                  {product.name ||
-                    "Produit sans nom"}
-                </p>
-
-                <p className="mt-0.5 text-[10px] font-medium text-slate-500">
-                  Stock :{" "}
-                  {Number(
-                    product.stock
-                  ) || 0}{" "}
-                  {product.unit ||
-                    "unité"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={
-                onCancel
-              }
-              disabled={
-                deleting
-              }
-              className="min-h-[44px] rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-            >
-              Annuler
-            </button>
-
-            <button
-              type="button"
-              onClick={
-                onConfirm
-              }
-              disabled={
-                deleting
-              }
-              className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-red-600 px-3 text-xs font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {deleting ? (
-                <>
-                  <Loader2
-                    size={15}
-                    className="animate-spin"
-                  />
-                  Suppression...
-                </>
-              ) : (
-                <>
-                  <Trash2
-                    size={15}
-                  />
-                  Supprimer
-                </>
-              )}
-            </button>
-          </div>
+            ))
+          )}
         </div>
       </div>
-    </div>
-  );
-}
-
-/* =========================================================
-   GUIDE
-========================================================= */
-
-function GuideItem({
-  number,
-  title,
-  text,
-}: {
-  number: string;
-  title: string;
-  text: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-      <div className="flex items-start gap-2.5">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-[10px] font-black text-white">
-          {number}
-        </div>
-
-        <div className="min-w-0">
-          <h3 className="text-xs font-black text-slate-900">
-            {title}
-          </h3>
-
-          <p className="mt-1 text-[10px] leading-5 text-slate-600 sm:text-xs">
-            {text}
-          </p>
-        </div>
-      </div>
-    </div>
+    </main>
   );
 }

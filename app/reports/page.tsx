@@ -3,13 +3,19 @@
 /* ======================================================================
    BISO-COMMERCE — PAGE RAPPORT
    ----------------------------------------------------------------------
-   - Fonctionne avec ou sans Internet
-   - Les ventes locales sont affichées immédiatement
-   - Synchronisation automatique avec Supabase
-   - Suppression en ligne ou hors connexion
-   - PDF disponible hors connexion
-   - Même structure générale du rapport
-====================================================================== */
+   Version complète professionnelle
+   - Responsive téléphone / tablette / ordinateur
+   - Fonctionnement hors connexion avec cache local
+   - PDF disponible avec les données déjà chargées
+   - Pas de Top 5 produits
+   - Filtre par produit
+   - Filtre par période Du / Au
+   - Suppression d'une vente uniquement avec Internet
+   - Popup de confirmation professionnel
+   - 5 dernières ventes affichées
+   - Bouton "Voir toutes les ventes"
+   - PDF professionnel
+   ====================================================================== */
 
 import {
   useCallback,
@@ -29,24 +35,19 @@ import {
   Sparkles,
   Trash2,
   ArrowUp,
-  ArrowDown,
   CalendarDays,
   X,
   BarChart3,
   TrendingUp,
+  TrendingDown,
   Package,
   ShoppingCart,
   Wallet,
   Loader2,
   AlertCircle,
   RefreshCw,
-  ChevronUp,
-  FileText,
-  Wifi,
   WifiOff,
-  Cloud,
-  CloudOff,
-  CheckCircle,
+  Wifi,
 } from "lucide-react";
 
 /* ======================================================
@@ -55,27 +56,12 @@ import {
 
 type Sale = {
   id: string;
-  user_id?: string;
-  product_id?: string | null;
   product_name: string;
   quantity: number;
-  purchase_price?: number;
-  selling_price?: number;
   total_sale: number;
   profit: number;
   currency: string;
   created_at: string;
-};
-
-type LocalSale = Sale & {
-  user_id: string;
-  synced: boolean;
-};
-
-type PendingSaleDelete = {
-  id: string;
-  userId: string;
-  createdAt: number;
 };
 
 type DayReport = {
@@ -91,11 +77,9 @@ type Notice = {
   message: string;
 } | null;
 
-type SyncState =
-  | "offline"
-  | "online"
-  | "syncing"
-  | "error";
+type DeleteModal = {
+  sale: Sale;
+} | null;
 
 const EMPTY_DAY: DayReport = {
   fc: 0,
@@ -108,763 +92,92 @@ const EMPTY_DAY: DayReport = {
 const PAGE_STEP = 5;
 
 /* ======================================================
-   INDEXED DB
+   CACHE HORS CONNEXION
 ====================================================== */
 
-/*
-  IMPORTANT :
+const REPORTS_CACHE_PREFIX =
+  "biso-commerce-reports-cache-";
 
-  Cette base appartient UNIQUEMENT aux ventes.
-
-  On utilise une version 4.
-  Cela corrige notamment :
-  - requested version less than existing version
-  - object store not found
-  - database connection is closing
-
-  IMPORTANT :
-  Aucun db.close() n'est utilisé dans les fonctions
-  de lecture/écriture.
-*/
-
-const SALES_DB_NAME = "biso-commerce-sales";
-const SALES_DB_VERSION = 4;
-
-const SALES_STORE = "sales";
-const SALES_DELETE_QUEUE_STORE = "sale_delete_queue";
-
-let salesDBPromise: Promise<IDBDatabase> | null = null;
-
-/* ======================================================
-   OUVRIR LA BASE SALES
-====================================================== */
-
-function openSalesDB(): Promise<IDBDatabase> {
-  if (typeof window === "undefined") {
-    return Promise.reject(
-      new Error(
-        "IndexedDB est disponible uniquement dans le navigateur."
-      )
-    );
-  }
-
-  if (!("indexedDB" in window)) {
-    return Promise.reject(
-      new Error(
-        "IndexedDB n'est pas supporté par ce navigateur."
-      )
-    );
-  }
-
-  if (salesDBPromise) {
-    return salesDBPromise;
-  }
-
-  salesDBPromise = new Promise<IDBDatabase>(
-    (resolve, reject) => {
-      const request = indexedDB.open(
-        SALES_DB_NAME,
-        SALES_DB_VERSION
-      );
-
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        const transaction =
-          request.transaction;
-
-        if (!transaction) {
-          reject(
-            new Error(
-              "Transaction IndexedDB indisponible."
-            )
-          );
-          return;
-        }
-
-        /* ==================================================
-           STORE SALES
-        ================================================== */
-
-        let salesStore: IDBObjectStore;
-
-        if (
-          !db.objectStoreNames.contains(
-            SALES_STORE
-          )
-        ) {
-          salesStore =
-            db.createObjectStore(
-              SALES_STORE,
-              {
-                keyPath: "id",
-              }
-            );
-        } else {
-          salesStore =
-            transaction.objectStore(
-              SALES_STORE
-            );
-        }
-
-        /* INDEX USER */
-
-        if (
-          !salesStore.indexNames.contains(
-            "user_id"
-          )
-        ) {
-          salesStore.createIndex(
-            "user_id",
-            "user_id",
-            {
-              unique: false,
-            }
-          );
-        }
-
-        /* INDEX CREATED_AT */
-
-        if (
-          !salesStore.indexNames.contains(
-            "created_at"
-          )
-        ) {
-          salesStore.createIndex(
-            "created_at",
-            "created_at",
-            {
-              unique: false,
-            }
-          );
-        }
-
-        /* INDEX SYNCED */
-
-        if (
-          !salesStore.indexNames.contains(
-            "synced"
-          )
-        ) {
-          salesStore.createIndex(
-            "synced",
-            "synced",
-            {
-              unique: false,
-            }
-          );
-        }
-
-        /* INDEX PRODUCT */
-
-        if (
-          !salesStore.indexNames.contains(
-            "product_id"
-          )
-        ) {
-          salesStore.createIndex(
-            "product_id",
-            "product_id",
-            {
-              unique: false,
-            }
-          );
-        }
-
-        /* ==================================================
-           STORE FILE SUPPRESSION
-        ================================================== */
-
-        let deleteStore: IDBObjectStore;
-
-        if (
-          !db.objectStoreNames.contains(
-            SALES_DELETE_QUEUE_STORE
-          )
-        ) {
-          deleteStore =
-            db.createObjectStore(
-              SALES_DELETE_QUEUE_STORE,
-              {
-                keyPath: "id",
-              }
-            );
-        } else {
-          deleteStore =
-            transaction.objectStore(
-              SALES_DELETE_QUEUE_STORE
-            );
-        }
-
-        if (
-          !deleteStore.indexNames.contains(
-            "userId"
-          )
-        ) {
-          deleteStore.createIndex(
-            "userId",
-            "userId",
-            {
-              unique: false,
-            }
-          );
-        }
-
-        if (
-          !deleteStore.indexNames.contains(
-            "createdAt"
-          )
-        ) {
-          deleteStore.createIndex(
-            "createdAt",
-            "createdAt",
-            {
-              unique: false,
-            }
-          );
-        }
-      };
-
-      request.onsuccess = () => {
-        const db = request.result;
-
-        db.onversionchange = () => {
-          db.close();
-          salesDBPromise = null;
-        };
-
-        resolve(db);
-      };
-
-      request.onerror = () => {
-        salesDBPromise = null;
-
-        reject(
-          request.error ||
-            new Error(
-              "Impossible d'ouvrir la base locale des ventes."
-            )
-        );
-      };
-
-      request.onblocked = () => {
-        console.warn(
-          "La base locale des ventes est bloquée. Fermez les autres onglets BISO-COMMERCE."
-        );
-      };
-    }
-  );
-
-  return salesDBPromise;
-}
-
-/* ======================================================
-   MESSAGE ERREUR
-====================================================== */
-
-function getErrorMessage(
-  error: unknown
-): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null
-  ) {
-    const e = error as {
-      message?: string;
-      details?: string;
-      hint?: string;
-      code?: string;
-    };
-
-    if (e.message) return e.message;
-    if (e.details) return e.details;
-    if (e.hint) return e.hint;
-    if (e.code) return `Erreur (${e.code})`;
-
-    try {
-      const json =
-        JSON.stringify(error);
-
-      if (json && json !== "{}") {
-        return json;
-      }
-    } catch {
-      // Rien
-    }
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
-
-  return "Une erreur inconnue est survenue.";
-}
-
-/* ======================================================
-   USER ID
-====================================================== */
-
-function getStoredUserId(): string | null {
-  if (
-    typeof window === "undefined"
-  ) {
-    return null;
-  }
-
-  const userId =
-    localStorage.getItem("user_id");
-
-  return userId
-    ? String(userId)
-    : null;
-}
-
-/* ======================================================
-   NORMALISER UNE VENTE
-====================================================== */
-
-function normalizeSale(
-  sale: Partial<Sale> & {
-    id: string;
-    product_name?: string | null;
-    quantity?: number | string;
-    total_sale?: number | string;
-    profit?: number | string;
-    currency?: string | null;
-    created_at: string;
-    user_id?: string | null;
-    synced?: boolean;
-  }
-): LocalSale {
-  return {
-    id: String(sale.id),
-
-    user_id:
-      sale.user_id
-        ? String(sale.user_id)
-        : "",
-
-    product_id:
-      sale.product_id
-        ? String(sale.product_id)
-        : null,
-
-    product_name:
-      sale.product_name || "Produit inconnu",
-
-    quantity:
-      Number(sale.quantity || 0),
-
-    purchase_price:
-      Number(
-        sale.purchase_price || 0
-      ),
-
-    selling_price:
-      Number(
-        sale.selling_price || 0
-      ),
-
-    total_sale:
-      Number(sale.total_sale || 0),
-
-    profit:
-      Number(sale.profit || 0),
-
-    currency:
-      String(sale.currency || "FC"),
-
-    created_at:
-      sale.created_at,
-
-    synced:
-      sale.synced === true,
-  };
-}
-
-/* ======================================================
-   LIRE VENTES LOCALES
-====================================================== */
-
-async function getLocalSales(
+const getReportsCacheKey = (
   userId: string
-): Promise<LocalSale[]> {
-  const db =
-    await openSalesDB();
+) => {
+  return `${REPORTS_CACHE_PREFIX}${userId}`;
+};
 
-  return new Promise(
-    (resolve, reject) => {
-      let transaction: IDBTransaction;
-
-      try {
-        transaction =
-          db.transaction(
-            SALES_STORE,
-            "readonly"
-          );
-      } catch (error) {
-        reject(error);
-        return;
-      }
-
-      const store =
-        transaction.objectStore(
-          SALES_STORE
-        );
-
-      const request =
-        store.getAll();
-
-      request.onsuccess = () => {
-        const all =
-          (request.result ||
-            []) as LocalSale[];
-
-        const result =
-          all.filter(
-            (sale) =>
-              String(
-                sale.user_id || ""
-              ) ===
-              String(userId)
-          );
-
-        result.sort(
-          (a, b) =>
-            new Date(
-              b.created_at
-            ).getTime() -
-            new Date(
-              a.created_at
-            ).getTime()
-        );
-
-        resolve(result);
-      };
-
-      request.onerror = () => {
-        reject(
-          request.error ||
-            new Error(
-              "Impossible de lire les ventes locales."
-            )
-        );
-      };
-    }
-  );
-}
-
-/* ======================================================
-   ENREGISTRER UNE VENTE LOCALE
-====================================================== */
-
-async function saveLocalSale(
-  sale: LocalSale
-): Promise<void> {
-  const db =
-    await openSalesDB();
-
-  return new Promise(
-    (resolve, reject) => {
-      let transaction: IDBTransaction;
-
-      try {
-        transaction =
-          db.transaction(
-            SALES_STORE,
-            "readwrite"
-          );
-      } catch (error) {
-        reject(error);
-        return;
-      }
-
-      transaction
-        .objectStore(
-          SALES_STORE
-        )
-        .put(sale);
-
-      transaction.oncomplete =
-        () => resolve();
-
-      transaction.onerror =
-        () =>
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible d'enregistrer la vente localement."
-              )
-          );
-
-      transaction.onabort =
-        () =>
-          reject(
-            transaction.error ||
-              new Error(
-                "L'enregistrement local a été interrompu."
-              )
-          );
-    }
-  );
-}
-
-/* ======================================================
-   ENREGISTRER PLUSIEURS VENTES
-====================================================== */
-
-async function saveLocalSales(
-  sales: LocalSale[]
-): Promise<void> {
-  if (!sales.length) {
+const saveReportsCache = (
+  userId: string,
+  sales: Sale[]
+) => {
+  if (
+    typeof window === "undefined" ||
+    !userId
+  ) {
     return;
   }
 
-  const db =
-    await openSalesDB();
+  try {
+    localStorage.setItem(
+      getReportsCacheKey(userId),
+      JSON.stringify({
+        sales,
+        savedAt: new Date().toISOString(),
+      })
+    );
+  } catch (error) {
+    console.warn(
+      "Impossible de sauvegarder le cache des rapports :",
+      error
+    );
+  }
+};
 
-  return new Promise(
-    (resolve, reject) => {
-      let transaction: IDBTransaction;
+const readReportsCache = (
+  userId: string
+): Sale[] => {
+  if (
+    typeof window === "undefined" ||
+    !userId
+  ) {
+    return [];
+  }
 
-      try {
-        transaction =
-          db.transaction(
-            SALES_STORE,
-            "readwrite"
-          );
-      } catch (error) {
-        reject(error);
-        return;
-      }
+  try {
+    const raw = localStorage.getItem(
+      getReportsCacheKey(userId)
+    );
 
-      const store =
-        transaction.objectStore(
-          SALES_STORE
-        );
+    if (!raw) return [];
 
-      for (const sale of sales) {
-        store.put(sale);
-      }
+    const parsed = JSON.parse(raw);
 
-      transaction.oncomplete =
-        () => resolve();
-
-      transaction.onerror =
-        () =>
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible de sauvegarder les ventes locales."
-              )
-          );
+    if (
+      !parsed ||
+      !Array.isArray(parsed.sales)
+    ) {
+      return [];
     }
-  );
-}
+
+    return parsed.sales as Sale[];
+  } catch (error) {
+    console.warn(
+      "Impossible de lire le cache des rapports :",
+      error
+    );
+
+    return [];
+  }
+};
 
 /* ======================================================
-   SUPPRIMER VENTE LOCALE
-====================================================== */
-
-async function removeLocalSale(
-  saleId: string
-): Promise<void> {
-  const db =
-    await openSalesDB();
-
-  return new Promise(
-    (resolve, reject) => {
-      let transaction: IDBTransaction;
-
-      try {
-        transaction =
-          db.transaction(
-            SALES_STORE,
-            "readwrite"
-          );
-      } catch (error) {
-        reject(error);
-        return;
-      }
-
-      transaction
-        .objectStore(
-          SALES_STORE
-        )
-        .delete(saleId);
-
-      transaction.oncomplete =
-        () => resolve();
-
-      transaction.onerror =
-        () =>
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible de supprimer la vente localement."
-              )
-          );
-    }
-  );
-}
-
-/* ======================================================
-   FILE SUPPRESSION
-====================================================== */
-
-async function getSaleDeleteQueue(): Promise<
-  PendingSaleDelete[]
-> {
-  const db =
-    await openSalesDB();
-
-  return new Promise(
-    (resolve, reject) => {
-      let transaction: IDBTransaction;
-
-      try {
-        transaction =
-          db.transaction(
-            SALES_DELETE_QUEUE_STORE,
-            "readonly"
-          );
-      } catch (error) {
-        reject(error);
-        return;
-      }
-
-      const request =
-        transaction
-          .objectStore(
-            SALES_DELETE_QUEUE_STORE
-          )
-          .getAll();
-
-      request.onsuccess = () => {
-        resolve(
-          (request.result ||
-            []) as PendingSaleDelete[]
-        );
-      };
-
-      request.onerror = () => {
-        reject(
-          request.error ||
-            new Error(
-              "Impossible de lire la file de suppression."
-            )
-        );
-      };
-    }
-  );
-}
-
-/* ======================================================
-   AJOUTER SUPPRESSION
-====================================================== */
-
-async function addSaleDeleteToQueue(
-  item: PendingSaleDelete
-): Promise<void> {
-  const db =
-    await openSalesDB();
-
-  return new Promise(
-    (resolve, reject) => {
-      let transaction: IDBTransaction;
-
-      try {
-        transaction =
-          db.transaction(
-            SALES_DELETE_QUEUE_STORE,
-            "readwrite"
-          );
-      } catch (error) {
-        reject(error);
-        return;
-      }
-
-      transaction
-        .objectStore(
-          SALES_DELETE_QUEUE_STORE
-        )
-        .put(item);
-
-      transaction.oncomplete =
-        () => resolve();
-
-      transaction.onerror =
-        () =>
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible d'ajouter la suppression à la file."
-              )
-          );
-    }
-  );
-}
-
-/* ======================================================
-   RETIRER SUPPRESSION DE LA FILE
-====================================================== */
-
-async function removeSaleDeleteFromQueue(
-  saleId: string
-): Promise<void> {
-  const db =
-    await openSalesDB();
-
-  return new Promise(
-    (resolve, reject) => {
-      let transaction: IDBTransaction;
-
-      try {
-        transaction =
-          db.transaction(
-            SALES_DELETE_QUEUE_STORE,
-            "readwrite"
-          );
-      } catch (error) {
-        reject(error);
-        return;
-      }
-
-      transaction
-        .objectStore(
-          SALES_DELETE_QUEUE_STORE
-        )
-        .delete(saleId);
-
-      transaction.oncomplete =
-        () => resolve();
-
-      transaction.onerror =
-        () =>
-          reject(
-            transaction.error ||
-              new Error(
-                "Impossible de retirer la suppression de la file."
-              )
-          );
-    }
-  );
-}
-
-/* ======================================================
-   FORMATS
+   OUTILS
 ====================================================== */
 
 const formatMoney = (
   value: number
 ) => {
-  const number =
-    Math.round(
-      Number(value || 0)
-    );
+  const number = Math.round(
+    Number(value || 0)
+  );
 
   return number
     .toString()
@@ -877,18 +190,15 @@ const formatMoney = (
 const getLocalDate = (
   date: Date
 ) => {
-  const year =
-    date.getFullYear();
+  const year = date.getFullYear();
 
-  const month =
-    String(
-      date.getMonth() + 1
-    ).padStart(2, "0");
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
 
-  const day =
-    String(
-      date.getDate()
-    ).padStart(2, "0");
+  const day = String(
+    date.getDate()
+  ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 };
@@ -908,16 +218,14 @@ const isFC = (
   currency: string
 ) =>
   String(currency || "")
-    .trim()
     .toUpperCase() === "FC";
 
 const isUSD = (
   currency: string
 ) => {
-  const value =
-    String(currency || "")
-      .trim()
-      .toUpperCase();
+  const value = String(
+    currency || ""
+  ).toUpperCase();
 
   return (
     value === "$" ||
@@ -925,6 +233,10 @@ const isUSD = (
   );
 };
 
+/*
+  Nettoyage pour les zones qui utilisent la police standard
+  Helvetica de jsPDF.
+*/
 const cleanPDF = (
   text: string
 ) =>
@@ -938,8 +250,69 @@ const cleanPDF = (
       /[^\x20-\x7E]/g,
       ""
     )
-    .replace(/\s+/g, " ")
+    .replace(
+      /\s+/g,
+      " "
+    )
     .trim();
+
+const calculateDayReport = (
+  sales: Sale[],
+  targetDate: string
+): DayReport => {
+  let fc = 0;
+  let usd = 0;
+  let profitFc = 0;
+  let profitUsd = 0;
+  let quantity = 0;
+
+  sales.forEach(
+    (sale) => {
+      const saleDate =
+        sale.created_at.split(
+          "T"
+        )[0];
+
+      if (
+        saleDate !== targetDate
+      ) {
+        return;
+      }
+
+      const amount = Number(
+        sale.total_sale || 0
+      );
+
+      const profit = Number(
+        sale.profit || 0
+      );
+
+      quantity += Number(
+        sale.quantity || 0
+      );
+
+      if (
+        isFC(sale.currency)
+      ) {
+        fc += amount;
+        profitFc += profit;
+      } else if (
+        isUSD(sale.currency)
+      ) {
+        usd += amount;
+        profitUsd += profit;
+      }
+    }
+  );
+
+  return {
+    fc,
+    usd,
+    profitFc,
+    profitUsd,
+    quantity,
+  };
+};
 
 const variation = (
   current: number,
@@ -958,927 +331,292 @@ const variation = (
   );
 };
 
-const calculateDayReport = (
-  sales: Sale[],
-  targetDate: string
-): DayReport => {
-  let fc = 0;
-  let usd = 0;
-  let profitFc = 0;
-  let profitUsd = 0;
-  let quantity = 0;
-
-  for (const sale of sales) {
-    const saleDate =
-      sale.created_at.split(
-        "T"
-      )[0];
-
-    if (
-      saleDate !== targetDate
-    ) {
-      continue;
-    }
-
-    const amount =
-      Number(
-        sale.total_sale || 0
-      );
-
-    const profit =
-      Number(
-        sale.profit || 0
-      );
-
-    quantity +=
-      Number(
-        sale.quantity || 0
-      );
-
-    if (
-      isFC(sale.currency)
-    ) {
-      fc += amount;
-      profitFc += profit;
-    }
-
-    if (
-      isUSD(sale.currency)
-    ) {
-      usd += amount;
-      profitUsd += profit;
-    }
-  }
-
-  return {
-    fc,
-    usd,
-    profitFc,
-    profitUsd,
-    quantity,
-  };
-};
-
-/* ======================================================
-   CARTE JOURNALIÈRE
-====================================================== */
-
-function ReportCard({
-  icon,
-  title,
-  value,
-  secondaryValue,
-  subtitle,
-  trend,
-  trendLabel,
-  extra,
-  tone = "indigo",
-}: {
-  icon: React.ReactNode;
-  title: string;
-  value: string;
-  secondaryValue: string;
-  subtitle: string;
-  trend?: number;
-  trendLabel?: string;
-  extra?: string;
-  tone?:
-    | "indigo"
-    | "slate"
-    | "amber";
-}) {
-  const toneConfig = {
-    indigo: {
-      card:
-        "border-indigo-100/80 bg-gradient-to-br from-white via-white to-indigo-50/70",
-      icon:
-        "bg-indigo-100 text-indigo-600",
-      badge:
-        "bg-indigo-50 text-indigo-700 border-indigo-100",
-      accent:
-        "bg-indigo-600",
-      amount:
-        "text-indigo-700",
-      soft:
-        "bg-indigo-50/70",
-    },
-
-    slate: {
-      card:
-        "border-blue-100/80 bg-gradient-to-br from-white via-white to-blue-50/60",
-      icon:
-        "bg-blue-100 text-blue-600",
-      badge:
-        "bg-blue-50 text-blue-700 border-blue-100",
-      accent:
-        "bg-blue-500",
-      amount:
-        "text-blue-700",
-      soft:
-        "bg-blue-50/70",
-    },
-
-    amber: {
-      card:
-        "border-amber-100/90 bg-gradient-to-br from-white via-white to-amber-50/60",
-      icon:
-        "bg-amber-100 text-amber-600",
-      badge:
-        "bg-amber-50 text-amber-700 border-amber-100",
-      accent:
-        "bg-amber-500",
-      amount:
-        "text-amber-700",
-      soft:
-        "bg-amber-50/70",
-    },
-  };
-
-  const config =
-    toneConfig[tone];
-
-  const positive =
-    typeof trend === "number" &&
-    trend >= 0;
-
-  return (
-    <article
-      className={`
-        relative
-        min-w-0
-        overflow-hidden
-        rounded-[26px]
-        border
-        ${config.card}
-        p-4
-        shadow-[0_6px_24px_rgba(15,23,42,0.045)]
-        transition
-        duration-200
-        hover:-translate-y-[1px]
-        hover:shadow-[0_10px_30px_rgba(15,23,42,0.07)]
-        sm:p-5
-      `}
-    >
-      <div
-        className={`
-          absolute
-          left-0
-          top-6
-          h-14
-          w-1
-          rounded-r-full
-          ${config.accent}
-        `}
-      />
-
-      <div className="flex items-start justify-between gap-3">
-        <div
-          className={`
-            flex
-            h-11
-            w-11
-            shrink-0
-            items-center
-            justify-center
-            rounded-2xl
-            ${config.icon}
-          `}
-        >
-          {icon}
-        </div>
-
-        {typeof trend ===
-          "number" && (
-          <div
-            className={`
-              inline-flex
-              shrink-0
-              items-center
-              gap-1
-              rounded-full
-              border
-              px-2
-              py-1
-              text-[10px]
-              font-black
-              ${
-                positive
-                  ? "border-green-100 bg-green-50 text-green-700"
-                  : "border-red-100 bg-red-50 text-red-600"
-              }
-            `}
-          >
-            {positive ? (
-              <ArrowUp size={11} />
-            ) : (
-              <ArrowDown size={11} />
-            )}
-
-            {Math.abs(
-              trend
-            ).toFixed(1)}
-            %
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4 min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-500">
-            {title}
-          </p>
-
-          {trendLabel && (
-            <span
-              className={`
-                rounded-full
-                border
-                px-2
-                py-0.5
-                text-[9px]
-                font-bold
-                ${config.badge}
-              `}
-            >
-              {trendLabel}
-            </span>
-          )}
-        </div>
-
-        <div className="mt-2 flex min-w-0 items-baseline gap-2">
-          <p
-            className={`
-              min-w-0
-              truncate
-              text-[27px]
-              font-black
-              tracking-tight
-              ${config.amount}
-              sm:text-[30px]
-            `}
-          >
-            {value}
-          </p>
-        </div>
-
-        <div
-          className={`
-            mt-1
-            inline-flex
-            max-w-full
-            items-center
-            rounded-xl
-            px-2.5
-            py-1
-            ${config.soft}
-          `}
-        >
-          <span className="truncate text-xs font-extrabold text-slate-700 sm:text-sm">
-            {secondaryValue}
-          </span>
-        </div>
-
-        <div className="mt-4 flex min-w-0 items-center gap-2">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600">
-            <TrendingUp size={14} />
-          </div>
-
-          <p className="min-w-0 truncate text-[11px] font-bold text-slate-500 sm:text-xs">
-            {subtitle}
-          </p>
-        </div>
-
-        {extra && (
-          <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
-            <ShoppingCart
-              size={13}
-              className="shrink-0 text-slate-400"
-            />
-
-            <span className="truncate text-[11px] font-bold text-slate-500">
-              {extra}
-            </span>
-          </div>
-        )}
-      </div>
-    </article>
-  );
-}
-
-/* ======================================================
-   MINI STAT
-====================================================== */
-
-function MiniStat({
-  label,
-  value,
-  tone = "slate",
-  hint,
-}: {
-  label: string;
-  value: string;
-  tone?:
-    | "indigo"
-    | "green"
-    | "blue"
-    | "slate";
-  hint?: string;
-}) {
-  const styles = {
-    indigo: {
-      box:
-        "border-indigo-100 bg-indigo-50/60",
-      icon:
-        "bg-indigo-100 text-indigo-600",
-      value:
-        "text-indigo-700",
-    },
-
-    green: {
-      box:
-        "border-green-100 bg-green-50/60",
-      icon:
-        "bg-green-100 text-green-600",
-      value:
-        "text-green-700",
-    },
-
-    blue: {
-      box:
-        "border-blue-100 bg-blue-50/60",
-      icon:
-        "bg-blue-100 text-blue-600",
-      value:
-        "text-blue-700",
-    },
-
-    slate: {
-      box:
-        "border-slate-200 bg-slate-50/70",
-      icon:
-        "bg-white text-slate-500",
-      value:
-        "text-slate-800",
-    },
-  };
-
-  const style =
-    styles[tone];
-
-  return (
-    <div
-      className={`
-        min-w-0
-        rounded-2xl
-        border
-        ${style.box}
-        p-3.5
-        transition
-        hover:shadow-sm
-        sm:p-4
-      `}
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <div
-          className={`
-            flex
-            h-8
-            w-8
-            shrink-0
-            items-center
-            justify-center
-            rounded-xl
-            ${style.icon}
-          `}
-        >
-          <Wallet size={14} />
-        </div>
-
-        <p className="min-w-0 truncate text-[10px] font-black uppercase tracking-wide text-slate-500 sm:text-[11px]">
-          {label}
-        </p>
-      </div>
-
-      <p
-        className={`
-          mt-3
-          truncate
-          text-base
-          font-black
-          ${style.value}
-          sm:text-lg
-        `}
-      >
-        {value}
-      </p>
-
-      {hint && (
-        <p className="mt-1 text-[10px] font-bold text-slate-400">
-          {hint}
-        </p>
-      )}
-    </div>
-  );
-}
-
 /* ======================================================
    PAGE
 ====================================================== */
 
 export default function ReportsPage() {
-  const [salesHistory, setSalesHistory] =
-    useState<Sale[]>([]);
+  const [
+    salesHistory,
+    setSalesHistory,
+  ] = useState<Sale[]>([]);
 
-  const [filteredSales, setFilteredSales] =
-    useState<Sale[]>([]);
+  const [
+    filteredSales,
+    setFilteredSales,
+  ] = useState<Sale[]>([]);
 
-  const [startDate, setStartDate] =
-    useState("");
+  const [
+    startDate,
+    setStartDate,
+  ] = useState("");
 
-  const [endDate, setEndDate] =
-    useState("");
+  const [
+    endDate,
+    setEndDate,
+  ] = useState("");
 
-  const [productQuery, setProductQuery] =
-    useState("");
+  const [
+    productQuery,
+    setProductQuery,
+  ] = useState("");
 
-  const [showAll, setShowAll] =
-    useState(false);
+  const [
+    showAll,
+    setShowAll,
+  ] = useState(false);
 
-  const [showGuide, setShowGuide] =
-    useState(false);
+  const [
+    showGuide,
+    setShowGuide,
+  ] = useState(false);
 
-  const [showTopButton, setShowTopButton] =
-    useState(false);
+  const [
+    showTopButton,
+    setShowTopButton,
+  ] = useState(false);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [isOnline, setIsOnline] =
-    useState(true);
+  const [
+    notice,
+    setNotice,
+  ] = useState<Notice>(null);
 
-  const [syncState, setSyncState] =
-    useState<SyncState>(
-      "online"
-    );
+  const [
+    isOnline,
+    setIsOnline,
+  ] = useState(true);
 
-  const [notice, setNotice] =
-    useState<Notice>(null);
+  const [
+    deleteModal,
+    setDeleteModal,
+  ] = useState<DeleteModal>(null);
 
-  /* ======================================================
-     SYNC LOCAL SALES
-  ====================================================== */
+  const [
+    deletingSale,
+    setDeletingSale,
+  ] = useState(false);
 
-  const syncLocalSales =
-    useCallback(
-      async () => {
-        if (
-          typeof window ===
-            "undefined" ||
-          !navigator.onLine
-        ) {
-          return;
-        }
+  /* ==================================================
+     ÉTAT CONNEXION
+  ================================================== */
 
-        const userId =
-          getStoredUserId();
-
-        if (!userId) {
-          return;
-        }
-
-        setSyncState(
-          "syncing"
-        );
-
-        try {
-          const localSales =
-            await getLocalSales(
-              userId
-            );
-
-          const pending =
-            localSales.filter(
-              (sale) =>
-                sale.synced === false
-            );
-
-          for (const sale of pending) {
-            try {
-              const payload = {
-                id: sale.id,
-                user_id:
-                  userId,
-                product_id:
-                  sale.product_id ||
-                  null,
-                product_name:
-                  sale.product_name,
-                quantity:
-                  sale.quantity,
-                purchase_price:
-                  sale.purchase_price ||
-                  0,
-                selling_price:
-                  sale.selling_price ||
-                  0,
-                total_sale:
-                  sale.total_sale,
-                profit:
-                  sale.profit,
-                currency:
-                  sale.currency,
-                created_at:
-                  sale.created_at,
-              };
-
-              const {
-                error,
-              } =
-                await supabase
-                  .from("sales")
-                  .upsert(
-                    payload,
-                    {
-                      onConflict:
-                        "id",
-                    }
-                  );
-
-              if (error) {
-                console.error(
-                  "Erreur synchronisation vente :",
-                  error
-                );
-                continue;
-              }
-
-              await saveLocalSale({
-                ...sale,
-                user_id:
-                  userId,
-                synced: true,
-              });
-            } catch (error) {
-              console.error(
-                "Erreur vente locale :",
-                error
-              );
-            }
-          }
-
-          await syncPendingSaleDeletes();
-
-          const {
-            data,
-            error,
-          } =
-            await supabase
-              .from("sales")
-              .select("*")
-              .eq(
-                "user_id",
-                userId
-              )
-              .order(
-                "created_at",
-                {
-                  ascending:
-                    false,
-                }
-              );
-
-          if (error) {
-            throw error;
-          }
-
-         const remoteSales =
-  (
-    (data ||
-      []) as Partial<Sale>[]
-  ).map(
-    (sale) =>
-      normalizeSale({
-        ...sale,
-        id: String(sale.id),
-        created_at: String(
-          sale.created_at ||
-            new Date().toISOString()
-        ),
-        user_id: userId,
-        synced: true,
-      })
-  );
-
-/*
-  IMPORTANT :
-  On reconstruit le stockage local avec
-  les ventes réellement présentes sur Supabase.
-
-  On conserve uniquement les ventes locales
-  qui ne sont pas encore synchronisées.
-*/
-
-const currentLocalSales =
-  await getLocalSales(userId);
-
-const pendingLocalSales =
-  currentLocalSales.filter(
-    (sale) =>
-      sale.synced === false
-  );
-
-const remoteIds = new Set(
-  remoteSales.map(
-    (sale) => sale.id
-  )
-);
-
-/*
-  Les ventes supprimées du serveur ne sont
-  plus conservées localement.
-*/
-const finalLocalSales = [
-  ...pendingLocalSales,
-  ...remoteSales.filter(
-    (sale) =>
-      !pendingLocalSales.some(
-        (pending) =>
-          pending.id === sale.id
-      )
-  ),
-];
-
-/*
-  On supprime d'abord les anciennes ventes
-  synchronisées qui ne sont plus sur le serveur.
-*/
-const db =
-  await openSalesDB();
-
-await new Promise<void>(
-  (resolve, reject) => {
-    let transaction: IDBTransaction;
-
-    try {
-      transaction =
-        db.transaction(
-          SALES_STORE,
-          "readwrite"
-        );
-    } catch (error) {
-      reject(error);
+  useEffect(() => {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
       return;
     }
 
-    const store =
-      transaction.objectStore(
-        SALES_STORE
+    const updateConnection =
+      () => {
+        setIsOnline(
+          navigator.onLine
+        );
+      };
+
+    updateConnection();
+
+    window.addEventListener(
+      "online",
+      updateConnection
+    );
+
+    window.addEventListener(
+      "offline",
+      updateConnection
+    );
+
+    return () => {
+      window.removeEventListener(
+        "online",
+        updateConnection
       );
 
-    for (
-      const localSale of currentLocalSales
-    ) {
-      if (
-        localSale.synced === true &&
-        !remoteIds.has(
-          localSale.id
-        )
-      ) {
-        store.delete(
-          localSale.id
-        );
-      }
-    }
+      window.removeEventListener(
+        "offline",
+        updateConnection
+      );
+    };
+  }, []);
 
-    transaction.oncomplete =
-      () => resolve();
-
-    transaction.onerror =
-      () =>
-        reject(
-          transaction.error ||
-            new Error(
-              "Impossible de nettoyer les ventes locales supprimées."
-            )
-        );
-
-    transaction.onabort =
-      () =>
-        reject(
-          transaction.error ||
-            new Error(
-              "Nettoyage des ventes locales interrompu."
-            )
-        );
-  }
-);
-
-/*
-  On enregistre les ventes réellement
-  présentes sur le serveur.
-*/
-await saveLocalSales(
-  finalLocalSales
-);
-          setSyncState(
-            "online"
-          );
-
-          setNotice(
-            null
-          );
-        } catch (error) {
-          console.error(
-            "Erreur synchronisation rapports :",
-            error
-          );
-
-          setSyncState(
-            "error"
-          );
-        }
-      },
-      []
-    );
-
-  /* ======================================================
-     FILE DES SUPPRESSIONS
-  ====================================================== */
-
-  const syncPendingSaleDeletes =
-    useCallback(
-      async () => {
-        if (
-          typeof window ===
-            "undefined" ||
-          !navigator.onLine
-        ) {
-          return;
-        }
-
-        const userId =
-          getStoredUserId();
-
-        if (!userId) {
-          return;
-        }
-
-        const queue =
-          await getSaleDeleteQueue();
-
-        const userQueue =
-          queue.filter(
-            (item) =>
-              String(
-                item.userId
-              ) ===
-              String(userId)
-          );
-
-        for (
-          const item of userQueue
-        ) {
-          try {
-            const {
-              error,
-            } =
-              await supabase
-                .from("sales")
-                .delete()
-                .eq(
-                  "id",
-                  item.id
-                )
-                .eq(
-                  "user_id",
-                  userId
-                );
-
-            /*
-              Une vente déjà supprimée
-              côté serveur est considérée
-              comme terminée.
-            */
-
-            if (error) {
-              throw error;
-            }
-
-            await removeSaleDeleteFromQueue(
-              item.id
-            );
-          } catch (error) {
-            console.error(
-              "Erreur suppression vente synchronisée :",
-              error
-            );
-          }
-        }
-      },
-      []
-    );
-
-  /* ======================================================
-     LOAD REPORTS
-  ====================================================== */
+  /* ==================================================
+     CHARGEMENT DES VENTES
+     ONLINE = SUPABASE
+     OFFLINE = CACHE LOCAL
+  ================================================== */
 
   const loadReports =
     useCallback(
       async () => {
         setLoading(true);
 
-        const userId =
-          getStoredUserId();
-
-        if (!userId) {
-          setNotice({
-            type: "error",
-            message:
-              "Utilisateur non connecté. Reconnectez-vous pour voir vos rapports.",
-          });
-
-          setLoading(false);
-          return;
-        }
-
         try {
-          /* ================================================
-             1. LIRE D'ABORD LE LOCAL
-          ================================================== */
+          const userId =
+            typeof window !==
+            "undefined"
+              ? localStorage.getItem(
+                  "user_id"
+                )
+              : null;
 
-          let localSales: LocalSale[] =
-            [];
-
-          try {
-            localSales =
-              await getLocalSales(
-                userId
-              );
-
-            setSalesHistory(
-              localSales
-            );
-
-            setFilteredSales(
-              localSales
-            );
-          } catch (error) {
-            console.error(
-              "Erreur lecture locale :",
-              error
-            );
-          }
-
-          /* ================================================
-             2. HORS CONNEXION
-          ================================================== */
-
-          if (
-            !navigator.onLine
-          ) {
-            setIsOnline(
-              false
-            );
-
-            setSyncState(
-              "offline"
-            );
-
-            setStartDate("");
-            setEndDate("");
-            setProductQuery("");
-            setShowAll(false);
+          if (!userId) {
+            setNotice({
+              type: "error",
+              message:
+                "Utilisateur non connecté. Reconnectez-vous pour voir vos rapports.",
+            });
 
             setLoading(false);
-
             return;
           }
 
-          /* ================================================
-             3. EN LIGNE
-          ================================================== */
+          /*
+           * Si Internet n'est pas disponible,
+           * on utilise directement le cache.
+           */
+          if (
+            typeof navigator !==
+              "undefined" &&
+            !navigator.onLine
+          ) {
+            const cachedSales =
+              readReportsCache(
+                userId
+              );
 
-          setIsOnline(
-            true
-          );
+            if (
+              cachedSales.length >
+              0
+            ) {
+              setSalesHistory(
+                cachedSales
+              );
 
-          await syncLocalSales();
+              setFilteredSales(
+                cachedSales
+              );
 
-          /* ================================================
-             4. RELIRE LE LOCAL APRÈS SYNC
-          ================================================== */
+              setStartDate("");
+              setEndDate("");
+              setProductQuery("");
+              setShowAll(false);
 
-          const finalSales =
-            await getLocalSales(
+              setNotice({
+                type: "info",
+                message:
+                  "Mode hors connexion : les dernières données disponibles sont affichées.",
+              });
+            } else {
+              setSalesHistory(
+                []
+              );
+
+              setFilteredSales(
+                []
+              );
+
+              setNotice({
+                type: "info",
+                message:
+                  "Vous êtes hors connexion. Aucune donnée de rapport n'est encore disponible sur cet appareil.",
+              });
+            }
+
+            setLoading(false);
+            return;
+          }
+
+          /*
+           * Connexion disponible :
+           * on charge normalement depuis Supabase.
+           */
+          const {
+            data,
+            error,
+          } = await supabase
+            .from("sales")
+            .select("*")
+            .eq(
+              "user_id",
               userId
+            )
+            .order(
+              "created_at",
+              {
+                ascending: false,
+              }
             );
 
+          if (error) {
+            console.error(
+              "Erreur chargement ventes :",
+              error
+            );
+
+            /*
+             * Si Supabase échoue malgré navigator.onLine,
+             * on utilise quand même le cache local.
+             */
+            const cachedSales =
+              readReportsCache(
+                userId
+              );
+
+            if (
+              cachedSales.length >
+              0
+            ) {
+              setSalesHistory(
+                cachedSales
+              );
+
+              setFilteredSales(
+                cachedSales
+              );
+
+              setNotice({
+                type: "info",
+                message:
+                  "Connexion au serveur indisponible. Les dernières données enregistrées sur cet appareil sont affichées.",
+              });
+
+              setLoading(false);
+              return;
+            }
+
+            setNotice({
+              type: "error",
+              message:
+                "Impossible de charger les ventes. Vérifiez votre connexion.",
+            });
+
+            setLoading(false);
+            return;
+          }
+
+          const list =
+            (data || []) as Sale[];
+
+          /*
+           * Mise à jour du cache local.
+           */
+          saveReportsCache(
+            userId,
+            list
+          );
+
           setSalesHistory(
-            finalSales
+            list
           );
 
           setFilteredSales(
-            finalSales
+            list
           );
 
           setStartDate("");
@@ -1886,150 +624,75 @@ await saveLocalSales(
           setProductQuery("");
           setShowAll(false);
 
-          setSyncState(
-            "online"
-          );
-
-          setNotice(
-            null
-          );
+          setNotice(null);
         } catch (error) {
           console.error(
-            "Erreur chargement rapports :",
+            "Erreur générale :",
             error
           );
 
           /*
-            On ne vide surtout pas
-            les données locales.
-          */
+           * Dernier secours :
+           * lecture du cache.
+           */
+          const userId =
+            typeof window !==
+            "undefined"
+              ? localStorage.getItem(
+                  "user_id"
+                )
+              : null;
 
-          try {
-            const fallback =
-              await getLocalSales(
-                userId
-              );
+          const cachedSales =
+            userId
+              ? readReportsCache(
+                  userId
+                )
+              : [];
 
+          if (
+            cachedSales.length >
+            0
+          ) {
             setSalesHistory(
-              fallback
+              cachedSales
             );
 
             setFilteredSales(
-              fallback
+              cachedSales
             );
-          } catch {
-            // Rien
-          }
 
-          setSyncState(
-            navigator.onLine
-              ? "error"
-              : "offline"
-          );
-
-          if (
-            navigator.onLine
-          ) {
+            setNotice({
+              type: "info",
+              message:
+                "Les données locales disponibles sont affichées.",
+            });
+          } else {
             setNotice({
               type: "error",
               message:
-                "Le serveur n'est pas disponible. Les données locales restent affichées.",
+                "Une erreur est survenue pendant le chargement du rapport.",
             });
           }
         } finally {
           setLoading(false);
         }
       },
-      [syncLocalSales]
+      []
     );
 
-  /* ======================================================
-     INITIALISATION
-  ====================================================== */
-
   useEffect(() => {
-    let mounted = true;
-
-    const init =
-      async () => {
-        try {
-          await openSalesDB();
-
-          if (!mounted) {
-            return;
-          }
-
-          setIsOnline(
-            navigator.onLine
-          );
-
-          await loadReports();
-        } catch (error) {
-          console.error(
-            "Erreur initialisation rapports :",
-            error
-          );
-
-          if (mounted) {
-            setLoading(
-              false
-            );
-
-            setSyncState(
-              "error"
-            );
-
-            setNotice({
-              type: "error",
-              message:
-                getErrorMessage(
-                  error
-                ),
-            });
-          }
-        }
-      };
-
-    void init();
-
-    return () => {
-      mounted = false;
-    };
+    loadReports();
   }, [loadReports]);
 
-  /* ======================================================
-     ONLINE / OFFLINE
-  ====================================================== */
+  /* ==================================================
+     RECHARGER AUTOMATIQUEMENT AU RETOUR INTERNET
+  ================================================== */
 
   useEffect(() => {
     const handleOnline =
-      async () => {
-        setIsOnline(
-          true
-        );
-
-        setSyncState(
-          "syncing"
-        );
-
-        await loadReports();
-      };
-
-    const handleOffline =
       () => {
-        setIsOnline(
-          false
-        );
-
-        setSyncState(
-          "offline"
-        );
-
-        setNotice({
-          type: "info",
-          message:
-            "Vous êtes hors connexion. Les rapports continuent d'utiliser les données enregistrées sur cet appareil.",
-        });
+        loadReports();
       };
 
     window.addEventListener(
@@ -2037,34 +700,23 @@ await saveLocalSales(
       handleOnline
     );
 
-    window.addEventListener(
-      "offline",
-      handleOffline
-    );
-
     return () => {
       window.removeEventListener(
         "online",
         handleOnline
       );
-
-      window.removeEventListener(
-        "offline",
-        handleOffline
-      );
     };
   }, [loadReports]);
 
-  /* ======================================================
-     RETOUR EN HAUT
-  ====================================================== */
+  /* ==================================================
+     BOUTON RETOUR EN HAUT
+  ================================================== */
 
   useEffect(() => {
     const handleScroll =
       () => {
         setShowTopButton(
-          window.scrollY >
-            300
+          window.scrollY > 500
         );
       };
 
@@ -2092,9 +744,9 @@ await saveLocalSales(
       });
     };
 
-  /* ======================================================
+  /* ==================================================
      RAPPORTS JOURNALIERS
-  ====================================================== */
+  ================================================== */
 
   const {
     today,
@@ -2137,65 +789,58 @@ await saveLocalSales(
           getLocalDate(d2)
         ),
     };
-  }, [salesHistory]);
+  }, [
+    salesHistory,
+  ]);
 
-  /* ======================================================
+  /* ==================================================
      RÉSUMÉ
-  ====================================================== */
+  ================================================== */
 
   const summary =
     useMemo(() => {
       let totalFc = 0;
       let totalUsd = 0;
-
       let profitFc = 0;
       let profitUsd = 0;
-
       let quantity = 0;
 
-      for (
-        const sale of filteredSales
-      ) {
-        const amount =
-          Number(
-            sale.total_sale ||
-              0
+      filteredSales.forEach(
+        (sale) => {
+          const amount =
+            Number(
+              sale.total_sale ||
+                0
+            );
+
+          const profit =
+            Number(
+              sale.profit || 0
+            );
+
+          quantity += Number(
+            sale.quantity || 0
           );
 
-        const profit =
-          Number(
-            sale.profit ||
-              0
-          );
+          if (
+            isFC(
+              sale.currency
+            )
+          ) {
+            totalFc += amount;
+            profitFc += profit;
+          }
 
-        quantity +=
-          Number(
-            sale.quantity ||
-              0
-          );
-
-        if (
-          isFC(
-            sale.currency
-          )
-        ) {
-          totalFc +=
-            amount;
-          profitFc +=
-            profit;
+          if (
+            isUSD(
+              sale.currency
+            )
+          ) {
+            totalUsd += amount;
+            profitUsd += profit;
+          }
         }
-
-        if (
-          isUSD(
-            sale.currency
-          )
-        ) {
-          totalUsd +=
-            amount;
-          profitUsd +=
-            profit;
-        }
-      }
+      );
 
       const count =
         filteredSales.length;
@@ -2208,33 +853,29 @@ await saveLocalSales(
         profitFc,
         profitUsd,
 
-        averageFc:
-          count
-            ? totalFc /
-              count
-            : 0,
+        averageFc: count
+          ? totalFc / count
+          : 0,
 
-        averageUsd:
-          count
-            ? totalUsd /
-              count
-            : 0,
+        averageUsd: count
+          ? totalUsd / count
+          : 0,
 
-        marginFc:
-          totalFc
-            ? (profitFc /
-                totalFc) *
-              100
-            : 0,
+        marginFc: totalFc
+          ? (profitFc /
+              totalFc) *
+            100
+          : 0,
 
-        marginUsd:
-          totalUsd
-            ? (profitUsd /
-                totalUsd) *
-              100
-            : 0,
+        marginUsd: totalUsd
+          ? (profitUsd /
+              totalUsd) *
+            100
+          : 0,
       };
-    }, [filteredSales]);
+    }, [
+      filteredSales,
+    ]);
 
   const dayVariationFc =
     useMemo(
@@ -2262,9 +903,9 @@ await saveLocalSales(
       ]
     );
 
-  /* ======================================================
+  /* ==================================================
      FILTRE PRODUIT
-  ====================================================== */
+  ================================================== */
 
   const applyProductQuery =
     useCallback(
@@ -2274,9 +915,8 @@ await saveLocalSales(
             .trim()
             .toLowerCase();
 
-        if (!query) {
+        if (!query)
           return list;
-        }
 
         return list.filter(
           (sale) =>
@@ -2285,17 +925,15 @@ await saveLocalSales(
               ""
             )
               .toLowerCase()
-              .includes(
-                query
-              )
+              .includes(query)
         );
       },
       [productQuery]
     );
 
-  /* ======================================================
-     FILTRE PÉRIODE
-  ====================================================== */
+  /* ==================================================
+     FILTRE PAR PÉRIODE
+  ================================================== */
 
   const filterByPeriod =
     () => {
@@ -2348,21 +986,18 @@ await saveLocalSales(
         )
       );
 
-      setShowAll(
-        false
-      );
-
-      setNotice(
-        null
-      );
+      setShowAll(false);
+      setNotice(null);
     };
 
-  /* ======================================================
+  /* ==================================================
      RECHERCHE PRODUIT
-  ====================================================== */
+  ================================================== */
 
   const searchProduct =
-    (value: string) => {
+    (
+      value: string
+    ) => {
       setProductQuery(
         value
       );
@@ -2406,9 +1041,7 @@ await saveLocalSales(
                   ""
                 )
                   .toLowerCase()
-                  .includes(
-                    query
-                  )
+                  .includes(query)
             )
           : base;
 
@@ -2416,18 +1049,13 @@ await saveLocalSales(
         result
       );
 
-      setShowAll(
-        false
-      );
-
-      setNotice(
-        null
-      );
+      setShowAll(false);
+      setNotice(null);
     };
 
-  /* ======================================================
+  /* ==================================================
      TOUTES LES VENTES
-  ====================================================== */
+  ================================================== */
 
   const showEverything =
     () => {
@@ -2443,18 +1071,13 @@ await saveLocalSales(
         result
       );
 
-      setShowAll(
-        true
-      );
-
-      setNotice(
-        null
-      );
+      setShowAll(true);
+      setNotice(null);
     };
 
-  /* ======================================================
-     RESET
-  ====================================================== */
+  /* ==================================================
+     RÉINITIALISER
+  ================================================== */
 
   const resetFilters =
     () => {
@@ -2466,211 +1089,200 @@ await saveLocalSales(
         salesHistory
       );
 
-      setShowAll(
-        false
-      );
-
-      setNotice(
-        null
-      );
+      setShowAll(false);
+      setNotice(null);
     };
 
-  /* ======================================================
-   SUPPRESSION DÉFINITIVE D'UNE VENTE
-====================================================== */
+  /* ==================================================
+     DEMANDE DE SUPPRESSION
+  ================================================== */
 
-const deleteSale = async (saleId: string) => {
-  const confirmed = window.confirm(
-    "Voulez-vous vraiment supprimer cette vente ? Cette action est irréversible."
-  );
+  const requestDeleteSale =
+    (sale: Sale) => {
+      /*
+       * Suppression interdite hors connexion.
+       * On ouvre directement le joli popup.
+       */
+      if (
+        typeof navigator !==
+          "undefined" &&
+        !navigator.onLine
+      ) {
+        setNotice({
+          type: "info",
+          message:
+            "Une connexion Internet est requise pour supprimer une vente.",
+        });
 
-  if (!confirmed) return;
+        return;
+      }
 
-  const userId = getStoredUserId();
-
-  if (!userId) {
-    setNotice({
-      type: "error",
-      message: "Utilisateur non connecté.",
-    });
-    return;
-  }
-
-  try {
-    /*
-     * ============================================================
-     * 1. SUPPRESSION IMMÉDIATE DE L'INTERFACE
-     * ============================================================
-     */
-    setSalesHistory((current) =>
-      current.filter((sale) => sale.id !== saleId)
-    );
-
-    setFilteredSales((current) =>
-      current.filter((sale) => sale.id !== saleId)
-    );
-
-    /*
-     * ============================================================
-     * 2. SUPPRESSION IMMÉDIATE DU CACHE LOCAL
-     * ============================================================
-     */
-    await removeLocalSale(saleId);
-
-    /*
-     * ============================================================
-     * 3. ENREGISTRER LA SUPPRESSION DANS LA FILE
-     *
-     * IMPORTANT :
-     * On l'enregistre AVANT de contacter Supabase.
-     *
-     * Ainsi, même si la connexion coupe pendant la suppression,
-     * la suppression ne sera jamais oubliée.
-     * ============================================================
-     */
-    await addSaleDeleteToQueue({
-      id: saleId,
-      userId,
-      createdAt: Date.now(),
-    });
-
-    /*
-     * ============================================================
-     * 4. HORS CONNEXION
-     * ============================================================
-     */
-    if (!navigator.onLine) {
-      setSyncState("offline");
-
-      setNotice({
-        type: "success",
-        message:
-          "Vente supprimée de cet appareil. La suppression sera synchronisée dès le retour d'Internet.",
+      setDeleteModal({
+        sale,
       });
+    };
 
-      return;
-    }
+  /* ==================================================
+     SUPPRIMER UNE VENTE
+  ================================================== */
 
-    /*
-     * ============================================================
-     * 5. EN LIGNE
-     * ============================================================
-     */
-    setSyncState("syncing");
+  const deleteSale =
+    async (
+      saleId: string
+    ) => {
+      /*
+       * Double protection :
+       * même si le popup était déjà ouvert,
+       * on revérifie Internet au moment exact
+       * de la suppression.
+       */
+      if (
+        typeof navigator !==
+          "undefined" &&
+        !navigator.onLine
+      ) {
+        setDeleteModal(null);
 
-    const { data, error } = await supabase
-      .from("sales")
-      .delete()
-      .eq("id", saleId)
-      .eq("user_id", userId)
-      .select("id");
+        setNotice({
+          type: "info",
+          message:
+            "Connexion Internet requise pour supprimer une vente. La vente n'a pas été supprimée.",
+        });
 
-    /*
-     * ============================================================
-     * 6. ERREUR SUPABASE
-     *
-     * La suppression est déjà dans la file.
-     * Elle pourra donc être retentée automatiquement.
-     * ============================================================
-     */
-    if (error) {
-      console.error(
-        "Erreur Supabase suppression vente :",
-        error
+        return;
+      }
+
+      setDeletingSale(
+        true
       );
 
-      setSyncState("error");
+      try {
+        const userId =
+          typeof window !==
+          "undefined"
+            ? localStorage.getItem(
+                "user_id"
+              )
+            : null;
 
-      setNotice({
-        type: "error",
-        message:
-          "Vente supprimée localement. La suppression du serveur sera réessayée automatiquement.",
-      });
+        if (!userId) {
+          setDeleteModal(null);
 
-      return;
-    }
+          setNotice({
+            type: "error",
+            message:
+              "Utilisateur non connecté.",
+          });
 
-    /*
-     * ============================================================
-     * 7. VÉRIFICATION DE LA SUPPRESSION
-     * ============================================================
-     */
-    if (!data || data.length === 0) {
-      console.error(
-        "Supabase n'a supprimé aucune ligne :",
-        {
-          saleId,
-          userId,
+          return;
         }
-      );
 
-      setSyncState("error");
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("sales")
+          .delete()
+          .eq(
+            "id",
+            saleId
+          )
+          .eq(
+            "user_id",
+            userId
+          )
+          .select("id");
 
-      setNotice({
-        type: "error",
-        message:
-          "La vente n'a pas été supprimée du serveur. Vérifiez la politique RLS de la table sales.",
-      });
+        if (error) {
+          console.error(
+            "Erreur suppression vente :",
+            error
+          );
 
-      return;
-    }
+          setNotice({
+            type: "error",
+            message:
+              "La vente n'a pas pu être supprimée. Vérifiez votre connexion Internet.",
+          });
 
-    /*
-     * ============================================================
-     * 8. SUPPRESSION SERVEUR CONFIRMÉE
-     *
-     * La suppression a réussi.
-     * On retire maintenant cette suppression de la file.
-     *
-     * IMPORTANT :
-     * Cette partie nécessite une fonction
-     * removeSaleDeleteFromQueue().
-     * ============================================================
-     */
-    await removeSaleDeleteFromQueue(saleId);
+          return;
+        }
 
-    setSyncState("online");
+        if (
+          !data ||
+          data.length === 0
+        ) {
+          setNotice({
+            type: "error",
+            message:
+              "La vente n'a pas été supprimée dans la base de données.",
+          });
 
-    setNotice({
-      type: "success",
-      message: "Vente supprimée définitivement.",
-    });
+          return;
+        }
 
-  } catch (error) {
-    console.error(
-      "Erreur suppression vente :",
-      error
-    );
+        /*
+         * Suppression uniquement après confirmation
+         * réelle de Supabase.
+         */
+        const updatedSales =
+          salesHistory.filter(
+            (sale) =>
+              sale.id !==
+              saleId
+          );
 
-    /*
-     * ============================================================
-     * 9. ERREUR INATTENDUE
-     *
-     * La suppression est normalement déjà dans la file.
-     * On ne la recrée donc PAS ici.
-     *
-     * Cela évite d'avoir plusieurs suppressions identiques
-     * dans la file.
-     * ============================================================
-     */
-    setSyncState(
-      navigator.onLine
-        ? "error"
-        : "offline"
-    );
+        setSalesHistory(
+          updatedSales
+        );
 
-    setNotice({
-      type: "error",
-      message:
-        navigator.onLine
-          ? "La vente a été supprimée localement, mais la synchronisation doit être vérifiée."
-          : "Vente supprimée de cet appareil. La suppression sera synchronisée dès le retour d'Internet.",
-    });
-  }
-};
-  /* ======================================================
+        setFilteredSales(
+          (current) =>
+            current.filter(
+              (sale) =>
+                sale.id !==
+                saleId
+            )
+        );
+
+        /*
+         * Mise à jour du cache local.
+         * Ainsi la vente supprimée ne réapparaîtra
+         * pas depuis le cache.
+         */
+        saveReportsCache(
+          userId,
+          updatedSales
+        );
+
+        setDeleteModal(null);
+
+        setNotice({
+          type: "success",
+          message:
+            "Vente supprimée définitivement.",
+        });
+      } catch (error) {
+        console.error(
+          "Erreur générale suppression :",
+          error
+        );
+
+        setNotice({
+          type: "error",
+          message:
+            "Une erreur est survenue lors de la suppression.",
+        });
+      } finally {
+        setDeletingSale(
+          false
+        );
+      }
+    };
+
+  /* ==================================================
      VENTES AFFICHÉES
-  ====================================================== */
+  ================================================== */
 
   const displayedSales =
     showAll
@@ -2680,9 +1292,9 @@ const deleteSale = async (saleId: string) => {
           PAGE_STEP
         );
 
-  /* ======================================================
+  /* ==================================================
      LABEL PÉRIODE
-  ====================================================== */
+  ================================================== */
 
   const periodLabel =
     startDate &&
@@ -2694,9 +1306,9 @@ const deleteSale = async (saleId: string) => {
         )}`
       : "Toutes les ventes";
 
-  /* ======================================================
-     DONNÉES PDF
-  ====================================================== */
+  /* ==================================================
+     DONNÉES EXPORT PDF
+  ================================================== */
 
   const getExportData =
     (): Sale[] => {
@@ -2743,9 +1355,9 @@ const deleteSale = async (saleId: string) => {
           )}`
       : "Rapport-BISO-COMMERCE-complet";
 
-  /* ======================================================
-     PDF
-  ====================================================== */
+  /* ==================================================
+     PDF PROFESSIONNEL
+  ================================================== */
 
   const downloadPDF =
     () => {
@@ -2756,7 +1368,16 @@ const deleteSale = async (saleId: string) => {
         setNotice({
           type: "info",
           message:
-            "Aucune vente trouvée pour la sélection actuelle.",
+            startDate &&
+            endDate
+              ? `Aucune vente du ${prettyDate(
+                  startDate
+                )} au ${prettyDate(
+                  endDate
+                )}.`
+              : productQuery
+              ? `Aucune vente pour le produit « ${productQuery} ».`
+              : "Aucune vente trouvée.",
         });
       }
 
@@ -2770,6 +1391,10 @@ const deleteSale = async (saleId: string) => {
             true,
           compress: true,
         });
+
+      /* ==================================================
+         PALETTE PDF
+      ================================================== */
 
       const ORANGE: [
         number,
@@ -2861,6 +1486,10 @@ const deleteSale = async (saleId: string) => {
         255,
       ];
 
+      /* ==================================================
+         DATE GÉNÉRATION
+      ================================================== */
+
       const generatedAt =
         new Date().toLocaleString(
           "fr-FR",
@@ -2872,6 +1501,10 @@ const deleteSale = async (saleId: string) => {
           }
         );
 
+      /* ==================================================
+         CALCULS
+      ================================================== */
+
       let totalFc = 0;
       let totalUsd = 0;
       let profitFc = 0;
@@ -2879,7 +1512,7 @@ const deleteSale = async (saleId: string) => {
       let totalQuantity = 0;
 
       data.forEach(
-        sale => {
+        (sale) => {
           const amount =
             Number(
               sale.total_sale ||
@@ -2888,8 +1521,7 @@ const deleteSale = async (saleId: string) => {
 
           const profit =
             Number(
-              sale.profit ||
-                0
+              sale.profit || 0
             );
 
           totalQuantity +=
@@ -2903,10 +1535,8 @@ const deleteSale = async (saleId: string) => {
               sale.currency
             )
           ) {
-            totalFc +=
-              amount;
-            profitFc +=
-              profit;
+            totalFc += amount;
+            profitFc += profit;
           }
 
           if (
@@ -2914,10 +1544,8 @@ const deleteSale = async (saleId: string) => {
               sale.currency
             )
           ) {
-            totalUsd +=
-              amount;
-            profitUsd +=
-              profit;
+            totalUsd += amount;
+            profitUsd += profit;
           }
         }
       );
@@ -2947,6 +1575,10 @@ const deleteSale = async (saleId: string) => {
           : productQuery
           ? `Produit : ${productQuery}`
           : "Toutes les ventes";
+
+      /* ==================================================
+         FONCTIONS PDF
+      ================================================== */
 
       const addPageHeader =
         (
@@ -3017,14 +1649,11 @@ const deleteSale = async (saleId: string) => {
             195,
             12,
             {
-              align:
-                "right",
+              align: "right",
             }
           );
 
-          if (
-            subtitle
-          ) {
+          if (subtitle) {
             doc.setFont(
               "helvetica",
               "normal"
@@ -3097,7 +1726,7 @@ const deleteSale = async (saleId: string) => {
             );
 
             doc.text(
-              "https://bisocommerce.vercel.app",
+              "https://bisocommerce.vercel.app ",
               15,
               height - 9
             );
@@ -3157,9 +1786,9 @@ const deleteSale = async (saleId: string) => {
           );
         };
 
-      /* ====================================================
-         PAGE 1
-      ==================================================== */
+      /* ==================================================
+         PAGE 1 — COUVERTURE / RÉSUMÉ
+      ================================================== */
 
       doc.setFillColor(
         DARKER[0],
@@ -3263,10 +1892,11 @@ const deleteSale = async (saleId: string) => {
         {
           align:
             "center",
-          maxWidth:
-            38,
+          maxWidth: 38,
         }
       );
+
+      /* ---------- INTRO ---------- */
 
       doc.setTextColor(
         DARK[0],
@@ -3312,62 +1942,58 @@ const deleteSale = async (saleId: string) => {
         64
       );
 
+      /* ==================================================
+         CARTES FINANCIÈRES
+      ================================================== */
+
       const cards = [
         {
           x: 15,
-          y: 72,
-          title:
-            "VENTES FC",
-          value:
-            `${formatMoney(
-              totalFc
-            )} FC`,
-          color:
-            ORANGE,
+          title: "VENTES FC",
+          value: `${formatMoney(
+            totalFc
+          )} FC`,
+          color: ORANGE,
         },
-
         {
           x: 108,
-          y: 72,
-          title:
-            "VENTES USD",
-          value:
-            `${formatMoney(
-              totalUsd
-            )} $`,
-          color:
-            BLUE,
+          title: "VENTES USD",
+          value: `${formatMoney(
+            totalUsd
+          )} $`,
+          color: BLUE,
         },
-
         {
           x: 15,
           y: 95,
-          title:
-            "BENEFICE FC",
-          value:
-            `${formatMoney(
-              profitFc
-            )} FC`,
-          color:
-            GREEN,
+          title: "BENEFICE FC",
+          value: `${formatMoney(
+            profitFc
+          )} FC`,
+          color: GREEN,
         },
-
         {
           x: 108,
           y: 95,
-          title:
-            "BENEFICE USD",
-          value:
-            `${formatMoney(
-              profitUsd
-            )} $`,
-          color:
-            GREEN,
+          title: "BENEFICE USD",
+          value: `${formatMoney(
+            profitUsd
+          )} $`,
+          color: GREEN,
         },
       ];
 
       cards.forEach(
-        card => {
+        (
+          card,
+          index
+        ) => {
+          const y =
+            card.y ||
+            (index < 2
+              ? 72
+              : 95);
+
           doc.setFillColor(
             LIGHT[0],
             LIGHT[1],
@@ -3382,7 +2008,7 @@ const deleteSale = async (saleId: string) => {
 
           doc.roundedRect(
             card.x,
-            card.y,
+            y,
             87,
             18,
             3,
@@ -3398,7 +2024,7 @@ const deleteSale = async (saleId: string) => {
 
           doc.roundedRect(
             card.x,
-            card.y,
+            y,
             3,
             18,
             1.5,
@@ -3424,7 +2050,7 @@ const deleteSale = async (saleId: string) => {
           doc.text(
             card.title,
             card.x + 8,
-            card.y + 6
+            y + 6
           );
 
           doc.setTextColor(
@@ -3442,10 +2068,14 @@ const deleteSale = async (saleId: string) => {
               card.value
             ),
             card.x + 8,
-            card.y + 13
+            y + 13
           );
         }
       );
+
+      /* ==================================================
+         INDICATEURS
+      ================================================== */
 
       addSectionTitle(
         "Indicateurs principaux",
@@ -3473,7 +2103,6 @@ const deleteSale = async (saleId: string) => {
               ),
               "Transactions",
             ],
-
             [
               "Quantite vendue",
               String(
@@ -3481,29 +2110,26 @@ const deleteSale = async (saleId: string) => {
               ),
               "Articles",
             ],
-
             [
               "Panier moyen FC",
               `${formatMoney(
                 data.length
                   ? totalFc /
-                    data.length
+                      data.length
                   : 0
               )} FC`,
               "Moyenne",
             ],
-
             [
               "Panier moyen USD",
               `${formatMoney(
                 data.length
                   ? totalUsd /
-                    data.length
+                      data.length
                   : 0
               )} $`,
               "Moyenne",
             ],
-
             [
               "Marge FC",
               `${margeFc.toFixed(
@@ -3511,7 +2137,6 @@ const deleteSale = async (saleId: string) => {
               )} %`,
               "Rentabilite",
             ],
-
             [
               "Marge USD",
               `${margeUsd.toFixed(
@@ -3521,25 +2146,21 @@ const deleteSale = async (saleId: string) => {
             ],
           ],
 
-          theme:
-            "grid",
+          theme: "grid",
 
           styles: {
-            font:
-              "helvetica",
+            font: "helvetica",
             fontSize: 9,
             cellPadding: 4,
             textColor:
               DARK,
             lineColor:
               BORDER,
-            lineWidth:
-              0.2,
+            lineWidth: 0.2,
           },
 
           headStyles: {
-            fillColor:
-              DARK,
+            fillColor: DARK,
             textColor:
               WHITE,
             fontStyle:
@@ -3559,9 +2180,9 @@ const deleteSale = async (saleId: string) => {
         }
       );
 
-      /* ====================================================
-         PAGE 2
-      ==================================================== */
+      /* ==================================================
+         PAGE 2 — SUIVI JOURNALIER
+      ================================================== */
 
       doc.addPage();
 
@@ -3576,7 +2197,7 @@ const deleteSale = async (saleId: string) => {
       > = {};
 
       data.forEach(
-        sale => {
+        (sale) => {
           const day =
             sale.created_at.split(
               "T"
@@ -3598,8 +2219,7 @@ const deleteSale = async (saleId: string) => {
 
           const profit =
             Number(
-              sale.profit ||
-                0
+              sale.profit || 0
             );
 
           perDay[
@@ -3647,30 +2267,27 @@ const deleteSale = async (saleId: string) => {
           perDay
         )
           .sort((a, b) =>
-            a < b ? 1 : -1
+            a < b
+              ? 1
+              : -1
           )
           .map(
-            day => [
+            (day) => [
               prettyDate(day),
-
               String(
                 perDay[day]
                   .quantity
               ),
-
               `${formatMoney(
                 perDay[day].fc
               )} FC`,
-
               `${formatMoney(
                 perDay[day].usd
               )} $`,
-
               `${formatMoney(
                 perDay[day]
                   .profitFc
               )} FC`,
-
               `${formatMoney(
                 perDay[day]
                   .profitUsd
@@ -3703,24 +2320,19 @@ const deleteSale = async (saleId: string) => {
               ],
             ],
 
-            body:
-              dayRows,
+            body: dayRows,
 
-            theme:
-              "grid",
+            theme: "grid",
 
             styles: {
-              font:
-                "helvetica",
+              font: "helvetica",
               fontSize: 8,
-              cellPadding:
-                3.5,
+              cellPadding: 3.5,
               textColor:
                 DARK,
               lineColor:
                 BORDER,
-              lineWidth:
-                0.2,
+              lineWidth: 0.2,
             },
 
             headStyles: {
@@ -3730,8 +2342,7 @@ const deleteSale = async (saleId: string) => {
                 "bold",
               textColor:
                 WHITE,
-              fontSize:
-                8,
+              fontSize: 8,
             },
 
             alternateRowStyles: {
@@ -3741,32 +2352,25 @@ const deleteSale = async (saleId: string) => {
 
             columnStyles: {
               0: {
-                cellWidth:
-                  27,
+                cellWidth: 27,
               },
-
               1: {
                 halign:
                   "center",
-                cellWidth:
-                  18,
+                cellWidth: 18,
               },
-
               2: {
                 halign:
                   "right",
               },
-
               3: {
                 halign:
                   "right",
               },
-
               4: {
                 halign:
                   "right",
               },
-
               5: {
                 halign:
                   "right",
@@ -3801,15 +2405,16 @@ const deleteSale = async (saleId: string) => {
           52
         );
       }
-            /* ====================================================
-         PAGE 3 — DETAIL DES VENTES
-      ==================================================== */
+
+      /* ==================================================
+         PAGE 3 — DÉTAIL DES VENTES
+      ================================================== */
 
       doc.addPage();
 
       addPageHeader(
         "Detail des ventes",
-        `${data.length} vente${
+        `${data.length} transaction${
           data.length > 1
             ? "s"
             : ""
@@ -3817,13 +2422,13 @@ const deleteSale = async (saleId: string) => {
       );
 
       addSectionTitle(
-        "Liste des ventes",
+        "Liste des transactions",
         40
       );
 
       const salesRows =
         data.map(
-          sale => {
+          (sale) => {
             const saleDate =
               new Date(
                 sale.created_at
@@ -3886,23 +2491,19 @@ const deleteSale = async (saleId: string) => {
               ],
             ],
 
-            body:
-              salesRows,
+            body: salesRows,
 
-            theme:
-              "grid",
+            theme: "grid",
 
             styles: {
-              font:
-                "helvetica",
+              font: "helvetica",
               fontSize: 8,
               cellPadding: 3,
               textColor:
                 DARK,
               lineColor:
                 BORDER,
-              lineWidth:
-                0.2,
+              lineWidth: 0.2,
               overflow:
                 "linebreak",
             },
@@ -3914,8 +2515,7 @@ const deleteSale = async (saleId: string) => {
                 WHITE,
               fontStyle:
                 "bold",
-              fontSize:
-                8,
+              fontSize: 8,
             },
 
             alternateRowStyles: {
@@ -3925,27 +2525,20 @@ const deleteSale = async (saleId: string) => {
 
             columnStyles: {
               0: {
-                cellWidth:
-                  24,
+                cellWidth: 24,
               },
-
               1: {
-                cellWidth:
-                  68,
+                cellWidth: 68,
               },
-
               2: {
-                cellWidth:
-                  16,
+                cellWidth: 16,
                 halign:
                   "center",
               },
-
               3: {
                 halign:
                   "right",
               },
-
               4: {
                 halign:
                   "right",
@@ -3981,9 +2574,9 @@ const deleteSale = async (saleId: string) => {
         );
       }
 
-      /* ====================================================
+      /* ==================================================
          PAGE 4 — ANALYSE COMMERCIALE
-      ==================================================== */
+      ================================================== */
 
       doc.addPage();
 
@@ -3997,71 +2590,65 @@ const deleteSale = async (saleId: string) => {
         42
       );
 
-      const analyseRows = [
+      const analyseRows =
         [
-          "Quantite totale vendue",
-          String(
-            totalQuantity
-          ),
-          "articles",
-        ],
-
-        [
-          "Nombre total de ventes",
-          String(
-            data.length
-          ),
-          "transactions",
-        ],
-
-        [
-          "Total ventes FC",
-          `${formatMoney(
-            totalFc
-          )} FC`,
-          "chiffre d'affaires",
-        ],
-
-        [
-          "Total ventes USD",
-          `${formatMoney(
-            totalUsd
-          )} $`,
-          "chiffre d'affaires",
-        ],
-
-        [
-          "Benefice total FC",
-          `${formatMoney(
-            profitFc
-          )} FC`,
-          "benefice",
-        ],
-
-        [
-          "Benefice total USD",
-          `${formatMoney(
-            profitUsd
-          )} $`,
-          "benefice",
-        ],
-
-        [
-          "Marge FC",
-          `${margeFc.toFixed(
-            1
-          )} %`,
-          "rentabilite",
-        ],
-
-        [
-          "Marge USD",
-          `${margeUsd.toFixed(
-            1
-          )} %`,
-          "rentabilite",
-        ],
-      ];
+          [
+            "Quantite totale vendue",
+            String(
+              totalQuantity
+            ),
+            "articles",
+          ],
+          [
+            "Nombre total de ventes",
+            String(
+              data.length
+            ),
+            "transactions",
+          ],
+          [
+            "Total ventes FC",
+            `${formatMoney(
+              totalFc
+            )} FC`,
+            "chiffre d'affaires",
+          ],
+          [
+            "Total ventes USD",
+            `${formatMoney(
+              totalUsd
+            )} $`,
+            "chiffre d'affaires",
+          ],
+          [
+            "Benefice total FC",
+            `${formatMoney(
+              profitFc
+            )} FC`,
+            "benefice",
+          ],
+          [
+            "Benefice total USD",
+            `${formatMoney(
+              profitUsd
+            )} $`,
+            "benefice",
+          ],
+          [
+            "Marge FC",
+            `${margeFc.toFixed(
+              1
+            )} %`,
+            "rentabilite",
+          ],
+          [
+            "Marge USD",
+            `${margeUsd.toFixed(
+              1
+            )} %`,
+            "rentabilite",
+          ],
+        ];
 
       autoTable(
         doc,
@@ -4076,24 +2663,19 @@ const deleteSale = async (saleId: string) => {
             ],
           ],
 
-          body:
-            analyseRows,
+          body: analyseRows,
 
-          theme:
-            "grid",
+          theme: "grid",
 
           styles: {
-            font:
-              "helvetica",
+            font: "helvetica",
             fontSize: 9,
-            cellPadding:
-              4.5,
+            cellPadding: 4.5,
             textColor:
               DARK,
             lineColor:
               BORDER,
-            lineWidth:
-              0.2,
+            lineWidth: 0.2,
           },
 
           headStyles: {
@@ -4117,7 +2699,6 @@ const deleteSale = async (saleId: string) => {
               halign:
                 "right",
             },
-
             2: {
               textColor:
                 GREY,
@@ -4131,18 +2712,20 @@ const deleteSale = async (saleId: string) => {
         }
       );
 
-      const lastAutoTable =
-        (
-          doc as unknown as {
-            lastAutoTable?: {
-              finalY?: number;
-            };
-          }
-        ).lastAutoTable;
+      /* ==================================================
+         BLOC INTERPRÉTATION
+      ================================================== */
 
       const interpretationY =
-        lastAutoTable?.finalY
-          ? lastAutoTable.finalY +
+        (
+          doc as any
+        ).lastAutoTable
+          ?.finalY
+          ? (
+              doc as any
+            )
+              .lastAutoTable
+              .finalY +
             15
           : 155;
 
@@ -4163,7 +2746,7 @@ const deleteSale = async (saleId: string) => {
         );
       } else {
         observations.push(
-          `L'activite comprend ${data.length} vente${
+          `L'activite comprend ${data.length} transaction${
             data.length >
             1
               ? "s"
@@ -4177,7 +2760,8 @@ const deleteSale = async (saleId: string) => {
         );
 
         if (
-          totalFc > 0
+          totalFc >
+          0
         ) {
           observations.push(
             `Le chiffre d'affaires en FC s'eleve a ${formatMoney(
@@ -4189,7 +2773,8 @@ const deleteSale = async (saleId: string) => {
         }
 
         if (
-          totalUsd > 0
+          totalUsd >
+          0
         ) {
           observations.push(
             `Le chiffre d'affaires en USD s'eleve a ${formatMoney(
@@ -4201,8 +2786,10 @@ const deleteSale = async (saleId: string) => {
         }
 
         if (
-          totalFc > 0 &&
-          totalUsd > 0
+          totalFc >
+            0 &&
+          totalUsd >
+            0
         ) {
           observations.push(
             `Les marges calculees sont de ${margeFc.toFixed(
@@ -4234,10 +2821,12 @@ const deleteSale = async (saleId: string) => {
       );
 
       observations.forEach(
-        text => {
+        (text) => {
           const lines =
             doc.splitTextToSize(
-              cleanPDF(text),
+              cleanPDF(
+                text
+              ),
               170
             );
 
@@ -4254,9 +2843,14 @@ const deleteSale = async (saleId: string) => {
         }
       );
 
+      /* ==================================================
+         SIGNATURE / IDENTIFICATION
+      ================================================== */
+
       const signatureY =
         Math.min(
-          observationY + 8,
+          observationY +
+            8,
           255
         );
 
@@ -4311,7 +2905,15 @@ const deleteSale = async (saleId: string) => {
         signatureY + 14
       );
 
+      /* ==================================================
+         PIED DE PAGE
+      ================================================== */
+
       addFooter();
+
+      /* ==================================================
+         SAUVEGARDE
+      ================================================== */
 
       doc.save(
         `${exportFileBase}.pdf`
@@ -4325,147 +2927,142 @@ const deleteSale = async (saleId: string) => {
   return (
     <main
       className="
-        min-h-screen
+        mx-auto
         w-full
         min-w-0
+        max-w-7xl
         overflow-x-hidden
-        bg-[#f5f7fb]
         px-3
-        py-4
+        py-3
         sm:px-5
         sm:py-6
-        lg:px-8
-        lg:py-8
+        lg:px-6
       "
     >
-      <div
-        className="
-          mx-auto
-          w-full
-          max-w-7xl
-          min-w-0
-          space-y-5
-          sm:space-y-6
-        "
-      >
+      <div className="w-full min-w-0 space-y-4 sm:space-y-6">
 
-        {/* ==================================================
-            HEADER
-        ================================================== */}
+        {/* ================== HEADER ================== */}
 
         <section
           className="
-            relative
             w-full
             min-w-0
             overflow-hidden
-            rounded-[26px]
+            rounded-2xl
             border
-            border-slate-200/80
-            bg-white
+            border-white/10
+            bg-white/[0.04]
             p-4
-            shadow-[0_5px_25px_rgba(15,23,42,0.045)]
+            shadow-xl
+            backdrop-blur-xl
+            sm:rounded-3xl
             sm:p-6
           "
         >
-          <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-indigo-100/50 blur-3xl" />
-
           <div
             className="
-              relative
               flex
               min-w-0
               flex-col
-              gap-5
-              lg:flex-row
-              lg:items-center
-              lg:justify-between
+              gap-4
+              sm:flex-row
+              sm:items-center
+              sm:justify-between
             "
           >
-            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+
               <div
                 className="
                   flex
-                  h-12
-                  w-12
+                  h-11
+                  w-11
                   shrink-0
                   items-center
                   justify-center
-                  rounded-2xl
-                  bg-indigo-600
-                  text-white
-                  shadow-lg
-                  shadow-indigo-600/15
-                  sm:h-14
-                  sm:w-14
+                  rounded-xl
+                  bg-orange-500/10
+                  text-orange-400
+                  sm:h-12
+                  sm:w-12
+                  sm:rounded-2xl
                 "
               >
                 <BarChart3
-                  size={25}
-                  strokeWidth={2.2}
+                  size={23}
                 />
               </div>
 
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl lg:text-3xl">
-                    Rapport
-                  </h1>
+                <h1
+                  className="
+                    break-words
+                    text-xl
+                    font-black
+                    tracking-tight
+                    text-white
+                    sm:text-3xl
+                  "
+                >
+                  Rapport
+                </h1>
 
-                  <span
-                    className="
-                      rounded-full
-                      bg-indigo-50
-                      px-2.5
-                      py-1
-                      text-[10px]
-                      font-black
-                      uppercase
-                      tracking-wide
-                      text-indigo-600
-                    "
-                  >
-                    Commerce
-                  </span>
-                </div>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
+                <p
+                  className="
+                    mt-1
+                    break-words
+                    text-xs
+                    leading-5
+                    text-slate-400
+                    sm:text-sm
+                  "
+                >
                   Analyse complète de votre activité commerciale
                 </p>
               </div>
             </div>
 
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <div
+              className="
+                grid
+                w-full
+                min-w-0
+                grid-cols-2
+                gap-2
+                sm:flex
+                sm:w-auto
+              "
+            >
               <button
                 type="button"
-                onClick={() =>
-                  void loadReports()
+                onClick={
+                  loadReports
                 }
                 disabled={
                   loading
                 }
                 className="
                   inline-flex
-                  min-h-[46px]
+                  min-h-[48px]
+                  min-w-0
                   items-center
                   justify-center
-                  gap-2
-                  rounded-2xl
+                  gap-1.5
+                  rounded-xl
                   border
-                  border-slate-200
-                  bg-white
-                  px-3
+                  border-white/10
+                  bg-black/30
+                  px-2
+                  py-3
                   text-xs
-                  font-extrabold
-                  text-slate-700
-                  shadow-sm
+                  font-bold
+                  text-slate-300
                   transition
-                  hover:border-indigo-200
-                  hover:bg-indigo-50
-                  hover:text-indigo-700
-                  disabled:cursor-not-allowed
+                  hover:bg-white/5
                   disabled:opacity-50
+                  sm:gap-2
                   sm:px-4
+                  sm:text-sm
                 "
               >
                 <RefreshCw
@@ -4477,7 +3074,9 @@ const deleteSale = async (saleId: string) => {
                   }
                 />
 
-                Actualiser
+                <span className="truncate">
+                  Actualiser
+                </span>
               </button>
 
               <button
@@ -4489,216 +3088,161 @@ const deleteSale = async (saleId: string) => {
                 }
                 className="
                   inline-flex
-                  min-h-[46px]
+                  min-h-[48px]
+                  min-w-0
                   items-center
                   justify-center
-                  gap-2
-                  rounded-2xl
-                  bg-indigo-600
-                  px-3
+                  gap-1.5
+                  rounded-xl
+                  border
+                  border-orange-400/20
+                  bg-orange-500/10
+                  px-2
+                  py-3
                   text-xs
-                  font-extrabold
-                  text-white
-                  shadow-sm
+                  font-black
+                  text-orange-300
                   transition
-                  hover:bg-indigo-700
-                  active:scale-[0.98]
+                  hover:bg-orange-500/20
+                  sm:gap-2
                   sm:px-4
+                  sm:text-sm
                 "
               >
-                <Sparkles size={16} />
-                Guide
+                <Sparkles
+                  size={17}
+                />
+
+                <span className="truncate">
+                  Guide
+                </span>
               </button>
             </div>
           </div>
 
-          {/* STATUT CONNEXION */}
-
-          <div className="relative mt-5 flex flex-wrap gap-2">
-            <span
-              className={`
-                inline-flex
-                items-center
-                gap-1.5
-                rounded-full
-                px-3
-                py-1.5
-                text-[11px]
-                font-black
-                ${
-                  isOnline
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-amber-50 text-amber-700"
-                }
-              `}
-            >
-              {isOnline ? (
-                <Wifi size={13} />
-              ) : (
-                <WifiOff size={13} />
-              )}
-
-              {isOnline
-                ? "En ligne"
-                : "Hors connexion"}
-            </span>
-
-            <span
-              className={`
-                inline-flex
-                items-center
-                gap-1.5
-                rounded-full
-                px-3
-                py-1.5
-                text-[11px]
-                font-bold
-                ${
-                  syncState ===
-                  "syncing"
-                    ? "bg-indigo-50 text-indigo-700"
-                    : syncState ===
-                      "error"
-                    ? "bg-red-50 text-red-700"
-                    : "bg-slate-100 text-slate-600"
-                }
-              `}
-            >
-              {syncState ===
-              "syncing" ? (
-                <Loader2
-                  size={13}
-                  className="animate-spin"
-                />
-              ) : (
-                <Cloud size={13} />
-              )}
-
-              {syncState ===
-              "syncing"
-                ? "Synchronisation..."
-                : syncState ===
-                  "error"
-                ? "Synchronisation à vérifier"
-                : syncState ===
-                  "offline"
-                ? "Données locales"
-                : "Données à jour"}
-            </span>
+          <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
 
             <span
               className="
-                inline-flex
                 max-w-full
-                items-center
-                gap-1.5
-                rounded-full
-                bg-slate-100
+                break-words
+                rounded-lg
+                border
+                border-white/10
+                bg-black/25
                 px-3
                 py-1.5
                 text-[11px]
                 font-bold
-                text-slate-600
+                text-slate-300
+                sm:text-xs
               "
             >
-              <CalendarDays
-                size={13}
-                className="shrink-0 text-indigo-500"
-              />
-
-              <span className="truncate">
-                {periodLabel}
-              </span>
+              {periodLabel}
             </span>
 
             <span
               className="
-                inline-flex
-                items-center
-                gap-1.5
-                rounded-full
-                bg-indigo-50
+                rounded-lg
+                border
+                border-white/10
+                bg-black/25
                 px-3
                 py-1.5
                 text-[11px]
                 font-bold
-                text-indigo-700
+                text-slate-300
+                sm:text-xs
               "
             >
-              <ShoppingCart
-                size={13}
-              />
-
               {summary.count} vente
               {summary.count >
               1
                 ? "s"
                 : ""}
             </span>
-          </div>
 
-          {/* GUIDE */}
+            <span
+              className={`
+                inline-flex
+                items-center
+                gap-1.5
+                rounded-lg
+                border
+                px-3
+                py-1.5
+                text-[11px]
+                font-bold
+                ${
+                  isOnline
+                    ? "border-green-400/20 bg-green-500/10 text-green-400"
+                    : "border-orange-400/20 bg-orange-500/10 text-orange-300"
+                }
+              `}
+            >
+              {isOnline ? (
+                <Wifi
+                  size={13}
+                />
+              ) : (
+                <WifiOff
+                  size={13}
+                />
+              )}
+
+              {isOnline
+                ? "En ligne"
+                : "Hors connexion"}
+            </span>
+          </div>
 
           {showGuide && (
             <div
               className="
-                mt-5
+                mt-4
+                w-full
                 overflow-hidden
                 rounded-2xl
                 border
-                border-indigo-100
-                bg-indigo-50/60
+                border-white/10
+                bg-black/20
                 p-4
-                sm:p-5
+                sm:mt-5
               "
             >
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                  <Sparkles size={17} />
-                </div>
+              <div className="space-y-3 text-sm leading-6 text-slate-300">
 
-                <div className="min-w-0">
-                  <h3 className="font-black text-slate-900">
-                    Comment utiliser les rapports ?
-                  </h3>
+                <p>
+                  Tapez le nom d'un produit
+                  pour retrouver toutes ses
+                  ventes.
+                </p>
 
-                  <div className="mt-3 space-y-2.5 text-xs leading-5 text-slate-600 sm:text-sm">
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        1.
-                      </span>{" "}
-                      Consultez les ventes d'aujourd'hui et d'hier avec les montants en FC et USD, les bénéfices et les quantités.
-                    </p>
+                <p>
+                  Utilisez « Du » et « Au »
+                  pour rechercher les ventes
+                  d'une période.
+                </p>
 
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        2.
-                      </span>{" "}
-                      Utilisez « Du » et « Au » pour analyser une période précise.
-                    </p>
+                <p>
+                  « Créer le PDF » génère un
+                  rapport avec résumé,
+                  suivi journalier, détail
+                  des ventes et analyse.
+                </p>
 
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        3.
-                      </span>{" "}
-                      Les 5 dernières ventes sont affichées en premier.
-                    </p>
+                <p>
+                  Le rapport peut rester
+                  consultable hors connexion
+                  avec les dernières données
+                  enregistrées sur cet appareil.
+                </p>
 
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        4.
-                      </span>{" "}
-                      Une vente peut être supprimée même hors connexion.
-                    </p>
-
-                    <p>
-                      <span className="font-bold text-slate-800">
-                        5.
-                      </span>{" "}
-                      Le PDF peut être créé même hors connexion à partir des données locales.
-                    </p>
-                  </div>
-                </div>
+                <p>
+                  La suppression d'une vente
+                  nécessite une connexion
+                  Internet.
+                </p>
               </div>
 
               <button
@@ -4710,21 +3254,16 @@ const deleteSale = async (saleId: string) => {
                 }
                 className="
                   mt-4
-                  inline-flex
-                  min-h-[44px]
                   w-full
-                  items-center
-                  justify-center
                   rounded-xl
-                  border
-                  border-indigo-200
-                  bg-white
+                  bg-orange-500
                   px-4
+                  py-3
                   text-sm
-                  font-extrabold
-                  text-indigo-700
+                  font-black
+                  text-black
                   transition
-                  hover:bg-indigo-50
+                  hover:bg-orange-400
                 "
               >
                 Fermer le guide
@@ -4733,7 +3272,7 @@ const deleteSale = async (saleId: string) => {
           )}
         </section>
 
-        {/* MESSAGE */}
+        {/* ================== MESSAGE ================== */}
 
         {notice && (
           <div
@@ -4746,80 +3285,63 @@ const deleteSale = async (saleId: string) => {
               rounded-2xl
               border
               p-3.5
-              shadow-sm
+              text-sm
               sm:p-4
               ${
                 notice.type ===
                 "error"
-                  ? "border-red-100 bg-red-50 text-red-700"
+                  ? "border-red-400/20 bg-red-500/10 text-red-300"
                   : notice.type ===
                     "success"
-                  ? "border-green-100 bg-green-50 text-green-700"
-                  : "border-indigo-100 bg-indigo-50 text-indigo-700"
+                  ? "border-green-400/20 bg-green-500/10 text-green-300"
+                  : "border-orange-400/20 bg-orange-500/10 text-orange-300"
               }
             `}
             role="status"
           >
-            <div
-              className={`
-                flex
-                h-8
-                w-8
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-white
-                shadow-sm
-                ${
-                  notice.type ===
-                  "error"
-                    ? "text-red-600"
-                    : notice.type ===
-                      "success"
-                    ? "text-green-600"
-                    : "text-indigo-600"
-                }
-              `}
-            >
-              {notice.type ===
-              "success" ? (
-                <CheckCircle size={16} />
-              ) : (
-                <AlertCircle size={16} />
-              )}
-            </div>
+            <AlertCircle
+              size={18}
+              className="mt-0.5 shrink-0"
+            />
 
-            <p className="min-w-0 flex-1 break-words pt-1 text-xs font-bold leading-5 sm:text-sm">
+            <p
+              className="
+                min-w-0
+                flex-1
+                break-words
+                font-bold
+                leading-5
+              "
+            >
               {notice.message}
             </p>
 
             <button
               type="button"
               onClick={() =>
-                setNotice(null)
+                setNotice(
+                  null
+                )
               }
               className="
-                flex
-                h-8
-                w-8
                 shrink-0
-                items-center
-                justify-center
                 rounded-lg
-                text-slate-400
+                p-1
+                opacity-70
                 transition
-                hover:bg-white
-                hover:text-slate-700
+                hover:bg-white/5
+                hover:opacity-100
               "
               aria-label="Fermer le message"
             >
-              <X size={16} />
+              <X
+                size={16}
+              />
             </button>
           </div>
         )}
 
-        {/* STATISTIQUES JOURNALIÈRES */}
+        {/* ================== STATISTIQUES ================== */}
 
         <section
           className="
@@ -4828,23 +3350,21 @@ const deleteSale = async (saleId: string) => {
             min-w-0
             grid-cols-1
             gap-3
-            sm:grid-cols-2
             sm:gap-4
-            lg:gap-5
+            md:grid-cols-2
           "
         >
           <ReportCard
-            icon={<BarChart3 size={19} />}
+            icon="📊"
             title="Aujourd'hui"
             value={`${formatMoney(
               today.fc
-            )} FC`}
-            secondaryValue={`${formatMoney(
+            )} FC | ${formatMoney(
               today.usd
             )} $`}
             subtitle={`Bénéfice : ${formatMoney(
               today.profitFc
-            )} FC • ${formatMoney(
+            )} FC | ${formatMoney(
               today.profitUsd
             )} $`}
             trend={
@@ -4853,63 +3373,59 @@ const deleteSale = async (saleId: string) => {
             }
             trendLabel="vs hier"
             extra={`${today.quantity} article${
-              today.quantity > 1
+              today.quantity >
+              1
                 ? "s"
                 : ""
             } vendu${
-              today.quantity > 1
+              today.quantity >
+              1
                 ? "s"
                 : ""
             }`}
-            tone="indigo"
           />
 
           <ReportCard
-            icon={
-              <CalendarDays size={19} />
-            }
+            icon="📅"
             title="Hier"
             value={`${formatMoney(
               yesterday.fc
-            )} FC`}
-            secondaryValue={`${formatMoney(
+            )} FC | ${formatMoney(
               yesterday.usd
             )} $`}
             subtitle={`Bénéfice : ${formatMoney(
               yesterday.profitFc
-            )} FC • ${formatMoney(
+            )} FC | ${formatMoney(
               yesterday.profitUsd
             )} $`}
             extra={`${yesterday.quantity} article${
-              yesterday.quantity > 1
-                ? "s"
-                : ""
-            } vendu${
-              yesterday.quantity > 1
+              yesterday.quantity >
+              1
                 ? "s"
                 : ""
             }`}
-            tone="slate"
           />
         </section>
 
-        {/* RÉSUMÉ */}
+        {/* ================== RÉSUMÉ ================== */}
 
         <section
           className="
             w-full
             min-w-0
             overflow-hidden
-            rounded-[26px]
+            rounded-2xl
             border
-            border-slate-200/80
-            bg-white
+            border-white/10
+            bg-white/[0.04]
             p-4
-            shadow-[0_5px_25px_rgba(15,23,42,0.045)]
+            shadow-xl
+            sm:rounded-3xl
             sm:p-6
           "
         >
-          <div className="mb-5 flex min-w-0 items-center gap-3">
+          <div className="mb-4 flex min-w-0 items-center gap-3 sm:mb-5">
+
             <div
               className="
                 flex
@@ -4919,31 +3435,50 @@ const deleteSale = async (saleId: string) => {
                 items-center
                 justify-center
                 rounded-xl
-                bg-indigo-50
-                text-indigo-600
+                bg-yellow-500/10
+                text-yellow-400
               "
             >
-              <Wallet size={19} />
+              <Wallet
+                size={19}
+              />
             </div>
 
             <div className="min-w-0">
-              <h2 className="text-lg font-black text-slate-900 sm:text-xl">
+              <h2
+                className="
+                  break-words
+                  text-lg
+                  font-black
+                  text-white
+                  sm:text-xl
+                "
+              >
                 Résumé de la sélection
               </h2>
 
-              <p className="mt-0.5 truncate text-xs text-slate-500">
+              <p className="mt-1 break-words text-[11px] text-slate-500 sm:text-xs">
                 {periodLabel}
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div
+            className="
+              grid
+              min-w-0
+              grid-cols-2
+              gap-2.5
+              sm:gap-3
+              lg:grid-cols-4
+            "
+          >
             <MiniStat
               label="Ventes FC"
               value={`${formatMoney(
                 summary.totalFc
               )} FC`}
-              tone="indigo"
+              tone="orange"
             />
 
             <MiniStat
@@ -4951,7 +3486,7 @@ const deleteSale = async (saleId: string) => {
               value={`${formatMoney(
                 summary.totalUsd
               )} $`}
-              tone="indigo"
+              tone="orange"
             />
 
             <MiniStat
@@ -4993,35 +3528,158 @@ const deleteSale = async (saleId: string) => {
             />
           </div>
         </section>
-                {/* RECHERCHE */}
+
+        {/* ================== RECHERCHE ================== */}
 
         <section
           className="
             w-full
             min-w-0
             overflow-hidden
-            rounded-[26px]
+            rounded-2xl
             border
-            border-slate-200/80
-            bg-white
+            border-white/10
+            bg-white/[0.04]
             p-4
-            shadow-[0_5px_25px_rgba(15,23,42,0.045)]
+            shadow-xl
+            sm:rounded-3xl
             sm:p-6
           "
         >
+          <div className="mb-5 flex min-w-0 items-center gap-3 sm:mb-6">
+
+            <div
+              className="
+                flex
+                h-10
+                w-10
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-blue-500/10
+                text-blue-400
+              "
+            >
+              <Search
+                size={19}
+              />
+            </div>
+
+            <div className="min-w-0">
+              <h2
+                className="
+                  break-words
+                  text-lg
+                  font-black
+                  text-white
+                  sm:text-xl
+                "
+              >
+                Rechercher les ventes
+              </h2>
+
+              <p className="mt-1 break-words text-[11px] text-slate-500 sm:text-xs">
+                Filtrez par produit ou par période.
+              </p>
+            </div>
+          </div>
+
+          {/* PRODUIT */}
+
+          <div className="mb-5 min-w-0 sm:mb-6">
+            <label
+              htmlFor="product-search"
+              className="mb-2 block text-sm font-bold text-slate-300"
+            >
+              Rechercher un produit
+            </label>
+
+            <div className="relative min-w-0">
+              <Package
+                size={18}
+                className="
+                  pointer-events-none
+                  absolute
+                  left-3
+                  top-1/2
+                  z-10
+                  -translate-y-1/2
+                  text-green-400
+                "
+              />
+
+              <input
+                id="product-search"
+                type="text"
+                value={
+                  productQuery
+                }
+                onChange={(e) =>
+                  searchProduct(
+                    e.target.value
+                  )
+                }
+                placeholder="Ex : Savon, Riz, Huile..."
+                className="
+                  block
+                  min-h-[48px]
+                  w-full
+                  min-w-0
+                  max-w-full
+                  rounded-xl
+                  border
+                  border-white/10
+                  bg-[#111827]
+                  p-3
+                  pl-10
+                  text-[16px]
+                  text-white
+                  outline-none
+                  transition
+                  placeholder:text-slate-600
+                  focus:border-green-400
+                  focus:ring-1
+                  focus:ring-green-400
+                "
+              />
+            </div>
+          </div>
+
+          {/* SÉPARATEUR */}
+
+          <div className="mb-5 flex items-center gap-3 sm:mb-6">
+
+            <div className="h-px flex-1 bg-white/10" />
+
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              ou
+            </span>
+
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          {/* PÉRIODE */}
+
           <div className="min-w-0">
-            <span className="mb-3 block text-xs font-extrabold text-slate-700 sm:text-sm">
+            <span className="mb-3 block text-sm font-bold text-slate-300">
               Rechercher une période
             </span>
 
-            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
-
-              {/* DU */}
-
+            <div
+              className="
+                grid
+                min-w-0
+                grid-cols-1
+                gap-3
+                md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]
+                md:items-end
+              "
+            >
               <div className="min-w-0">
                 <label
                   htmlFor="start-date"
-                  className="mb-2 block text-[11px] font-bold text-slate-500"
+                  className="mb-2 block text-xs font-bold text-slate-500"
                 >
                   Du
                 </label>
@@ -5029,7 +3687,14 @@ const deleteSale = async (saleId: string) => {
                 <div className="relative min-w-0">
                   <CalendarDays
                     size={17}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500"
+                    className="
+                      pointer-events-none
+                      absolute
+                      left-3
+                      top-1/2
+                      -translate-y-1/2
+                      text-purple-400
+                    "
                   />
 
                   <input
@@ -5038,7 +3703,7 @@ const deleteSale = async (saleId: string) => {
                     value={
                       startDate
                     }
-                    onChange={e =>
+                    onChange={(e) =>
                       setStartDate(
                         e.target.value
                       )
@@ -5048,32 +3713,30 @@ const deleteSale = async (saleId: string) => {
                       min-h-[48px]
                       w-full
                       min-w-0
-                      rounded-2xl
+                      max-w-full
+                      rounded-xl
                       border
-                      border-slate-200
-                      bg-slate-50
+                      border-white/10
+                      bg-[#111827]
                       p-3
                       pl-10
                       text-[16px]
-                      text-slate-900
+                      text-white
                       outline-none
                       transition
-                      focus:border-indigo-400
-                      focus:bg-white
-                      focus:ring-4
-                      focus:ring-indigo-50
-                      [color-scheme:light]
+                      focus:border-purple-400
+                      focus:ring-1
+                      focus:ring-purple-400
+                      [color-scheme:dark]
                     "
                   />
                 </div>
               </div>
 
-              {/* AU */}
-
               <div className="min-w-0">
                 <label
                   htmlFor="end-date"
-                  className="mb-2 block text-[11px] font-bold text-slate-500"
+                  className="mb-2 block text-xs font-bold text-slate-500"
                 >
                   Au
                 </label>
@@ -5081,7 +3744,14 @@ const deleteSale = async (saleId: string) => {
                 <div className="relative min-w-0">
                   <CalendarDays
                     size={17}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500"
+                    className="
+                      pointer-events-none
+                      absolute
+                      left-3
+                      top-1/2
+                      -translate-y-1/2
+                      text-purple-400
+                    "
                   />
 
                   <input
@@ -5090,7 +3760,7 @@ const deleteSale = async (saleId: string) => {
                     value={
                       endDate
                     }
-                    onChange={e =>
+                    onChange={(e) =>
                       setEndDate(
                         e.target.value
                       )
@@ -5100,27 +3770,25 @@ const deleteSale = async (saleId: string) => {
                       min-h-[48px]
                       w-full
                       min-w-0
-                      rounded-2xl
+                      max-w-full
+                      rounded-xl
                       border
-                      border-slate-200
-                      bg-slate-50
+                      border-white/10
+                      bg-[#111827]
                       p-3
                       pl-10
                       text-[16px]
-                      text-slate-900
+                      text-white
                       outline-none
                       transition
-                      focus:border-indigo-400
-                      focus:bg-white
-                      focus:ring-4
-                      focus:ring-indigo-50
-                      [color-scheme:light]
+                      focus:border-purple-400
+                      focus:ring-1
+                      focus:ring-purple-400
+                      [color-scheme:dark]
                     "
                   />
                 </div>
               </div>
-
-              {/* BOUTON */}
 
               <button
                 type="button"
@@ -5131,101 +3799,44 @@ const deleteSale = async (saleId: string) => {
                   inline-flex
                   min-h-[48px]
                   w-full
+                  min-w-0
                   items-center
                   justify-center
                   gap-2
-                  rounded-2xl
-                  bg-indigo-600
+                  rounded-xl
+                  bg-purple-500
                   px-5
                   py-3
                   text-sm
                   font-black
                   text-white
-                  shadow-sm
-                  shadow-indigo-600/10
                   transition
-                  hover:bg-indigo-700
+                  hover:bg-purple-400
                   active:scale-[0.98]
-                  lg:w-auto
+                  md:w-auto
                 "
               >
                 <CalendarDays
                   size={17}
                 />
-
                 Voir la période
               </button>
             </div>
           </div>
 
-          {/* RECHERCHE PRODUIT */}
-
-          <div className="mt-5">
-            <label
-              htmlFor="product-search"
-              className="mb-2 block text-[11px] font-bold text-slate-500"
-            >
-              Rechercher un produit
-            </label>
-
-            <div
-              className="
-                flex
-                min-h-[48px]
-                items-center
-                gap-2
-                rounded-2xl
-                border
-                border-slate-200
-                bg-slate-50
-                px-3
-              "
-            >
-              <Search
-                size={17}
-                className="shrink-0 text-slate-400"
-              />
-
-              <input
-                id="product-search"
-                value={
-                  productQuery
-                }
-                onChange={e =>
-                  searchProduct(
-                    e.target.value
-                  )
-                }
-                placeholder="Chercher un produit"
-                className="
-                  min-w-0
-                  flex-1
-                  bg-transparent
-                  py-2
-                  text-sm
-                  text-slate-900
-                  outline-none
-                  placeholder:text-slate-400
-                "
-              />
-
-              {productQuery && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    searchProduct("")
-                  }
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200"
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </div>
-          </div>
-
           {/* ACTIONS */}
 
-          <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+          <div
+            className="
+              mt-5
+              grid
+              min-w-0
+              grid-cols-1
+              gap-3
+              sm:mt-6
+              sm:grid-cols-2
+            "
+          >
             <button
               type="button"
               onClick={
@@ -5235,25 +3846,26 @@ const deleteSale = async (saleId: string) => {
                 inline-flex
                 min-h-[48px]
                 w-full
+                min-w-0
                 items-center
                 justify-center
                 gap-2
-                rounded-2xl
+                rounded-xl
                 border
-                border-slate-200
-                bg-white
+                border-white/10
+                bg-black/30
                 px-5
                 py-3
                 text-sm
-                font-extrabold
-                text-slate-600
-                shadow-sm
+                font-bold
+                text-slate-300
                 transition
-                hover:bg-slate-50
-                hover:text-slate-900
+                hover:bg-white/5
               "
             >
-              <X size={17} />
+              <X
+                size={17}
+              />
               Réinitialiser
             </button>
 
@@ -5266,30 +3878,35 @@ const deleteSale = async (saleId: string) => {
                 inline-flex
                 min-h-[48px]
                 w-full
+                min-w-0
                 items-center
                 justify-center
                 gap-2
-                rounded-2xl
-                bg-indigo-600
+                rounded-xl
+                bg-gradient-to-r
+                from-orange-500
+                to-yellow-400
                 px-5
                 py-3
                 text-sm
                 font-black
-                text-white
-                shadow-sm
-                shadow-indigo-600/10
+                text-black
+                shadow-lg
+                shadow-orange-500/10
                 transition
-                hover:bg-indigo-700
+                hover:brightness-110
                 active:scale-[0.98]
               "
             >
-              <FileText size={17} />
+              <Download
+                size={17}
+              />
               Créer le PDF
             </button>
           </div>
         </section>
 
-        {/* RÉSULTAT */}
+        {/* ================== RÉSULTAT ================== */}
 
         {(startDate ||
           endDate ||
@@ -5301,18 +3918,22 @@ const deleteSale = async (saleId: string) => {
               overflow-hidden
               rounded-2xl
               border
-              border-indigo-100
-              bg-indigo-50
-              p-4
+              border-orange-400/20
+              bg-orange-500/10
+              p-3.5
+              sm:p-4
             "
           >
             <div className="flex min-w-0 items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                <Search size={17} />
+
+              <div className="mt-0.5 shrink-0 text-orange-400">
+                <Search
+                  size={18}
+                />
               </div>
 
-              <div className="min-w-0 flex-1">
-                <p className="break-words text-sm font-black text-indigo-900">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-black text-orange-300">
                   {productQuery
                     ? `Résultat pour « ${productQuery} »`
                     : startDate &&
@@ -5325,11 +3946,8 @@ const deleteSale = async (saleId: string) => {
                     : "Sélection incomplète"}
                 </p>
 
-                <p className="mt-1 text-xs font-medium text-indigo-700/70">
-                  {
-                    filteredSales.length
-                  }{" "}
-                  vente
+                <p className="mt-1 break-words text-xs text-slate-400">
+                  {filteredSales.length} vente
                   {filteredSales.length >
                   1
                     ? "s"
@@ -5345,329 +3963,913 @@ const deleteSale = async (saleId: string) => {
           </section>
         )}
 
-        {/* DERNIÈRES VENTES */}
+        {/* ================== HISTORIQUE ================== */}
 
         <section
           className="
             w-full
             min-w-0
             overflow-hidden
-            rounded-[26px]
+            rounded-2xl
             border
-            border-slate-200/80
-            bg-white
+            border-white/10
+            bg-white/[0.04]
             p-4
-            shadow-[0_4px_20px_rgba(15,23,42,0.04)]
+            shadow-xl
+            sm:rounded-3xl
             sm:p-6
           "
         >
-          <div className="mb-5 flex items-center justify-between gap-3">
+          <div
+            className="
+              mb-4
+              flex
+              min-w-0
+              flex-col
+              gap-3
+              sm:mb-5
+              sm:flex-row
+              sm:items-center
+              sm:justify-between
+            "
+          >
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <ShoppingCart size={19} />
+
+              <div
+                className="
+                  flex
+                  h-10
+                  w-10
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-green-500/10
+                  text-green-400
+                "
+              >
+                <TrendingUp
+                  size={19}
+                />
               </div>
 
               <div className="min-w-0">
-                <h2 className="text-lg font-black text-slate-900 sm:text-xl">
-                  Dernières ventes
+                <h2
+                  className="
+                    break-words
+                    text-lg
+                    font-black
+                    text-white
+                    sm:text-xl
+                  "
+                >
+                  Historique des ventes
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                  Vos 5 dernières ventes
+                <p className="mt-1 break-words text-[11px] text-slate-500 sm:text-xs">
+                  Les 5 dernières ventes sont affichées.
                 </p>
               </div>
             </div>
-
-            <span className="shrink-0 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-600">
-              {Math.min(
-                filteredSales.length,
-                5
-              )}
-            </span>
           </div>
 
+          {/* CHARGEMENT */}
+
           {loading ? (
-            <div className="flex min-h-[160px] items-center justify-center">
+            <div
+              className="
+                flex
+                w-full
+                flex-col
+                items-center
+                justify-center
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/20
+                p-10
+                text-center
+                sm:p-12
+              "
+            >
               <Loader2
-                className="animate-spin text-indigo-600"
-                size={28}
+                size={26}
+                className="animate-spin text-orange-400"
               />
+
+              <p className="mt-4 text-sm font-bold text-slate-400">
+                Chargement de vos ventes...
+              </p>
             </div>
           ) : displayedSales.length ===
             0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <ShoppingCart
-                size={30}
-                className="mx-auto text-slate-300"
-              />
+            <div
+              className="
+                w-full
+                overflow-hidden
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/20
+                p-8
+                text-center
+                sm:p-10
+              "
+            >
+              <div
+                className="
+                  mx-auto
+                  flex
+                  h-14
+                  w-14
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-white/5
+                  text-slate-500
+                "
+              >
+                <Package
+                  size={25}
+                />
+              </div>
 
-              <p className="mt-3 text-sm font-bold text-slate-500">
-                Aucune vente trouvée
+              <p className="mt-4 break-words font-black text-white">
+                {productQuery
+                  ? "Aucun produit ne correspond à cette recherche."
+                  : startDate &&
+                    endDate
+                  ? "Aucune vente dans cette période."
+                  : "Aucune vente disponible."}
               </p>
 
-              {!isOnline && (
-                <p className="mt-2 text-xs text-amber-600">
-                  Hors connexion : seules les ventes enregistrées sur cet appareil peuvent être affichées.
-                </p>
-              )}
+              <p className="mt-2 break-words text-xs text-slate-500">
+                Essayez un autre produit ou une autre période.
+              </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {displayedSales.map(
-                sale => (
-                  <div
-                    key={
-                      sale.id
-                    }
-                    className="
-                      flex
-                      min-w-0
-                      flex-col
-                      gap-4
-                      rounded-2xl
-                      border
-                      border-slate-100
-                      bg-slate-50/70
-                      p-4
-                      transition
-                      hover:border-indigo-100
-                      hover:bg-indigo-50/30
-                      sm:flex-row
-                      sm:items-center
-                      sm:justify-between
-                    "
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                        <Package size={19} />
-                      </div>
+            <>
+              <div className="w-full min-w-0 space-y-3">
 
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-slate-900">
-                          {sale.product_name ||
-                            "Produit inconnu"}
-                        </p>
+                {displayedSales.map(
+                  (
+                    sale
+                  ) => (
+                    <article
+                      key={
+                        sale.id
+                      }
+                      className="
+                        w-full
+                        min-w-0
+                        overflow-hidden
+                        rounded-2xl
+                        border
+                        border-white/10
+                        bg-black/20
+                        p-3
+                        transition
+                        hover:border-white/20
+                        hover:bg-black/30
+                        sm:p-4
+                      "
+                    >
+                      <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
 
-                        <p className="mt-1 text-xs font-medium text-slate-500">
-                          Quantité :{" "}
-                          <span className="font-black text-slate-700">
-                            {
-                              sale.quantity
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+
+                          <div className="flex min-w-0 items-start gap-3">
+
+                            <div
+                              className="
+                                flex
+                                h-10
+                                w-10
+                                shrink-0
+                                items-center
+                                justify-center
+                                rounded-xl
+                                bg-orange-500/10
+                                text-orange-400
+                              "
+                            >
+                              <Package
+                                size={18}
+                              />
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="break-words text-sm font-black leading-5 text-white sm:text-base">
+                                {sale.product_name}
+                              </p>
+
+                              <p className="mt-1 break-words text-[10px] leading-4 text-slate-500 sm:text-xs">
+                                {new Date(
+                                  sale.created_at
+                                ).toLocaleString(
+                                  "fr-FR"
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              requestDeleteSale(
+                                sale
+                              )
                             }
-                          </span>
+                            className="
+                              inline-flex
+                              h-10
+                              w-10
+                              shrink-0
+                              items-center
+                              justify-center
+                              rounded-xl
+                              border
+                              border-red-400/20
+                              bg-red-500/10
+                              text-red-400
+                              transition
+                              hover:bg-red-500/20
+                              hover:text-red-300
+                              active:scale-95
+                            "
+                            title="Supprimer cette vente"
+                            aria-label="Supprimer cette vente"
+                          >
+                            <Trash2
+                              size={17}
+                            />
+                          </button>
+                        </div>
 
-                          {" • "}
-
-                          {new Date(
-                            sale.created_at
-                          ).toLocaleDateString(
-                            "fr-FR"
-                          )}
-
-                          {!(
-                            sale as LocalSale
-                          ).synced && (
-                            <>
-                              {" • "}
-                              <span className="font-bold text-amber-600">
-                                En attente
-                              </span>
-                            </>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-4 sm:justify-end">
-                      <div className="text-left sm:text-right">
-                        <p
-                          className={`text-base font-black ${
-                            isFC(
-                              sale.currency
-                            )
-                              ? "text-indigo-700"
-                              : "text-emerald-600"
-                          }`}
+                        <div
+                          className="
+                            grid
+                            w-full
+                            min-w-0
+                            grid-cols-3
+                            gap-2
+                            sm:gap-3
+                          "
                         >
-                          {formatMoney(
-                            Number(
-                              sale.total_sale ||
-                                0
-                            )
-                          )}{" "}
-                          {isFC(
-                            sale.currency
-                          )
-                            ? "FC"
-                            : "$"}
-                        </p>
+                          <div
+                            className="
+                              min-w-0
+                              overflow-hidden
+                              rounded-xl
+                              border
+                              border-white/5
+                              bg-white/[0.03]
+                              px-2.5
+                              py-2.5
+                              sm:px-4
+                              sm:py-3.5
+                            "
+                          >
+                            <p className="truncate text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]">
+                              Quantité
+                            </p>
 
-                        <p className="mt-0.5 text-xs font-bold text-emerald-600">
-                          +
-                          {formatMoney(
-                            Number(
-                              sale.profit ||
-                                0
-                            )
-                          )}{" "}
-                          {isFC(
-                            sale.currency
-                          )
-                            ? "FC"
-                            : "$"}{" "}
-                          bénéfice
-                        </p>
+                            <p className="mt-1.5 truncate text-sm font-black text-white sm:text-base">
+                              x{sale.quantity}
+                            </p>
+                          </div>
+
+                          <div
+                            className="
+                              min-w-0
+                              overflow-hidden
+                              rounded-xl
+                              border
+                              border-white/5
+                              bg-white/[0.03]
+                              px-2.5
+                              py-2.5
+                              sm:px-4
+                              sm:py-3.5
+                            "
+                          >
+                            <p className="truncate text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]">
+                              Vente
+                            </p>
+
+                            <p className="mt-1.5 truncate text-xs font-black text-orange-400 sm:text-base">
+                              {formatMoney(
+                                Number(
+                                  sale.total_sale ||
+                                    0
+                                )
+                              )}{" "}
+                              {sale.currency}
+                            </p>
+                          </div>
+
+                          <div
+                            className="
+                              min-w-0
+                              overflow-hidden
+                              rounded-xl
+                              border
+                              border-white/5
+                              bg-white/[0.03]
+                              px-2.5
+                              py-2.5
+                              sm:px-4
+                              sm:py-3.5
+                            "
+                          >
+                            <p className="truncate text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]">
+                              Bénéfice
+                            </p>
+
+                            <p className="mt-1.5 truncate text-xs font-black text-green-400 sm:text-base">
+                              {formatMoney(
+                                Number(
+                                  sale.profit ||
+                                    0
+                                )
+                              )}{" "}
+                              {sale.currency}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void deleteSale(
-                            sale.id
-                          )
-                        }
-                        className="
-                          flex
-                          h-10
-                          w-10
-                          shrink-0
-                          items-center
-                          justify-center
-                          rounded-xl
-                          bg-red-50
-                          text-red-600
-                          transition
-                          hover:bg-red-100
-                          active:scale-95
-                        "
-                        title="Supprimer la vente"
-                        aria-label="Supprimer la vente"
-                      >
-                        <Trash2
-                          size={17}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                )
-              )}
+                    </article>
+                  )
+                )}
+              </div>
 
               {filteredSales.length >
-                5 &&
-                !showAll && (
+                PAGE_STEP && (
+                <div className="mt-5 border-t border-white/10 pt-4 sm:mt-6 sm:pt-5">
+
                   <button
                     type="button"
-                    onClick={
-                      showEverything
-                    }
+                    onClick={() => {
+                      if (
+                        showAll
+                      ) {
+                        setShowAll(
+                          false
+                        );
+                      } else {
+                        showEverything();
+                      }
+                    }}
                     className="
-                      mt-4
-                      flex
-                      min-h-[48px]
+                      inline-flex
+                      min-h-[50px]
                       w-full
                       items-center
                       justify-center
                       gap-2
-                      rounded-2xl
-                      bg-indigo-600
+                      rounded-xl
+                      bg-orange-500
                       px-5
                       py-3
                       text-sm
                       font-black
-                      text-white
-                      shadow-sm
+                      text-black
+                      shadow-lg
+                      shadow-orange-500/10
                       transition
-                      hover:bg-indigo-700
+                      hover:bg-orange-400
                       active:scale-[0.98]
                     "
                   >
-                    Voir toutes les ventes
-                  </button>
-                )}
+                    <ShoppingCart
+                      size={17}
+                    />
 
-              {showAll &&
-                filteredSales.length >
-                  5 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowAll(
-                        false
-                      )
-                    }
-                    className="
-                      mt-4
-                      flex
-                      min-h-[48px]
-                      w-full
-                      items-center
-                      justify-center
-                      gap-2
-                      rounded-2xl
-                      border
-                      border-slate-200
-                      bg-white
-                      px-5
-                      py-3
-                      text-sm
-                      font-black
-                      text-slate-700
-                      transition
-                      hover:bg-slate-50
-                    "
-                  >
-                    <ChevronUp size={17} />
-                    Afficher seulement les 5 dernières
+                    <span className="break-words text-center">
+                      {showAll
+                        ? "Afficher seulement les 5 dernières ventes"
+                        : `Voir toutes les ventes (${filteredSales.length})`}
+                    </span>
                   </button>
-                )}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </section>
 
+        {/* ==================================================
+            POPUP SUPPRESSION
+        ================================================== */}
+
+        {deleteModal && (
+          <div
+            className="
+              fixed
+              inset-0
+              z-[10000]
+              flex
+              items-center
+              justify-center
+              overflow-y-auto
+              bg-black/75
+              p-4
+              backdrop-blur-sm
+            "
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-sale-title"
+          >
+            <div
+              className="
+                relative
+                w-full
+                max-w-md
+                overflow-hidden
+                rounded-3xl
+                border
+                border-white/10
+                bg-[#0f172a]
+                p-5
+                shadow-2xl
+                sm:p-6
+              "
+            >
+              <div className="flex items-start justify-between gap-4">
+
+                <div
+                  className="
+                    flex
+                    h-12
+                    w-12
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-2xl
+                    bg-red-500/10
+                    text-red-400
+                  "
+                >
+                  <Trash2
+                    size={23}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      !deletingSale
+                    ) {
+                      setDeleteModal(
+                        null
+                      );
+                    }
+                  }}
+                  disabled={
+                    deletingSale
+                  }
+                  className="
+                    flex
+                    h-9
+                    w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    text-slate-500
+                    transition
+                    hover:bg-white/5
+                    hover:text-white
+                    disabled:opacity-40
+                  "
+                  aria-label="Fermer"
+                >
+                  <X
+                    size={19}
+                  />
+                </button>
+              </div>
+
+              <h3
+                id="delete-sale-title"
+                className="
+                  mt-5
+                  break-words
+                  text-xl
+                  font-black
+                  text-white
+                "
+              >
+                Supprimer cette vente ?
+              </h3>
+
+              <p className="mt-2 break-words text-sm leading-6 text-slate-400">
+                Cette action supprimera définitivement cette vente de la base de données.
+              </p>
+
+              <div
+                className="
+                  mt-4
+                  overflow-hidden
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-3.5
+                "
+              >
+                <p className="break-words text-sm font-black text-white">
+                  {deleteModal.sale.product_name}
+                </p>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <p className="text-[10px] font-bold uppercase text-slate-500">
+                      Quantité
+                    </p>
+
+                    <p className="mt-1 text-sm font-black text-white">
+                      x
+                      {
+                        deleteModal
+                          .sale
+                          .quantity
+                      }
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <p className="text-[10px] font-bold uppercase text-slate-500">
+                      Vente
+                    </p>
+
+                    <p className="mt-1 truncate text-sm font-black text-orange-400">
+                      {formatMoney(
+                        Number(
+                          deleteModal
+                            .sale
+                            .total_sale ||
+                            0
+                        )
+                      )}{" "}
+                      {
+                        deleteModal
+                          .sale
+                          .currency
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="
+                  mt-5
+                  flex
+                  flex-col-reverse
+                  gap-2.5
+                  sm:flex-row
+                  sm:justify-end
+                "
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDeleteModal(
+                      null
+                    )
+                  }
+                  disabled={
+                    deletingSale
+                  }
+                  className="
+                    min-h-[48px]
+                    w-full
+                    rounded-xl
+                    border
+                    border-white/10
+                    bg-white/[0.04]
+                    px-5
+                    py-3
+                    text-sm
+                    font-bold
+                    text-slate-300
+                    transition
+                    hover:bg-white/[0.08]
+                    disabled:opacity-50
+                    sm:w-auto
+                  "
+                >
+                  Annuler
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    deleteSale(
+                      deleteModal
+                        .sale.id
+                    )
+                  }
+                  disabled={
+                    deletingSale
+                  }
+                  className="
+                    inline-flex
+                    min-h-[48px]
+                    w-full
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-xl
+                    bg-red-500
+                    px-5
+                    py-3
+                    text-sm
+                    font-black
+                    text-white
+                    shadow-lg
+                    shadow-red-500/10
+                    transition
+                    hover:bg-red-400
+                    disabled:cursor-not-allowed
+                    disabled:opacity-60
+                    sm:w-auto
+                  "
+                >
+                  {deletingSale ? (
+                    <>
+                      <Loader2
+                        size={17}
+                        className="animate-spin"
+                      />
+                      Suppression...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2
+                        size={17}
+                      />
+                      Supprimer
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================== RETOUR EN HAUT ================== */}
+
+        {showTopButton && (
+          <button
+            type="button"
+            onClick={
+              scrollToTop
+            }
+            className="
+              fixed
+              bottom-4
+              right-4
+              z-[9999]
+              flex
+              h-12
+              w-12
+              items-center
+              justify-center
+              rounded-full
+              bg-orange-500
+              text-black
+              shadow-2xl
+              transition
+              hover:bg-orange-400
+              active:scale-95
+              sm:bottom-6
+              sm:right-6
+            "
+            title="Retour en haut"
+            aria-label="Retour en haut"
+          >
+            <ArrowUp
+              size={21}
+            />
+          </button>
+        )}
       </div>
+    </main>
+  );
+}
 
-      {/* RETOUR EN HAUT */}
+/* ======================================================
+   COMPOSANT CARTE RAPPORT
+====================================================== */
 
-      {showTopButton && (
-        <button
-          type="button"
-          onClick={
-            scrollToTop
-          }
-          aria-label="Retour en haut"
-          title="Retour en haut"
+function ReportCard({
+  icon,
+  title,
+  value,
+  subtitle,
+  extra,
+  trend,
+  trendLabel,
+}: {
+  icon: string;
+  title: string;
+  value: string;
+  subtitle: string;
+  extra?: string;
+  trend?: number;
+  trendLabel?: string;
+}) {
+  const hasTrend =
+    typeof trend ===
+      "number" &&
+    Number.isFinite(
+      trend
+    );
+
+  const positive =
+    (trend || 0) >= 0;
+
+  return (
+    <div
+      className="
+        w-full
+        min-w-0
+        overflow-hidden
+        rounded-2xl
+        border
+        border-white/10
+        bg-white/[0.04]
+        p-4
+        shadow-xl
+        backdrop-blur-xl
+        sm:rounded-3xl
+        sm:p-6
+      "
+    >
+      <div className="flex min-w-0 items-start justify-between gap-3">
+
+        <div
           className="
-            fixed
-            bottom-5
-            right-5
-            z-50
             flex
-            h-12
-            w-12
+            h-11
+            w-11
+            shrink-0
             items-center
             justify-center
             rounded-2xl
-            bg-indigo-600
-            text-white
-            shadow-lg
-            shadow-indigo-600/25
-            transition
-            duration-200
-            hover:-translate-y-1
-            hover:bg-indigo-700
-            active:scale-95
-            sm:bottom-7
-            sm:right-7
-            sm:h-14
-            sm:w-14
+            bg-orange-500/10
+            text-2xl
           "
         >
-          <ArrowUp
-            size={21}
-            strokeWidth={2.5}
-          />
-        </button>
+          {icon}
+        </div>
+
+        {hasTrend && (
+          <span
+            className={`
+              inline-flex
+              max-w-[50%]
+              items-center
+              gap-1
+              rounded-lg
+              px-2
+              py-1
+              text-[10px]
+              font-black
+              sm:text-[11px]
+              ${
+                positive
+                  ? "bg-green-500/10 text-green-400"
+                  : "bg-red-500/10 text-red-400"
+              }
+            `}
+          >
+            {positive ? (
+              <TrendingUp
+                size={13}
+              />
+            ) : (
+              <TrendingDown
+                size={13}
+              />
+            )}
+
+            <span className="truncate">
+              {Math.abs(
+                trend as number
+              ).toFixed(0)}
+              %{" "}
+              {trendLabel}
+            </span>
+          </span>
+        )}
+      </div>
+
+      <h3 className="mt-4 break-words font-black text-white">
+        {title}
+      </h3>
+
+      <p
+        className="
+          mt-3
+          break-words
+          text-sm
+          font-black
+          leading-6
+          text-orange-400
+          sm:text-xl
+        "
+      >
+        {value}
+      </p>
+
+      <p className="mt-2 break-words text-xs leading-5 text-slate-400">
+        {subtitle}
+      </p>
+
+      {extra && (
+        <p className="mt-2 break-words text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]">
+          {extra}
+        </p>
       )}
-    </main>
+    </div>
+  );
+}
+
+/* ======================================================
+   COMPOSANT MINI STATISTIQUE
+====================================================== */
+
+function MiniStat({
+  label,
+  value,
+  hint,
+  tone = "slate",
+  dense = false,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?:
+    | "orange"
+    | "green"
+    | "blue"
+    | "slate";
+  dense?: boolean;
+}) {
+  const toneClass =
+    tone === "orange"
+      ? "text-orange-400"
+      : tone === "green"
+      ? "text-green-400"
+      : tone === "blue"
+      ? "text-blue-400"
+      : "text-white";
+
+  return (
+    <div
+      className={`
+        min-w-0
+        overflow-hidden
+        rounded-xl
+        border
+        border-white/5
+        bg-white/[0.03]
+        ${
+          dense
+            ? "p-2.5"
+            : "p-2.5 sm:p-4"
+        }
+      `}
+    >
+      <p className="truncate text-[10px] text-slate-500 sm:text-[11px]">
+        {label}
+      </p>
+
+      <p
+        className={`
+          mt-1
+          truncate
+          font-black
+          ${toneClass}
+          ${
+            dense
+              ? "text-sm"
+              : "text-xs sm:text-base"
+          }
+        `}
+      >
+        {value}
+      </p>
+
+      {hint && (
+        <p className="mt-1 truncate text-[9px] text-slate-500 sm:text-[10px]">
+          {hint}
+        </p>
+      )}
+    </div>
   );
 }

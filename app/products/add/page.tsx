@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 import {
@@ -12,1122 +12,505 @@ import {
   Boxes,
   CircleDollarSign,
   TrendingUp,
+  X,
   WifiOff,
-  Cloud,
-  CloudOff,
+  AlertTriangle,
 } from "lucide-react";
-
-/* ============================================================
-   TYPES
-============================================================ */
-
-type StockMode = "nouveau" | "existant";
-
-type SuccessMessage =
-  | "offline"
-  | "local"
-  | "syncing"
-  | "success"
-  | "error"
-  | null;
-
-type LocalProduct = {
-  id: string;
-  user_id: string | null;
-  name: string;
-  unit: string;
-  stock: number;
-  initial_stock: number;
-  purchase_price: number;
-  selling_price: number;
-  currency: string;
-  created_at: string;
-  synced: boolean;
-};
-
-/* ============================================================
-   INDEXED DB
-============================================================ */
-
-const DB_NAME = "biso-commerce-products";
-const DB_VERSION = 14;
-const STORE_NAME = "products";
-const DELETE_STORE_NAME = "delete_queue";
-
-/* ============================================================
-   OUVRIR INDEXED DB
-============================================================ */
-
-function openProductsDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === "undefined") {
-      reject(new Error("IndexedDB indisponible"));
-      return;
-    }
-
-    if (!("indexedDB" in window)) {
-      reject(new Error("IndexedDB non supporté"));
-      return;
-    }
-
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      const transaction = request.transaction;
-
-      if (!transaction) {
-        return;
-      }
-
-      let productsStore: IDBObjectStore;
-
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        productsStore = db.createObjectStore(STORE_NAME, {
-          keyPath: "id",
-        });
-      } else {
-        productsStore = transaction.objectStore(STORE_NAME);
-      }
-
-      if (!productsStore.indexNames.contains("user_id")) {
-        productsStore.createIndex("user_id", "user_id", {
-          unique: false,
-        });
-      }
-
-      if (!productsStore.indexNames.contains("synced")) {
-        productsStore.createIndex("synced", "synced", {
-          unique: false,
-        });
-      }
-
-      if (!productsStore.indexNames.contains("created_at")) {
-        productsStore.createIndex("created_at", "created_at", {
-          unique: false,
-        });
-      }
-
-      if (!db.objectStoreNames.contains(DELETE_STORE_NAME)) {
-        const deleteStore = db.createObjectStore(
-          DELETE_STORE_NAME,
-          {
-            keyPath: "id",
-          }
-        );
-
-        deleteStore.createIndex("userId", "userId", {
-          unique: false,
-        });
-      }
-    };
-
-    request.onsuccess = () => {
-      const db = request.result;
-
-      db.onversionchange = () => {
-        db.close();
-      };
-
-      resolve(db);
-    };
-
-    request.onerror = () => {
-      reject(
-        request.error ||
-          new Error("Impossible d'ouvrir IndexedDB")
-      );
-    };
-  });
-}
-
-/* ============================================================
-   ENREGISTRER PRODUIT LOCALEMENT
-============================================================ */
-
-function saveProductToIndexedDB(
-  product: LocalProduct
-): Promise<void> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const db = await openProductsDB();
-
-      const transaction = db.transaction(
-        STORE_NAME,
-        "readwrite"
-      );
-
-      const store = transaction.objectStore(STORE_NAME);
-
-      store.put(product);
-
-      transaction.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-
-      transaction.onerror = () => {
-        db.close();
-
-        reject(
-          transaction.error ||
-            new Error(
-              "Impossible d'enregistrer le produit localement."
-            )
-        );
-      };
-
-      transaction.onabort = () => {
-        db.close();
-
-        reject(
-          transaction.error ||
-            new Error(
-              "L'enregistrement local a été interrompu."
-            )
-        );
-      };
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-/* ============================================================
-   RÉCUPÉRER PRODUITS LOCAUX
-============================================================ */
-
-function getProductsFromIndexedDB(): Promise<
-  LocalProduct[]
-> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const db = await openProductsDB();
-
-      const transaction = db.transaction(
-        STORE_NAME,
-        "readonly"
-      );
-
-      const store = transaction.objectStore(STORE_NAME);
-
-      const request = store.getAll();
-
-      request.onsuccess = () => {
-        db.close();
-
-        const products =
-          (request.result as LocalProduct[]) || [];
-
-        products.sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() -
-            new Date(a.created_at).getTime()
-        );
-
-        resolve(products);
-      };
-
-      request.onerror = () => {
-        db.close();
-
-        reject(
-          request.error ||
-            new Error(
-              "Impossible de récupérer les produits locaux."
-            )
-        );
-      };
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-/* ============================================================
-   METTRE À JOUR PRODUIT LOCAL
-============================================================ */
-
-function updateProductInIndexedDB(
-  product: LocalProduct
-): Promise<void> {
-  return saveProductToIndexedDB(product);
-}
-
-/* ============================================================
-   ATTENDRE
-============================================================ */
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-/* ============================================================
-   ÉMETTRE ÉVÉNEMENT PRODUITS
-============================================================ */
-
-function dispatchProductsUpdated(
-  product?: LocalProduct,
-  source = "sync"
-) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.dispatchEvent(
-    new CustomEvent("biso-products-updated", {
-      detail: {
-        product,
-        source,
-      },
-    })
-  );
-
-  if (product) {
-    window.dispatchEvent(
-      new CustomEvent("biso-product-added", {
-        detail: product,
-      })
-    );
-  }
-}
-
-/* ============================================================
-   RÉCUPÉRER USER ID
-============================================================ */
-
-async function resolveUserId(): Promise<string | null> {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const savedUserId = localStorage.getItem("user_id");
-
-  if (savedUserId) {
-    return String(savedUserId);
-  }
-
-  if (!navigator.onLine) {
-    return null;
-  }
-
-  const phone = localStorage.getItem("phone");
-
-  if (!phone) {
-    return null;
-  }
-
-  try {
-    const {
-      data: user,
-      error,
-    } = await supabase
-      .from("users")
-      .select("id")
-      .eq("phone", phone)
-      .single();
-
-    if (error || !user?.id) {
-      return null;
-    }
-
-    const userId = String(user.id);
-
-    localStorage.setItem("user_id", userId);
-
-    return userId;
-  } catch {
-    return null;
-  }
-}
-
-/* ============================================================
-   TENTATIVE UNIQUE DE SYNCHRONISATION
-============================================================ */
-
-async function syncProductsOnce(): Promise<boolean> {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  if (!navigator.onLine) {
-    return false;
-  }
-
-  try {
-    const products = await getProductsFromIndexedDB();
-
-    let userId = localStorage.getItem("user_id");
-
-    if (!userId) {
-      userId = await resolveUserId();
-    }
-
-    const pendingProducts = products.filter(
-      (product) => product.synced !== true
-    );
-
-    if (pendingProducts.length === 0) {
-      dispatchProductsUpdated(undefined, "sync");
-
-      return true;
-    }
-
-    /*
-     * IMPORTANT :
-     * Si le compte n'est pas encore identifiable,
-     * on ne considère PAS la synchronisation comme réussie.
-     *
-     * Cela permettra aux prochaines tentatives de réessayer.
-     */
-    if (!userId) {
-      console.warn(
-        "Synchronisation produits : user_id indisponible."
-      );
-
-      return false;
-    }
-
-    let allSucceeded = true;
-
-    for (const product of pendingProducts) {
-      if (!navigator.onLine) {
-        allSucceeded = false;
-        break;
-      }
-
-      try {
-        const productUserId =
-          product.user_id || userId;
-
-        if (!productUserId) {
-          allSucceeded = false;
-          continue;
-        }
-
-        const productData = {
-          id: product.id,
-          user_id: productUserId,
-          name: product.name,
-          unit: product.unit,
-          stock: product.stock,
-          initial_stock: product.initial_stock,
-          purchase_price: product.purchase_price,
-          selling_price: product.selling_price,
-          currency: product.currency,
-          created_at: product.created_at,
-        };
-
-        const { error } = await supabase
-          .from("products")
-          .upsert(productData, {
-            onConflict: "id",
-          });
-
-        /*
-         * Supabase n'a pas répondu correctement.
-         * Le produit RESTE synced:false.
-         */
-        if (error) {
-          console.error(
-            "Erreur Supabase synchronisation :",
-            error
-          );
-
-          allSucceeded = false;
-          continue;
-        }
-
-        /*
-         * SUPABASE A CONFIRMÉ LE PRODUIT.
-         *
-         * On marque immédiatement synced:true
-         * dans IndexedDB.
-         */
-        const synchronizedProduct: LocalProduct = {
-          ...product,
-          user_id: productUserId,
-          synced: true,
-        };
-
-        await updateProductInIndexedDB(
-          synchronizedProduct
-        );
-
-        /*
-         * IMPORTANT :
-         * On informe immédiatement les autres pages.
-         */
-        dispatchProductsUpdated(
-          synchronizedProduct,
-          "sync"
-        );
-      } catch (error) {
-        console.error(
-          "Erreur synchronisation produit :",
-          error
-        );
-
-        allSucceeded = false;
-      }
-    }
-
-    /*
-     * Dernière notification globale.
-     */
-    dispatchProductsUpdated(undefined, "sync");
-
-    return allSucceeded;
-  } catch (error) {
-    console.error(
-      "Erreur synchronisation produits :",
-      error
-    );
-
-    return false;
-  }
-}
-
-/* ============================================================
-   SYNCHRONISATION AVEC RETRIES
-   ============================================================
-
-   1er essai : immédiatement
-   2e essai : +500 ms
-   3e essai : +1 seconde
-   4e essai : +2 secondes
-   5e essai : +3 secondes
-
-============================================================ */
-
-let syncInProgress = false;
-
-async function syncProductsWithSupabase(
-  force = false
-): Promise<boolean> {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  if (!navigator.onLine) {
-    return false;
-  }
-
-  /*
-   * Évite que plusieurs événements "online",
-   * plusieurs pages ou plusieurs appels simultanés
-   * lancent plusieurs synchronisations en même temps.
-   */
-  if (syncInProgress && !force) {
-    return false;
-  }
-
-  syncInProgress = true;
-
-  try {
-    /*
-     * Vérification immédiate.
-     */
-    let success = await syncProductsOnce();
-
-    if (success) {
-      return true;
-    }
-
-    /*
-     * RETRY 1
-     * 500 ms
-     */
-    if (navigator.onLine) {
-      await wait(500);
-
-      if (!navigator.onLine) {
-        return false;
-      }
-
-      success = await syncProductsOnce();
-
-      if (success) {
-        return true;
-      }
-    }
-
-    /*
-     * RETRY 2
-     * 1 seconde
-     */
-    if (navigator.onLine) {
-      await wait(1000);
-
-      if (!navigator.onLine) {
-        return false;
-      }
-
-      success = await syncProductsOnce();
-
-      if (success) {
-        return true;
-      }
-    }
-
-    /*
-     * RETRY 3
-     * 2 secondes
-     */
-    if (navigator.onLine) {
-      await wait(2000);
-
-      if (!navigator.onLine) {
-        return false;
-      }
-
-      success = await syncProductsOnce();
-
-      if (success) {
-        return true;
-      }
-    }
-
-    /*
-     * RETRY 4
-     * 3 secondes
-     */
-    if (navigator.onLine) {
-      await wait(3000);
-
-      if (!navigator.onLine) {
-        return false;
-      }
-
-      success = await syncProductsOnce();
-
-      if (success) {
-        return true;
-      }
-    }
-
-    /*
-     * Si Supabase n'a toujours pas répondu,
-     * le produit reste dans IndexedDB avec synced:false.
-     *
-     * Il sera repris lors du prochain événement online
-     * ou de la prochaine tentative.
-     */
-    return false;
-  } finally {
-    syncInProgress = false;
-  }
-}
-
-/* ============================================================
-   COMPOSANT PRINCIPAL
-============================================================ */
 
 export default function AddProductPage() {
   const [name, setName] = useState("");
-
   const [type, setType] = useState("Pièce");
-
   const [quantity, setQuantity] = useState("");
 
-  const [
-    piecesPerUnit,
-    setPiecesPerUnit,
-  ] = useState("1");
+  // Nombre de pièces dans un carton / boîte / sachet
+  const [piecesPerUnit, setPiecesPerUnit] = useState("1");
 
-  const [buyPrice, setBuyPrice] =
-    useState("");
+  const [buyPrice, setBuyPrice] = useState("");
+  const [sellPrice, setSellPrice] = useState("");
+  const [currency, setCurrency] = useState("FC");
 
-  const [sellPrice, setSellPrice] =
-    useState("");
+  const [loading, setLoading] = useState(false);
 
-  const [currency, setCurrency] =
-    useState("FC");
+  // GUIDE
+  const [showGuide, setShowGuide] = useState(false);
 
-  const [loading, setLoading] =
-    useState(false);
+  // POPUP CONNEXION
+  const [showOfflinePopup, setShowOfflinePopup] = useState(false);
 
-  const [stockMode, setStockMode] =
-    useState<StockMode>("nouveau");
+  // POPUP SUCCÈS
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
-  const [showGuide, setShowGuide] =
-    useState(false);
+  // ==========================================================
+  // CALCUL AUTOMATIQUE
+  // ==========================================================
 
-  const [isOnline, setIsOnline] =
-    useState(true);
+  const safeQuantity = Math.max(
+    0,
+    Number(quantity || 0)
+  );
 
-  const [
-    successMessage,
-    setSuccessMessage,
-  ] = useState<SuccessMessage>(null);
+  const safePiecesPerUnit = Math.max(
+    1,
+    Number(piecesPerUnit || 1)
+  );
 
-  const [
-    showSuccessModal,
-    setShowSuccessModal,
-  ] = useState(false);
+  const safeBuyPrice = Math.max(
+    0,
+    Number(buyPrice || 0)
+  );
 
-  /* ==========================================================
-     CONNEXION INTERNET
-  ========================================================== */
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    setIsOnline(navigator.onLine);
-
-    /*
-     * INTERNET REVIENT
-     *
-     * On lance la synchronisation immédiatement.
-     * La fonction possède ensuite ses propres retries :
-     *
-     * 0 ms
-     * 500 ms
-     * 1 s
-     * 2 s
-     * 3 s
-     */
-    const handleOnline = () => {
-      setIsOnline(true);
-
-      void syncProductsWithSupabase(true);
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-    };
-
-    window.addEventListener(
-      "online",
-      handleOnline
-    );
-
-    window.addEventListener(
-      "offline",
-      handleOffline
-    );
-
-    /*
-     * Si la page est ouverte alors qu'Internet
-     * est déjà disponible, on synchronise aussi.
-     */
-    if (navigator.onLine) {
-      void syncProductsWithSupabase();
-    }
-
-    /*
-     * Événement envoyé par d'autres pages.
-     *
-     * Cela permet notamment à la page Produits
-     * de recevoir immédiatement les modifications.
-     */
-    const handleProductsUpdated = () => {
-      /*
-       * Pas besoin de relancer Supabase ici.
-       * Les pages Produits qui écoutent cet événement
-       * doivent simplement relire IndexedDB.
-       */
-    };
-
-    window.addEventListener(
-      "biso-products-updated",
-      handleProductsUpdated
-    );
-
-    return () => {
-      window.removeEventListener(
-        "online",
-        handleOnline
-      );
-
-      window.removeEventListener(
-        "offline",
-        handleOffline
-      );
-
-      window.removeEventListener(
-        "biso-products-updated",
-        handleProductsUpdated
-      );
-    };
-  }, []);
-
-  /* ==========================================================
-     CALCUL AUTOMATIQUE
-  ========================================================== */
+  const safeSellPrice = Math.max(
+    0,
+    Number(sellPrice || 0)
+  );
 
   const totalPieces =
     type !== "Pièce"
-      ? Number(quantity || 0) *
-        Number(piecesPerUnit || 1)
-      : Number(quantity || 0);
+      ? safeQuantity * safePiecesPerUnit
+      : safeQuantity;
 
   const pricePerPiece =
     totalPieces > 0
-      ? Number(buyPrice || 0) /
-        totalPieces
+      ? safeBuyPrice / totalPieces
       : 0;
 
   const profitPerPiece =
-    Number(sellPrice || 0) -
-    pricePerPiece;
+    safeSellPrice - pricePerPiece;
 
   const totalProfit =
     profitPerPiece * totalPieces;
 
-  /* ==========================================================
-     ENREGISTRER LE PRODUIT
-  ========================================================== */
+  // ==========================================================
+  // CONTRÔLE INTERNET
+  // ==========================================================
+
+  const requireInternet = () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setShowOfflinePopup(true);
+      return false;
+    }
+
+    return true;
+  };
+
+  // ==========================================================
+  // ENREGISTRER LE PRODUIT
+  // ==========================================================
 
   const saveProduct = async () => {
-    if (loading) {
+    if (loading) return;
+
+    // Connexion obligatoire pour cette page
+    if (!requireInternet()) return;
+
+    const cleanName = name.trim();
+
+    // Vérification du nom
+    if (!cleanName) {
+      alert("Veuillez entrer le nom du produit.");
       return;
     }
 
-    setSuccessMessage(null);
-    setShowSuccessModal(false);
-
-    /* ------------------------------------------------------
-       VALIDATION
-    ------------------------------------------------------ */
-
+    // Vérification quantité
     if (
-      !name.trim() ||
       !quantity ||
-      !buyPrice ||
-      !sellPrice
+      safeQuantity <= 0 ||
+      !Number.isFinite(safeQuantity)
     ) {
-      alert(
-        "Veuillez remplir tous les champs obligatoires."
-      );
-
+      alert("Veuillez entrer une quantité valide.");
       return;
     }
 
-    const nPieces =
-      type !== "Pièce"
-        ? Number(piecesPerUnit || 1)
-        : 1;
-
-    if (Number(quantity) <= 0) {
-      alert(
-        "La quantité doit être supérieure à 0."
-      );
-
-      return;
-    }
-
-    if (nPieces <= 0) {
-      alert(
-        "Le nombre de pièces dans l'unité doit être supérieur à 0."
-      );
-
-      return;
-    }
-
+    // Vérification pièces par unité
     if (
-      Number(buyPrice) < 0 ||
-      Number(sellPrice) < 0
+      type !== "Pièce" &&
+      (
+        !piecesPerUnit ||
+        safePiecesPerUnit <= 0 ||
+        !Number.isFinite(safePiecesPerUnit)
+      )
     ) {
       alert(
-        "Les prix ne peuvent pas être négatifs."
+        `Veuillez entrer un nombre de pièces valide dans ${type}.`
       );
-
       return;
     }
 
-    const totalStock =
-      Number(quantity) * nPieces;
-
-    if (totalStock <= 0) {
-      alert(
-        "Le stock doit être supérieur à 0."
-      );
-
+    // Vérification prix d'achat
+    if (
+      !buyPrice ||
+      safeBuyPrice < 0 ||
+      !Number.isFinite(safeBuyPrice)
+    ) {
+      alert("Veuillez entrer un prix d'achat valide.");
       return;
     }
 
-    const unitCost =
-      Number(buyPrice) / totalStock;
+    // Vérification prix de vente
+    if (
+      !sellPrice ||
+      safeSellPrice < 0 ||
+      !Number.isFinite(safeSellPrice)
+    ) {
+      alert("Veuillez entrer un prix de vente valide.");
+      return;
+    }
+
+    // Vérification stock réel
+    if (!Number.isFinite(totalPieces) || totalPieces <= 0) {
+      alert("La quantité totale du stock est invalide.");
+      return;
+    }
+
+    // Avertissement bénéfice négatif
+    if (profitPerPiece < 0) {
+      const continueAnyway = confirm(
+        `Attention : le prix de vente est inférieur au coût réel d'une pièce.\n\n` +
+        `Vous risquez de vendre à perte.\n\n` +
+        `Voulez-vous quand même ajouter ce produit ?`
+      );
+
+      if (!continueAnyway) return;
+    }
+
+    let userId: string | null =
+      localStorage.getItem("user_id");
+
+    // ========================================================
+    // RÉCUPÉRATION DE L'UTILISATEUR
+    // ========================================================
+
+    if (!userId) {
+      const phone =
+        localStorage.getItem("phone");
+
+      if (!phone) {
+        alert("Utilisateur non connecté.");
+        return;
+      }
+
+      const {
+        data: user,
+        error: userError,
+      } = await supabase
+        .from("users")
+        .select("id")
+        .eq("phone", phone)
+        .single();
+
+      if (userError || !user) {
+        alert("Utilisateur introuvable.");
+        return;
+      }
+
+      userId = user.id;
+
+      if (userId) {
+        localStorage.setItem(
+          "user_id",
+          userId
+        );
+      }
+    }
+
+    // ========================================================
+    // VÉRIFICATION INTERNET AVANT ENREGISTREMENT
+    // ========================================================
+
+    if (!requireInternet()) return;
 
     setLoading(true);
 
     try {
-      /* ----------------------------------------------------
-         USER ID
-      ---------------------------------------------------- */
+      const nPieces =
+        type !== "Pièce"
+          ? Number(piecesPerUnit || 1)
+          : 1;
 
-      const userId =
-        await resolveUserId();
+      const totalStock =
+        Number(quantity) * nPieces;
 
-      /* ----------------------------------------------------
-         CRÉER PRODUIT
-      ---------------------------------------------------- */
+      const unitCost =
+        Number(buyPrice) / totalStock;
 
-      const productId =
-        crypto.randomUUID();
-
-      const createdAt =
-        new Date().toISOString();
-
-      const localProduct: LocalProduct = {
-        id: productId,
-
+      const productData = {
+        id: crypto.randomUUID(),
         user_id: userId,
-
-        name: name.trim(),
-
+        name: cleanName,
         unit: type,
-
         stock: totalStock,
-
         initial_stock: totalStock,
-
         purchase_price: unitCost,
-
-        selling_price:
-          Number(sellPrice),
-
-        currency: currency,
-
-        created_at: createdAt,
-
-        /*
-         * TOUJOURS false au départ.
-         *
-         * Même avec Internet, on sauvegarde d'abord
-         * localement puis on synchronise.
-         */
-        synced: false,
+        selling_price: Number(sellPrice),
+        currency,
+        created_at: new Date().toISOString(),
       };
 
-      /* ----------------------------------------------------
-         1. SAUVEGARDE LOCALE
-      ---------------------------------------------------- */
-
-      await saveProductToIndexedDB(
-        localProduct
-      );
-
-      /*
-       * À partir d'ici le produit existe réellement
-       * dans IndexedDB.
-       */
-
-      /* ----------------------------------------------------
-         2. MESSAGE
-      ---------------------------------------------------- */
-
-      let message: SuccessMessage;
-
-      if (!navigator.onLine) {
-        message = "offline";
-      } else if (!userId) {
-        message = "local";
-      } else {
-        message = "syncing";
+      // Dernière vérification avant Supabase
+      if (
+        typeof navigator !== "undefined" &&
+        !navigator.onLine
+      ) {
+        setLoading(false);
+        setShowOfflinePopup(true);
+        return;
       }
 
-      setSuccessMessage(message);
+      const result = await supabase
+        .from("products")
+        .insert(productData);
 
-      /* ----------------------------------------------------
-         3. AFFICHAGE IMMÉDIAT DU PRODUIT
-      ---------------------------------------------------- */
+      if (result.error) {
+        // Si la connexion a disparu
+        if (
+          typeof navigator !== "undefined" &&
+          !navigator.onLine
+        ) {
+          setShowOfflinePopup(true);
+        } else {
+          alert(
+            result.error.message ||
+            "Impossible d'ajouter le produit."
+          );
+        }
 
-      dispatchProductsUpdated(
-        localProduct,
-        "add-product"
-      );
+        setLoading(false);
+        return;
+      }
 
-      /* ----------------------------------------------------
-         4. MODAL
-      ---------------------------------------------------- */
-
-      setShowSuccessModal(true);
-
-      /* ----------------------------------------------------
-         5. VIDER FORMULAIRE
-      ---------------------------------------------------- */
+      // ======================================================
+      // SUCCÈS
+      // ======================================================
 
       setName("");
       setQuantity("");
       setBuyPrice("");
       setSellPrice("");
       setPiecesPerUnit("1");
-      setStockMode("nouveau");
+      setType("Pièce");
+      setCurrency("FC");
 
-      /* ----------------------------------------------------
-         6. SYNCHRONISATION IMMÉDIATE
-      ---------------------------------------------------- */
+      setShowSuccessPopup(true);
 
-      if (navigator.onLine) {
-        const synchronized =
-          await syncProductsWithSupabase(
-            true
-          );
-
-        /*
-         * On vérifie directement IndexedDB
-         * après la synchronisation.
-         */
-        try {
-          const products =
-            await getProductsFromIndexedDB();
-
-          const savedProduct =
-            products.find(
-              (product) =>
-                product.id === productId
-            );
-
-          if (
-            synchronized &&
-            savedProduct?.synced === true
-          ) {
-            setSuccessMessage("success");
-          } else if (
-            savedProduct?.synced === true
-          ) {
-            setSuccessMessage("success");
-          } else {
-            /*
-             * Le produit reste local mais n'est pas perdu.
-             * Les retries suivants / prochain online
-             * pourront le synchroniser.
-             */
-            setSuccessMessage("syncing");
-          }
-        } catch {
-          setSuccessMessage(
-            synchronized
-              ? "success"
-              : "syncing"
-          );
-        }
-      }
     } catch (error) {
-      console.error(
-        "Erreur ajout produit :",
-        error
-      );
+      console.error(error);
 
-      setSuccessMessage("error");
-
-      setShowSuccessModal(true);
+      if (
+        typeof navigator !== "undefined" &&
+        !navigator.onLine
+      ) {
+        setShowOfflinePopup(true);
+      } else {
+        alert(
+          "Une erreur est survenue. Veuillez réessayer."
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  /* ==========================================================
-     AFFICHAGE
-  ========================================================== */
-
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
-      <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-5 sm:py-6">
+    <div
+      className="
+        min-h-screen
+        overflow-x-hidden
+        bg-[#020617]
+        text-white
+      "
+    >
 
-        {/* ====================================================
+      {/* ======================================================
+          LUMIÈRE DE FOND
+      ====================================================== */}
+
+      <div
+        className="
+          pointer-events-none
+          fixed
+          inset-0
+          bg-[radial-gradient(circle_at_top,rgba(249,115,22,0.14),transparent_38%)]
+        "
+      />
+
+      {/* ======================================================
+          CONTENU
+      ====================================================== */}
+
+      <div
+        className="
+          relative
+          mx-auto
+          w-full
+          max-w-3xl
+          px-3
+          py-5
+          sm:px-6
+          sm:py-7
+        "
+      >
+
+        {/* ======================================================
             HEADER
-        ==================================================== */}
+        ====================================================== */}
 
-        <div className="mb-4">
-          <div className="flex items-center justify-between gap-3">
+        <div className="mb-6">
 
-            <div className="flex min-w-0 items-center gap-3">
-
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white">
-                <PackagePlus size={21} />
-              </div>
-
-              <div className="min-w-0">
-                <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
-                  Nouveau produit
-                </h1>
-
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Ajoutez un produit à votre stock
-                </p>
-              </div>
-
-            </div>
-
-            {/* ÉTAT INTERNET */}
+          <div
+            className="
+              mb-3
+              flex
+              items-center
+              gap-3
+            "
+          >
 
             <div
-              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black ${
-                isOnline
-                  ? "bg-emerald-50 text-emerald-600"
-                  : "bg-amber-50 text-amber-600"
-              }`}
+              className="
+                flex
+                h-11
+                w-11
+                shrink-0
+                items-center
+                justify-center
+                rounded-2xl
+                bg-gradient-to-br
+                from-orange-500
+                to-yellow-400
+                text-black
+                shadow-lg
+                sm:h-12
+                sm:w-12
+              "
             >
-              {isOnline ? (
-                <>
-                  <Cloud size={14} />
-                  En ligne
-                </>
-              ) : (
-                <>
-                  <CloudOff size={14} />
-                  Hors ligne
-                </>
-              )}
+              <PackagePlus
+                size={23}
+              />
+            </div>
+
+            <div className="min-w-0">
+
+              <h1
+                className="
+                  text-xl
+                  font-black
+                  leading-tight
+                  text-white
+                  sm:text-3xl
+                "
+              >
+                Nouveau produit
+              </h1>
+
+              <p
+                className="
+                  mt-1
+                  text-xs
+                  text-slate-400
+                  sm:text-sm
+                "
+              >
+                Ajoutez un produit à votre stock
+              </p>
+
             </div>
 
           </div>
 
-          {!isOnline && (
-            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50 p-3">
+          <p
+            className="
+              max-w-2xl
+              text-xs
+              leading-5
+              text-slate-300
+              sm:text-sm
+              sm:leading-6
+            "
+          >
+            Ajoutez vos produits, calculez le stock réel
+            et estimez automatiquement votre bénéfice.
+          </p>
 
-              <WifiOff
-                size={17}
-                className="mt-0.5 shrink-0 text-amber-600"
-              />
-
-              <div>
-                <p className="text-xs font-black text-amber-700">
-                  Mode hors connexion
-                </p>
-
-                <p className="mt-1 text-[11px] leading-4 text-amber-700/80">
-                  Vous pouvez continuer à ajouter
-                  des produits. Ils seront conservés
-                  sur votre appareil puis synchronisés
-                  automatiquement lorsque Internet
-                  reviendra.
-                </p>
-              </div>
-
-            </div>
-          )}
         </div>
 
-        {/* ====================================================
-            GUIDE
-        ==================================================== */}
+        {/* ======================================================
+            GUIDE PRINCIPAL
+        ====================================================== */}
 
-        <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div
+          className="
+            mb-6
+            overflow-hidden
+            rounded-3xl
+            border
+            border-white/10
+            bg-white/[0.04]
+            shadow-xl
+          "
+        >
 
-          <div className="flex items-center justify-between gap-2 p-3">
+          <div
+            className="
+              flex
+              items-center
+              justify-between
+              gap-3
+              p-4
+              sm:p-5
+            "
+          >
 
-            <div className="flex min-w-0 items-center gap-2">
+            <div
+              className="
+                flex
+                min-w-0
+                items-center
+                gap-3
+              "
+            >
 
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <Info size={19} />
+              <div
+                className="
+                  flex
+                  h-10
+                  w-10
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-orange-500/15
+                  text-orange-400
+                  sm:h-11
+                  sm:w-11
+                "
+              >
+                <Info size={21} />
               </div>
 
               <div className="min-w-0">
-                <h2 className="text-sm font-black text-slate-900">
+
+                <h2
+                  className="
+                    text-sm
+                    font-black
+                    text-white
+                    sm:text-base
+                  "
+                >
                   Guide d'ajout
                 </h2>
 
-                <p className="truncate text-[11px] text-slate-500">
-                  Comment ajouter votre stock
+                <p
+                  className="
+                    mt-0.5
+                    text-[11px]
+                    text-slate-400
+                    sm:text-xs
+                  "
+                >
+                  Comprenez chaque étape
                 </p>
+
               </div>
 
             </div>
@@ -1137,7 +520,21 @@ export default function AddProductPage() {
               onClick={() =>
                 setShowGuide(!showGuide)
               }
-              className="shrink-0 rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white transition active:scale-95"
+              className="
+                min-h-[44px]
+                shrink-0
+                rounded-xl
+                bg-orange-500
+                px-3
+                py-2
+                text-[11px]
+                font-black
+                text-black
+                transition
+                active:scale-95
+                sm:px-4
+                sm:text-xs
+              "
             >
               {showGuide
                 ? "Fermer"
@@ -1147,27 +544,66 @@ export default function AddProductPage() {
           </div>
 
           {showGuide && (
-            <div className="border-t border-slate-100 p-3">
+            <div
+              className="
+                border-t
+                border-white/10
+                p-3
+                sm:p-6
+              "
+            >
 
-              <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+              {/* INTRODUCTION */}
 
-                <div className="flex gap-2.5">
+              <div
+                className="
+                  mb-5
+                  rounded-2xl
+                  border
+                  border-orange-500/20
+                  bg-orange-500/10
+                  p-4
+                "
+              >
+
+                <div className="flex gap-3">
 
                   <Sparkles
-                    className="mt-0.5 shrink-0 text-indigo-600"
-                    size={18}
+                    className="
+                      mt-0.5
+                      shrink-0
+                      text-orange-400
+                    "
+                    size={20}
                   />
 
-                  <div>
+                  <div className="min-w-0">
 
-                    <h3 className="text-sm font-black text-slate-900">
-                      Bienvenue
+                    <h3
+                      className="
+                        text-sm
+                        font-black
+                        text-white
+                        sm:text-base
+                      "
+                    >
+                      Comment ça fonctionne ?
                     </h3>
 
-                    <p className="mt-1.5 text-xs leading-5 text-slate-600">
-                      Ce guide vous explique simplement comment
-                      ajouter un produit et enregistrer correctement
-                      votre stock.
+                    <p
+                      className="
+                        mt-1
+                        text-xs
+                        leading-5
+                        text-slate-300
+                        sm:text-sm
+                        sm:leading-6
+                      "
+                    >
+                      Remplissez les informations du produit.
+                      BISO-COMMERCE calcule automatiquement
+                      le stock réel, le coût par pièce et
+                      le bénéfice potentiel.
                     </p>
 
                   </div>
@@ -1176,264 +612,623 @@ export default function AddProductPage() {
 
               </div>
 
-              <GuideStep
-                number="1"
-                color="indigo"
-                title="Choisissez votre situation"
+              {/* ÉTAPE 1 */}
+
+              <div
+                className="
+                  mb-4
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
               >
 
-                <div className="space-y-2">
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
 
-                  <div className="rounded-xl bg-indigo-50 p-3">
-
-                    <p className="text-sm font-black text-slate-900">
-                      🆕 Nouveau stock
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      Vous venez d'acheter le produit auprès
-                      de votre fournisseur.
-                    </p>
-
-                    <div className="mt-2 rounded-lg bg-white p-2.5">
-
-                      <p className="text-[11px] font-bold text-indigo-600">
-                        Exemple
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-slate-600">
-                        5 cartons × 24 bouteilles = 120 bouteilles.
-                      </p>
-
-                    </div>
-
+                  <div
+                    className="
+                      flex
+                      h-8
+                      w-8
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-blue-500/15
+                      text-sm
+                      font-black
+                      text-blue-400
+                    "
+                  >
+                    1
                   </div>
 
-                  <div className="rounded-xl bg-emerald-50 p-3">
-
-                    <p className="text-sm font-black text-slate-900">
-                      📦 Stock déjà existant
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      Le produit était déjà dans votre boutique
-                      avant BISO-COMMERCE.
-                    </p>
-
-                    <div className="mt-2 rounded-lg bg-white p-2.5">
-
-                      <p className="text-[11px] font-bold text-emerald-600">
-                        Exemple
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-slate-600">
-                        Vous avez actuellement 50 bouteilles.
-                        Vous devez inscrire 50.
-                      </p>
-
-                    </div>
-
-                  </div>
+                  <h3
+                    className="
+                      text-sm
+                      font-black
+                      text-white
+                      sm:text-base
+                    "
+                  >
+                    Nom du produit
+                  </h3>
 
                 </div>
 
-              </GuideStep>
-
-              <GuideStep
-                number="2"
-                color="purple"
-                title="Nom du produit"
-              >
-
-                <p className="text-xs leading-5 text-slate-600">
+                <p
+                  className="
+                    text-xs
+                    leading-5
+                    text-slate-300
+                    sm:text-sm
+                    sm:leading-6
+                  "
+                >
                   Écrivez un nom facile à reconnaître.
+                  Exemple : Coca-Cola 33cl, Paracétamol
+                  500mg ou Riz 25kg.
                 </p>
 
-                <div className="mt-2 rounded-xl bg-slate-50 p-3">
+              </div>
 
-                  <p className="text-xs text-slate-600">
-                    🥤 Coca-Cola 33cl
-                  </p>
+              {/* ÉTAPE 2 */}
 
-                  <p className="mt-1 text-xs text-slate-600">
-                    💊 Paracétamol 500mg
-                  </p>
+              <div
+                className="
+                  mb-4
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
+              >
 
-                  <p className="mt-1 text-xs text-slate-600">
-                    🍚 Riz 25kg
-                  </p>
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
+
+                  <div
+                    className="
+                      flex
+                      h-8
+                      w-8
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-purple-500/15
+                      text-sm
+                      font-black
+                      text-purple-400
+                    "
+                  >
+                    2
+                  </div>
+
+                  <h3
+                    className="
+                      text-sm
+                      font-black
+                      text-white
+                      sm:text-base
+                    "
+                  >
+                    Type d'unité
+                  </h3>
 
                 </div>
 
-              </GuideStep>
+                <p
+                  className="
+                    text-xs
+                    leading-5
+                    text-slate-300
+                    sm:text-sm
+                  "
+                >
+                  Choisissez Pièce, Carton, Boîte ou Sachet.
+                </p>
 
-              <GuideStep
-                number="3"
-                color="indigo"
-                title="Type d'unité"
-              >
+                <div
+                  className="
+                    mt-3
+                    grid
+                    grid-cols-2
+                    gap-2
+                  "
+                >
 
-                <div className="space-y-2">
-
-                  <div className="rounded-xl bg-slate-50 p-3">
-
-                    <p className="text-xs font-bold text-slate-900">
-                      🧴 Pièce
+                  <div className="rounded-xl bg-white/5 p-3">
+                    <p className="text-xs font-bold text-white">
+                      📦 Pièce
                     </p>
-
-                    <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                      Exemple : 20 bouteilles.
-                    </p>
-
                   </div>
 
-                  <div className="rounded-xl bg-slate-50 p-3">
-
-                    <p className="text-xs font-bold text-slate-900">
+                  <div className="rounded-xl bg-white/5 p-3">
+                    <p className="text-xs font-bold text-white">
                       📦 Carton
                     </p>
-
-                    <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                      Exemple : 1 carton = 24 bouteilles.
-                    </p>
-
                   </div>
 
-                  <div className="rounded-xl bg-slate-50 p-3">
-
-                    <p className="text-xs font-bold text-slate-900">
+                  <div className="rounded-xl bg-white/5 p-3">
+                    <p className="text-xs font-bold text-white">
                       📦 Boîte
                     </p>
-
-                    <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                      Exemple : 1 boîte = 100 comprimés.
-                    </p>
-
                   </div>
 
-                  <div className="rounded-xl bg-slate-50 p-3">
-
-                    <p className="text-xs font-bold text-slate-900">
+                  <div className="rounded-xl bg-white/5 p-3">
+                    <p className="text-xs font-bold text-white">
                       🛍️ Sachet
                     </p>
-
-                    <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                      Exemple : 1 sachet contient plusieurs pièces.
-                    </p>
-
                   </div>
 
                 </div>
 
-              </GuideStep>
+              </div>
 
-              <GuideStep
-                number="4"
-                color="emerald"
-                title="Quantité"
+              {/* ÉTAPE 3 */}
+
+              <div
+                className="
+                  mb-4
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
               >
 
-                <div className="space-y-2">
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
 
-                  <div className="rounded-xl bg-indigo-50 p-3">
-
-                    <p className="text-xs font-black text-indigo-600">
-                      🆕 Nouveau stock
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      Écrivez la quantité que vous venez d'acheter.
-                    </p>
-
-                    <p className="mt-1.5 text-xs font-black text-slate-900">
-                      Exemple : 5 cartons → quantité = 5
-                    </p>
-
+                  <div
+                    className="
+                      flex
+                      h-8
+                      w-8
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-green-500/15
+                      text-sm
+                      font-black
+                      text-green-400
+                    "
+                  >
+                    3
                   </div>
 
-                  <div className="rounded-xl bg-emerald-50 p-3">
-
-                    <p className="text-xs font-black text-emerald-600">
-                      📦 Stock existant
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      Écrivez uniquement ce qu'il vous reste
-                      aujourd'hui.
-                    </p>
-
-                    <p className="mt-1.5 text-xs font-black text-slate-900">
-                      Exemple : 50 bouteilles → quantité = 50
-                    </p>
-
-                  </div>
+                  <h3
+                    className="
+                      text-sm
+                      font-black
+                      text-white
+                      sm:text-base
+                    "
+                  >
+                    Quantité achetée
+                  </h3>
 
                 </div>
 
-              </GuideStep>
-
-              <GuideStep
-                number="5"
-                color="purple"
-                title="Prix"
-              >
-
-                <p className="text-xs leading-5 text-slate-600">
-                  Indiquez le montant total payé pour le stock
-                  et le prix auquel vous vendrez une pièce.
+                <p
+                  className="
+                    text-xs
+                    leading-5
+                    text-slate-300
+                    sm:text-sm
+                  "
+                >
+                  Indiquez combien d'unités vous avez
+                  achetées chez votre fournisseur.
                 </p>
 
-                <div className="mt-2 rounded-xl bg-slate-50 p-3">
-
-                  <p className="text-xs text-slate-600">
-                    Achat total :{" "}
-                    <strong>100000 FC</strong>
+                <div
+                  className="
+                    mt-3
+                    rounded-xl
+                    bg-green-500/10
+                    p-3
+                  "
+                >
+                  <p className="text-xs text-slate-400">
+                    Exemple :
                   </p>
 
-                  <p className="mt-1 text-xs text-slate-600">
-                    Vente / pièce :{" "}
-                    <strong>2000 FC</strong>
+                  <p
+                    className="
+                      mt-1
+                      text-sm
+                      font-black
+                      text-white
+                    "
+                  >
+                    5 cartons
                   </p>
-
                 </div>
 
-              </GuideStep>
+              </div>
 
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+              {/* ÉTAPE 4 */}
 
-                <div className="flex gap-2.5">
+              <div
+                className="
+                  mb-4
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
+              >
 
-                  <CheckCircle
-                    size={18}
-                    className="mt-0.5 shrink-0 text-emerald-600"
-                  />
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
 
-                  <div>
-
-                    <p className="text-sm font-black text-slate-900">
-                      Vous êtes prêt
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      Remplissez simplement le formulaire.
-                      BISO-COMMERCE calculera automatiquement
-                      votre stock et votre bénéfice.
-                    </p>
-
+                  <div
+                    className="
+                      flex
+                      h-8
+                      w-8
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-cyan-500/15
+                      text-sm
+                      font-black
+                      text-cyan-400
+                    "
+                  >
+                    4
                   </div>
 
+                  <h3
+                    className="
+                      text-sm
+                      font-black
+                      text-white
+                      sm:text-base
+                    "
+                  >
+                    Pièces par unité
+                  </h3>
+
                 </div>
+
+                <p
+                  className="
+                    text-xs
+                    leading-5
+                    text-slate-300
+                    sm:text-sm
+                  "
+                >
+                  Pour un carton, une boîte ou un sachet,
+                  indiquez le nombre de pièces qu'il contient.
+                </p>
+
+                <div
+                  className="
+                    mt-3
+                    rounded-xl
+                    bg-cyan-500/10
+                    p-3
+                  "
+                >
+                  <p className="text-xs text-slate-400">
+                    Exemple :
+                  </p>
+
+                  <p
+                    className="
+                      mt-1
+                      text-sm
+                      font-black
+                      text-cyan-400
+                    "
+                  >
+                    1 carton = 24 bouteilles
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    Écrivez : 24
+                  </p>
+                </div>
+
+              </div>
+
+              {/* ÉTAPE 5 */}
+
+              <div
+                className="
+                  mb-4
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
+              >
+
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
+
+                  <div
+                    className="
+                      flex
+                      h-8
+                      w-8
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-yellow-500/15
+                      text-sm
+                      font-black
+                      text-yellow-400
+                    "
+                  >
+                    5
+                  </div>
+
+                  <h3
+                    className="
+                      text-sm
+                      font-black
+                      text-white
+                      sm:text-base
+                    "
+                  >
+                    Prix d'achat total
+                  </h3>
+
+                </div>
+
+                <p
+                  className="
+                    text-xs
+                    leading-5
+                    text-slate-300
+                    sm:text-sm
+                  "
+                >
+                  Entrez le montant total payé au fournisseur.
+                </p>
+
+                <div
+                  className="
+                    mt-3
+                    rounded-xl
+                    bg-yellow-500/10
+                    p-3
+                  "
+                >
+                  <p className="text-xs text-slate-400">
+                    Exemple :
+                  </p>
+
+                  <p
+                    className="
+                      mt-1
+                      text-base
+                      font-black
+                      text-white
+                    "
+                  >
+                    100 000 FC
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    Écrivez : 100000
+                  </p>
+                </div>
+
+              </div>
+
+              {/* ÉTAPE 6 */}
+
+              <div
+                className="
+                  mb-4
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-4
+                "
+              >
+
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
+
+                  <div
+                    className="
+                      flex
+                      h-8
+                      w-8
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-orange-500/15
+                      text-sm
+                      font-black
+                      text-orange-400
+                    "
+                  >
+                    6
+                  </div>
+
+                  <h3
+                    className="
+                      text-sm
+                      font-black
+                      text-white
+                      sm:text-base
+                    "
+                  >
+                    Prix de vente
+                  </h3>
+
+                </div>
+
+                <p
+                  className="
+                    text-xs
+                    leading-5
+                    text-slate-300
+                    sm:text-sm
+                  "
+                >
+                  Indiquez le prix auquel vous vendrez
+                  une seule pièce.
+                </p>
+
+                <div
+                  className="
+                    mt-3
+                    rounded-xl
+                    bg-orange-500/10
+                    p-3
+                  "
+                >
+                  <p className="text-xs text-slate-400">
+                    Exemple :
+                  </p>
+
+                  <p
+                    className="
+                      mt-1
+                      text-base
+                      font-black
+                      text-white
+                    "
+                  >
+                    2 000 FC / pièce
+                  </p>
+                </div>
+
+              </div>
+
+              {/* BÉNÉFICE */}
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-green-500/20
+                  bg-green-500/10
+                  p-4
+                "
+              >
+
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
+
+                  <TrendingUp
+                    size={21}
+                    className="shrink-0 text-green-400"
+                  />
+
+                  <h3
+                    className="
+                      text-sm
+                      font-black
+                      text-white
+                      sm:text-base
+                    "
+                  >
+                    Bénéfice automatique
+                  </h3>
+
+                </div>
+
+                <p
+                  className="
+                    text-xs
+                    leading-5
+                    text-slate-300
+                    sm:text-sm
+                  "
+                >
+                  Le système calcule le coût réel,
+                  le bénéfice par pièce et le bénéfice
+                  potentiel de tout le stock.
+                </p>
 
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowGuide(false)
-                }
-                className="mt-3 w-full rounded-xl bg-indigo-600 px-4 py-3 text-xs font-black text-white active:scale-[0.99]"
+                onClick={() => setShowGuide(false)}
+                className="
+                  mt-5
+                  flex
+                  min-h-[48px]
+                  w-full
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-orange-500
+                  px-4
+                  py-3
+                  text-sm
+                  font-black
+                  text-black
+                  transition
+                  active:scale-[0.98]
+                "
               >
-                ✓ J'ai compris
+                Fermer le guide
               </button>
 
             </div>
@@ -1441,17 +1236,37 @@ export default function AddProductPage() {
 
         </div>
 
-        {/* ====================================================
+        {/* ======================================================
             FORMULAIRE
-        ==================================================== */}
+        ====================================================== */}
 
-        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+        <div
+          className="
+            space-y-4
+            rounded-3xl
+            border
+            border-white/10
+            bg-white/[0.04]
+            p-3
+            shadow-xl
+            sm:space-y-5
+            sm:p-6
+          "
+        >
 
           {/* NOM */}
 
           <div>
 
-            <label className="mb-1.5 block text-xs font-bold text-slate-700">
+            <label
+              className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                text-slate-300
+              "
+            >
               Nom du produit
             </label>
 
@@ -1460,412 +1275,425 @@ export default function AddProductPage() {
               onChange={(e) =>
                 setName(e.target.value)
               }
-              placeholder="Exemple : Coca-Cola 33cl"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
+              placeholder="Ex : Coca-Cola 33cl"
+              autoComplete="off"
+              className="
+                min-h-[50px]
+                w-full
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/40
+                px-4
+                py-3
+                text-sm
+                text-white
+                outline-none
+                placeholder:text-slate-500
+                focus:border-orange-500/50
+                focus:ring-2
+                focus:ring-orange-500/10
+              "
             />
-
-            <p className="mt-1.5 text-[11px] leading-4 text-slate-400">
-              Utilisez un nom simple pour retrouver facilement
-              le produit.
-            </p>
 
           </div>
 
-          {/* SITUATION */}
+          {/* TYPE */}
 
           <div>
 
-            <label className="mb-1.5 block text-xs font-bold text-slate-700">
-              Situation du stock
+            <label
+              className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                text-slate-300
+              "
+            >
+              Type d'unité
             </label>
 
-            <div className="grid grid-cols-2 gap-2">
+            <select
+              value={type}
+              onChange={(e) =>
+                setType(e.target.value)
+              }
+              className="
+                min-h-[50px]
+                w-full
+                rounded-2xl
+                border
+                border-white/10
+                bg-[#111827]
+                px-4
+                py-3
+                text-sm
+                text-white
+                outline-none
+                focus:border-orange-500/50
+              "
+            >
+              <option value="Pièce">
+                Pièce
+              </option>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setStockMode("nouveau")
-                }
-                className={`rounded-xl border p-3 text-left transition active:scale-[0.99] ${
-                  stockMode === "nouveau"
-                    ? "border-indigo-500 bg-indigo-50"
-                    : "border-slate-200 bg-slate-50"
-                }`}
-              >
+              <option value="Carton">
+                Carton
+              </option>
 
-                <div className="flex items-start gap-2">
+              <option value="Boîte">
+                Boîte
+              </option>
 
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                      stockMode === "nouveau"
-                        ? "bg-indigo-100"
-                        : "bg-white"
-                    }`}
-                  >
-                    🆕
-                  </div>
-
-                  <div className="min-w-0">
-
-                    <p className="text-xs font-black text-slate-900">
-                      Nouveau
-                    </p>
-
-                    <p className="mt-0.5 text-[10px] leading-4 text-slate-500">
-                      Je viens de l'acheter
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setStockMode("existant")
-                }
-                className={`rounded-xl border p-3 text-left transition active:scale-[0.99] ${
-                  stockMode === "existant"
-                    ? "border-emerald-500 bg-emerald-50"
-                    : "border-slate-200 bg-slate-50"
-                }`}
-              >
-
-                <div className="flex items-start gap-2">
-
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                      stockMode === "existant"
-                        ? "bg-emerald-100"
-                        : "bg-white"
-                    }`}
-                  >
-                    📦
-                  </div>
-
-                  <div className="min-w-0">
-
-                    <p className="text-xs font-black text-slate-900">
-                      Existant
-                    </p>
-
-                    <p className="mt-0.5 text-[10px] leading-4 text-slate-500">
-                      Je l'avais déjà
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </button>
-
-            </div>
-
-            {stockMode === "nouveau" && (
-              <div className="mt-2.5 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
-
-                <div className="flex gap-2">
-
-                  <span className="text-lg">
-                    🆕
-                  </span>
-
-                  <div>
-
-                    <p className="text-xs font-black text-indigo-600">
-                      Vous venez d'acheter ce produit
-                    </p>
-
-                    <p className="mt-1 text-[11px] leading-4 text-slate-600">
-                      Indiquez la quantité achetée, le prix d'achat
-                      total et votre prix de vente par pièce.
-                    </p>
-
-                    <p className="mt-2 text-[11px] font-black text-slate-900">
-                      Exemple : 5 cartons × 24 = 120 bouteilles
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-            )}
-
-            {stockMode === "existant" && (
-              <div className="mt-2.5 overflow-hidden rounded-xl border border-emerald-100 bg-emerald-50">
-
-                <div className="p-3">
-
-                  <div className="flex gap-2">
-
-                    <span className="text-lg">
-                      📦
-                    </span>
-
-                    <div>
-
-                      <p className="text-xs font-black text-emerald-600">
-                        Produit déjà présent
-                      </p>
-
-                      <p className="mt-1 text-[11px] leading-4 text-slate-600">
-                        Indiquez uniquement la quantité que vous
-                        avez actuellement dans votre boutique.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                <div className="border-t border-emerald-100 bg-white/70 p-3">
-
-                  <p className="text-[11px] font-bold text-emerald-600">
-                    Exemple
-                  </p>
-
-                  <p className="mt-1 text-[11px] leading-4 text-slate-600">
-                    Vous aviez 200 bouteilles et vous en avez
-                    vendu 150.
-                  </p>
-
-                  <p className="mt-1.5 text-xs font-black text-slate-900">
-                    Il reste 50 → inscrivez 50.
-                  </p>
-
-                </div>
-
-              </div>
-            )}
+              <option value="Sachet">
+                Sachet
+              </option>
+            </select>
 
           </div>
 
-          {/* TYPE + QUANTITÉ */}
+          {/* QUANTITÉ */}
 
-          <div className="grid grid-cols-2 gap-2">
+          <div>
 
-            <div>
+            <label
+              className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                text-slate-300
+              "
+            >
+              Quantité achetée
+            </label>
 
-              <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                Type d'unité
-              </label>
-
-              <select
-                value={type}
-                onChange={(e) =>
-                  setType(e.target.value)
-                }
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-              >
-
-                <option value="Pièce">
-                  Pièce
-                </option>
-
-                <option value="Carton">
-                  Carton
-                </option>
-
-                <option value="Boîte">
-                  Boîte
-                </option>
-
-                <option value="Sachet">
-                  Sachet
-                </option>
-
-              </select>
-
-            </div>
-
-            <div>
-
-              <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                {stockMode === "existant"
-                  ? "Stock actuel"
-                  : "Quantité"}
-              </label>
-
-              <input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) =>
-                  setQuantity(
-                    e.target.value
-                  )
-                }
-                placeholder="Exemple : 50"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-              />
-
-            </div>
+            <input
+              type="number"
+              min="1"
+              inputMode="numeric"
+              value={quantity}
+              onChange={(e) =>
+                setQuantity(e.target.value)
+              }
+              placeholder={`Nombre de ${type}(s)`}
+              className="
+                min-h-[50px]
+                w-full
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/40
+                px-4
+                py-3
+                text-sm
+                text-white
+                outline-none
+                placeholder:text-slate-500
+                focus:border-orange-500/50
+                focus:ring-2
+                focus:ring-orange-500/10
+              "
+            />
 
           </div>
-
-          {stockMode === "existant" ? (
-            <p className="text-[11px] leading-4 text-emerald-600">
-              💡 Indiquez uniquement ce qu'il vous reste
-              actuellement.
-            </p>
-          ) : (
-            <p className="text-[11px] leading-4 text-slate-400">
-              💡 Indiquez combien d'unités vous venez d'acheter.
-            </p>
-          )}
 
           {/* PIÈCES PAR UNITÉ */}
 
           {type !== "Pièce" && (
             <div>
 
-              <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                Pièces dans 1{" "}
-                {type.toLowerCase()}
+              <label
+                className="
+                  mb-2
+                  block
+                  text-xs
+                  font-bold
+                  text-slate-300
+                "
+              >
+                Pièces dans {type}
               </label>
 
               <input
                 type="number"
                 min="1"
+                inputMode="numeric"
                 value={piecesPerUnit}
                 onChange={(e) =>
-                  setPiecesPerUnit(
-                    e.target.value
-                  )
+                  setPiecesPerUnit(e.target.value)
                 }
-                placeholder="Exemple : 24"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
+                placeholder="Ex : 24"
+                className="
+                  min-h-[50px]
+                  w-full
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/40
+                  px-4
+                  py-3
+                  text-sm
+                  text-white
+                  outline-none
+                  placeholder:text-slate-500
+                  focus:border-orange-500/50
+                  focus:ring-2
+                  focus:ring-orange-500/10
+                "
               />
 
-              <div className="mt-2 rounded-xl bg-indigo-50 p-2.5">
-
-                <p className="text-[11px] font-bold text-indigo-600">
-                  Calcul automatique
-                </p>
-
-                <p className="mt-1 text-xs font-black text-slate-900">
-                  {Number(quantity || 0)}{" "}
-                  ×{" "}
-                  {Number(
-                    piecesPerUnit || 1
-                  )}{" "}
-                  ={" "}
-                  {totalPieces}{" "}
-                  pièce(s)
-                </p>
-
-              </div>
+              <p
+                className="
+                  mt-2
+                  text-xs
+                  font-bold
+                  leading-5
+                  text-orange-400
+                "
+              >
+                💡 1 {type.toLowerCase()} = 24 pièces →
+                écrivez 24
+              </p>
 
             </div>
           )}
 
-          {/* PRIX */}
+          {/* PRIX ACHAT */}
 
-          <div className="grid grid-cols-2 gap-2">
+          <div>
 
-            <div>
+            <label
+              className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                text-slate-300
+              "
+            >
+              Prix d'achat total
+            </label>
 
-              <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                Achat total
-              </label>
+            <input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              value={buyPrice}
+              onChange={(e) =>
+                setBuyPrice(e.target.value)
+              }
+              placeholder="Ex : 100000"
+              className="
+                min-h-[50px]
+                w-full
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/40
+                px-4
+                py-3
+                text-sm
+                text-white
+                outline-none
+                placeholder:text-slate-500
+                focus:border-orange-500/50
+                focus:ring-2
+                focus:ring-orange-500/10
+              "
+            />
 
-              <input
-                type="number"
-                min="0"
-                value={buyPrice}
-                onChange={(e) =>
-                  setBuyPrice(
-                    e.target.value
-                  )
-                }
-                placeholder="100000"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-              />
-
-            </div>
-
-            <div>
-
-              <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                Vente / pièce
-              </label>
-
-              <input
-                type="number"
-                min="0"
-                value={sellPrice}
-                onChange={(e) =>
-                  setSellPrice(
-                    e.target.value
-                  )
-                }
-                placeholder="2000"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-              />
-
-            </div>
+            <p
+              className="
+                mt-2
+                text-xs
+                font-bold
+                leading-5
+                text-orange-400
+              "
+            >
+              💡 Montant total payé au fournisseur.
+            </p>
 
           </div>
 
-          <p className="text-[11px] leading-4 text-slate-400">
-            💡 Achat total = montant payé au fournisseur.
-            Vente / pièce = prix auquel vous vendrez une pièce.
-          </p>
+          {/* PRIX VENTE */}
+
+          <div>
+
+            <label
+              className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                text-slate-300
+              "
+            >
+              Prix de vente par pièce
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              value={sellPrice}
+              onChange={(e) =>
+                setSellPrice(e.target.value)
+              }
+              placeholder="Ex : 2000"
+              className="
+                min-h-[50px]
+                w-full
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/40
+                px-4
+                py-3
+                text-sm
+                text-white
+                outline-none
+                placeholder:text-slate-500
+                focus:border-orange-500/50
+                focus:ring-2
+                focus:ring-orange-500/10
+              "
+            />
+
+            <p
+              className="
+                mt-2
+                text-xs
+                font-bold
+                leading-5
+                text-orange-400
+              "
+            >
+              💡 Prix auquel vous vendrez 1 pièce.
+            </p>
+
+          </div>
 
           {/* MONNAIE */}
 
           <div>
 
-            <label className="mb-1.5 block text-xs font-bold text-slate-700">
+            <label
+              className="
+                mb-2
+                block
+                text-xs
+                font-bold
+                text-slate-300
+              "
+            >
               Monnaie
             </label>
 
             <select
               value={currency}
               onChange={(e) =>
-                setCurrency(
-                  e.target.value
-                )
+                setCurrency(e.target.value)
               }
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
+              className="
+                min-h-[50px]
+                w-full
+                rounded-2xl
+                border
+                border-white/10
+                bg-[#111827]
+                px-4
+                py-3
+                text-sm
+                text-white
+                outline-none
+                focus:border-orange-500/50
+              "
             >
 
               <option value="FC">
-                Franc congolais (FC)
+                Franc Congolais (FC)
               </option>
 
-              <option value="USD">
-                Dollar américain (USD)
+              <option value="$">
+                Dollar ($)
               </option>
 
             </select>
 
           </div>
 
-          {/* RÉSUMÉ */}
+          {/* ======================================================
+              RÉSUMÉ AUTOMATIQUE
+          ====================================================== */}
 
-          <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-indigo-50/50">
+          <div
+            className="
+              overflow-hidden
+              rounded-3xl
+              border
+              border-orange-500/20
+              bg-gradient-to-br
+              from-orange-500/10
+              to-yellow-500/5
+            "
+          >
 
-            <div className="border-b border-indigo-100 p-3">
+            <div
+              className="
+                border-b
+                border-white/10
+                p-4
+              "
+            >
 
-              <div className="flex items-center gap-2">
+              <div
+                className="
+                  flex
+                  items-center
+                  gap-3
+                "
+              >
 
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                  <TrendingUp size={18} />
+                <div
+                  className="
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-orange-500/15
+                    text-orange-400
+                  "
+                >
+                  <TrendingUp size={20} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
 
-                  <h2 className="text-sm font-black text-slate-900">
+                  <h2
+                    className="
+                      text-sm
+                      font-black
+                      text-white
+                      sm:text-base
+                    "
+                  >
                     Résumé automatique
                   </h2>
 
-                  <p className="text-[11px] text-slate-500">
-                    Calculé automatiquement
+                  <p
+                    className="
+                      text-[11px]
+                      text-slate-400
+                      sm:text-xs
+                    "
+                  >
+                    Résultats calculés automatiquement
                   </p>
 
                 </div>
@@ -1874,113 +1702,320 @@ export default function AddProductPage() {
 
             </div>
 
-            <div className="grid grid-cols-2 gap-2 p-3">
+            <div
+              className="
+                grid
+                grid-cols-2
+                gap-2
+                p-3
+                sm:gap-3
+                sm:p-4
+              "
+            >
 
-              <SummaryCard
-                icon={<Boxes size={15} />}
-                title="Stock réel"
+              {/* STOCK */}
+
+              <div
+                className="
+                  min-w-0
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-3
+                  sm:p-4
+                "
               >
 
-                <p className="text-lg font-black text-slate-900">
-                  {totalPieces}
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-1.5
+                    text-[10px]
+                    font-bold
+                    text-slate-400
+                    sm:text-xs
+                  "
+                >
+                  <Boxes size={15} />
+                  Stock réel
+                </div>
+
+                <p
+                  className="
+                    break-words
+                    text-lg
+                    font-black
+                    text-white
+                    sm:text-xl
+                  "
+                >
+                  {totalPieces.toLocaleString()}
                 </p>
 
-                <p className="text-[11px] text-slate-500">
+                <p
+                  className="
+                    text-[10px]
+                    text-slate-500
+                    sm:text-xs
+                  "
+                >
                   pièce(s)
                 </p>
 
-              </SummaryCard>
+              </div>
 
-              <SummaryCard
-                icon={
-                  <CircleDollarSign size={15} />
-                }
-                title="Coût / pièce"
+              {/* COÛT */}
+
+              <div
+                className="
+                  min-w-0
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-3
+                  sm:p-4
+                "
               >
 
-                <p className="text-lg font-black text-slate-900">
-                  {Math.round(
-                    pricePerPiece
-                  )}{" "}
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-1.5
+                    text-[10px]
+                    font-bold
+                    text-slate-400
+                    sm:text-xs
+                  "
+                >
+                  <CircleDollarSign size={15} />
+                  Coût / pièce
+                </div>
+
+                <p
+                  className="
+                    break-words
+                    text-base
+                    font-black
+                    text-white
+                    sm:text-xl
+                  "
+                >
+                  {Math.round(pricePerPiece).toLocaleString()}{" "}
                   {currency}
                 </p>
 
-              </SummaryCard>
+              </div>
 
-              <SummaryCard
-                icon={
-                  <TrendingUp size={15} />
-                }
-                title="Bénéfice / pièce"
+              {/* BÉNÉFICE PIÈCE */}
+
+              <div
+                className="
+                  min-w-0
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/20
+                  p-3
+                  sm:p-4
+                "
               >
 
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-1.5
+                    text-[10px]
+                    font-bold
+                    text-slate-400
+                    sm:text-xs
+                  "
+                >
+                  <TrendingUp size={15} />
+                  Bénéfice / pièce
+                </div>
+
                 <p
-                  className={`text-lg font-black ${
-                    profitPerPiece >= 0
-                      ? "text-emerald-600"
-                      : "text-red-600"
-                  }`}
+                  className={`
+                    break-words
+                    text-base
+                    font-black
+                    sm:text-xl
+                    ${
+                      profitPerPiece >= 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }
+                  `}
                 >
                   {Math.round(
                     profitPerPiece
-                  )}{" "}
+                  ).toLocaleString()}{" "}
                   {currency}
                 </p>
 
-              </SummaryCard>
+                {profitPerPiece < 0 && (
+                  <p
+                    className="
+                      mt-1
+                      text-[10px]
+                      font-bold
+                      text-red-400
+                    "
+                  >
+                    Vente à perte
+                  </p>
+                )}
 
-              <SummaryCard
-                icon={
-                  <Sparkles size={15} />
-                }
-                title="Bénéfice total"
+              </div>
+
+              {/* BÉNÉFICE TOTAL */}
+
+              <div
+                className="
+                  min-w-0
+                  rounded-2xl
+                  border
+                  border-green-500/20
+                  bg-green-500/5
+                  p-3
+                  sm:p-4
+                "
               >
 
+                <div
+                  className="
+                    mb-2
+                    flex
+                    items-center
+                    gap-1.5
+                    text-[10px]
+                    font-bold
+                    text-slate-400
+                    sm:text-xs
+                  "
+                >
+                  <Sparkles size={15} />
+                  Bénéfice total
+                </div>
+
                 <p
-                  className={`text-lg font-black ${
-                    totalProfit >= 0
-                      ? "text-emerald-600"
-                      : "text-red-600"
-                  }`}
+                  className={`
+                    break-words
+                    text-base
+                    font-black
+                    sm:text-xl
+                    ${
+                      totalProfit >= 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }
+                  `}
                 >
                   {Math.round(
                     totalProfit
-                  )}{" "}
+                  ).toLocaleString()}{" "}
                   {currency}
                 </p>
 
-                <p className="text-[10px] text-slate-500">
-                  si tout est vendu
+                <p
+                  className="
+                    mt-1
+                    text-[10px]
+                    text-slate-500
+                  "
+                >
+                  stock vendu
                 </p>
 
-              </SummaryCard>
+              </div>
 
             </div>
 
-            <div className="mx-3 mb-3 rounded-xl border border-slate-200 bg-white p-3">
+            {/* VÉRIFICATION */}
 
-              <div className="flex gap-2.5">
+            <div
+              className="
+                mx-3
+                mb-3
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/20
+                p-3
+                sm:mx-4
+                sm:mb-4
+                sm:p-4
+              "
+            >
 
-                <CheckCircle
-                  size={18}
-                  className="mt-0.5 shrink-0 text-emerald-600"
-                />
+              <div className="flex gap-3">
 
-                <div>
+                {profitPerPiece >= 0 ? (
+                  <CheckCircle
+                    size={19}
+                    className="
+                      mt-0.5
+                      shrink-0
+                      text-green-400
+                    "
+                  />
+                ) : (
+                  <AlertTriangle
+                    size={19}
+                    className="
+                      mt-0.5
+                      shrink-0
+                      text-red-400
+                    "
+                  />
+                )}
 
-                  <p className="text-xs font-bold text-slate-900">
-                    Avant de confirmer
+                <div className="min-w-0">
+
+                  <p
+                    className="
+                      text-xs
+                      font-bold
+                      text-white
+                      sm:text-sm
+                    "
+                  >
+                    Vérification
                   </p>
 
-                  <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                    Vérifiez le nom, le stock, la quantité,
-                    les prix et la monnaie.
-                  </p>
-
-                  {stockMode === "existant" && (
-                    <p className="mt-1.5 text-[11px] font-bold leading-4 text-emerald-600">
-                      📦 Stock existant : la quantité doit être
-                      celle que vous avez actuellement.
+                  {profitPerPiece >= 0 ? (
+                    <p
+                      className="
+                        mt-1
+                        text-[11px]
+                        leading-5
+                        text-slate-400
+                        sm:text-xs
+                      "
+                    >
+                      Votre prix de vente couvre le coût
+                      calculé de la pièce.
+                    </p>
+                  ) : (
+                    <p
+                      className="
+                        mt-1
+                        text-[11px]
+                        leading-5
+                        text-red-300
+                        sm:text-xs
+                      "
+                    >
+                      Attention : votre prix de vente est
+                      inférieur au coût réel de la pièce.
                     </p>
                   )}
 
@@ -1992,27 +2027,51 @@ export default function AddProductPage() {
 
           </div>
 
-          {/* BOUTON */}
+          {/* ======================================================
+              BOUTON AJOUTER
+          ====================================================== */}
 
           <button
             type="button"
             onClick={saveProduct}
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="
+              flex
+              min-h-[52px]
+              w-full
+              items-center
+              justify-center
+              gap-3
+              rounded-2xl
+              bg-gradient-to-r
+              from-orange-500
+              to-yellow-400
+              px-4
+              py-3
+              text-sm
+              font-black
+              text-black
+              shadow-xl
+              transition
+              active:scale-[0.98]
+              hover:brightness-110
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+            "
           >
 
             {loading ? (
               <>
                 <Loader2
-                  size={18}
+                  size={20}
                   className="animate-spin"
                 />
 
-                Enregistrement...
+                Ajout du produit...
               </>
             ) : (
               <>
-                <PackagePlus size={18} />
+                <PackagePlus size={20} />
 
                 Ajouter le produit
               </>
@@ -2020,326 +2079,277 @@ export default function AddProductPage() {
 
           </button>
 
-          {/* RAPPEL */}
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-
-            <div className="flex items-start gap-2.5">
-
-              <Info
-                size={17}
-                className="mt-0.5 shrink-0 text-indigo-600"
-              />
-
-              <div>
-
-                <p className="text-xs font-bold text-slate-900">
-                  Un doute ?
-                </p>
-
-                <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                  Vérifiez que la quantité correspond bien au
-                  stock réellement présent dans votre boutique.
-                </p>
-
-              </div>
-
-            </div>
-
-          </div>
-
-          <p className="pb-1 text-center text-[10px] text-slate-400">
+          <p
+            className="
+              pb-1
+              text-center
+              text-[10px]
+              leading-4
+              text-slate-500
+              sm:text-xs
+            "
+          >
             Vérifiez les informations avant de confirmer.
           </p>
 
         </div>
+
       </div>
 
-      {/* ====================================================
-          MODAL DE CONFIRMATION
-      ==================================================== */}
+      {/* ======================================================
+          POPUP — PAS DE CONNEXION
+      ====================================================== */}
 
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+      {showOfflinePopup && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-[9999]
+            flex
+            items-center
+            justify-center
+            bg-black/75
+            px-4
+            backdrop-blur-md
+          "
+          role="dialog"
+          aria-modal="true"
+        >
 
           <div
-            className="w-full max-w-md overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="success-title"
+            className="
+              w-full
+              max-w-sm
+              overflow-hidden
+              rounded-[2rem]
+              border
+              border-orange-400/20
+              bg-[#0b1220]
+              p-5
+              shadow-[0_25px_80px_rgba(0,0,0,0.7)]
+            "
           >
 
-            <div className="p-6 sm:p-7">
+            <div className="flex justify-center">
 
               <div
-                className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl ${
-                  successMessage === "error"
-                    ? "bg-red-50 text-red-600"
-                    : successMessage === "offline"
-                    ? "bg-amber-50 text-amber-600"
-                    : successMessage === "syncing"
-                    ? "bg-indigo-50 text-indigo-600"
-                    : "bg-emerald-50 text-emerald-600"
-                }`}
+                className="
+                  flex
+                  h-16
+                  w-16
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-orange-500/15
+                  ring-1
+                  ring-orange-400/20
+                "
               >
-
-                {successMessage === "syncing" ? (
-                  <Loader2
-                    size={32}
-                    className="animate-spin"
-                  />
-                ) : successMessage === "error" ? (
-                  <Info size={32} />
-                ) : (
-                  <CheckCircle size={32} />
-                )}
-
+                <WifiOff
+                  size={29}
+                  className="text-orange-400"
+                />
               </div>
 
+            </div>
+
+            <div className="mt-5 text-center">
+
               <h2
-                id="success-title"
-                className="mt-5 text-center text-xl font-black text-slate-900"
+                className="
+                  text-lg
+                  font-black
+                  leading-tight
+                  text-white
+                "
               >
-
-                {successMessage === "offline" &&
-                  "Produit bien enregistré"}
-
-                {successMessage === "local" &&
-                  "Produit bien enregistré"}
-
-                {successMessage === "syncing" &&
-                  "Produit bien enregistré"}
-
-                {successMessage === "success" &&
-                  "Produit enregistré avec succès"}
-
-                {successMessage === "error" &&
-                  "Enregistrement impossible"}
-
-                {!successMessage &&
-                  "Produit enregistré"}
-
+                Connexion Internet requise
               </h2>
 
-              <p className="mt-3 text-center text-sm leading-6 text-slate-600">
-
-                {successMessage === "offline" && (
-                  <>
-                    Votre produit est bien enregistré sur votre
-                    appareil.
-                    <br />
-                    Il est déjà disponible dans votre liste
-                    Produits.
-                    <br />
-                    Dès que la connexion reviendra, il sera
-                    automatiquement synchronisé avec
-                    BISO-COMMERCE.
-                  </>
-                )}
-
-                {successMessage === "local" && (
-                  <>
-                    Votre produit est bien enregistré sur votre
-                    appareil.
-                    <br />
-                    Il reste disponible localement et sera
-                    synchronisé automatiquement lorsque votre
-                    compte pourra être identifié.
-                  </>
-                )}
-
-                {successMessage === "syncing" && (
-                  <>
-                    Votre produit est bien enregistré.
-                    <br />
-                    Il est disponible immédiatement dans votre
-                    catalogue.
-                    <br />
-                    La synchronisation avec le serveur est en
-                    cours.
-                  </>
-                )}
-
-                {successMessage === "success" && (
-                  <>
-                    Votre produit est bien enregistré et
-                    synchronisé avec BISO-COMMERCE.
-                    <br />
-                    Il est maintenant disponible dans votre
-                    catalogue.
-                  </>
-                )}
-
-                {successMessage === "error" && (
-                  <>
-                    Une erreur est survenue pendant
-                    l'enregistrement de votre produit.
-                    <br />
-                    Vérifiez les informations puis réessayez.
-                  </>
-                )}
-
-                {!successMessage && (
-                  <>
-                    Votre produit a été enregistré avec succès.
-                  </>
-                )}
-
+              <p
+                className="
+                  mx-auto
+                  mt-3
+                  max-w-xs
+                  text-sm
+                  leading-6
+                  text-slate-400
+                "
+              >
+                Cher client, cette requête nécessite
+                une connexion Internet.
               </p>
 
-              {(successMessage === "offline" ||
-                successMessage === "local") && (
-                <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50 p-3">
-
-                  <div className="flex items-start gap-2.5">
-
-                    <CloudOff
-                      size={18}
-                      className="mt-0.5 shrink-0 text-amber-600"
-                    />
-
-                    <div>
-
-                      <p className="text-xs font-black text-amber-800">
-                        Synchronisation en attente
-                      </p>
-
-                      <p className="mt-1 text-[11px] leading-5 text-amber-700">
-                        Vous pouvez continuer à travailler sans
-                        connexion. Le produit sera synchronisé
-                        automatiquement dès qu'Internet sera
-                        disponible.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                </div>
-              )}
-
-              {successMessage === "syncing" && (
-                <div className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50 p-3">
-
-                  <div className="flex items-center gap-2.5">
-
-                    <Loader2
-                      size={18}
-                      className="animate-spin text-indigo-600"
-                    />
-
-                    <p className="text-[11px] font-bold text-indigo-700">
-                      Synchronisation avec BISO-COMMERCE en cours...
-                    </p>
-
-                  </div>
-
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  setSuccessMessage(null);
-                }}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 active:scale-[0.98]"
+              <p
+                className="
+                  mt-2
+                  text-xs
+                  leading-5
+                  text-slate-500
+                "
               >
-
-                <CheckCircle size={18} />
-
-                OK, compris
-
-              </button>
+                Connectez-vous à Internet puis
+                réessayez.
+              </p>
 
             </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowOfflinePopup(false)
+              }
+              className="
+                mt-6
+                flex
+                min-h-[48px]
+                w-full
+                items-center
+                justify-center
+                gap-2
+                rounded-2xl
+                bg-gradient-to-r
+                from-orange-500
+                to-yellow-400
+                px-4
+                py-3
+                text-sm
+                font-black
+                text-black
+                shadow-lg
+                transition
+                active:scale-[0.98]
+              "
+            >
+              <X size={17} />
+              J'ai compris
+            </button>
 
           </div>
 
         </div>
       )}
 
-    </div>
-  );
-}
+      {/* ======================================================
+          POPUP — PRODUIT AJOUTÉ
+      ====================================================== */}
 
-/* ============================================================
-   COMPOSANT GUIDE
-============================================================ */
-
-function GuideStep({
-  number,
-  color,
-  title,
-  children,
-}: {
-  number: string;
-  color:
-    | "indigo"
-    | "purple"
-    | "emerald";
-  title: string;
-  children: React.ReactNode;
-}) {
-  const colorClass = {
-    indigo:
-      "bg-indigo-50 text-indigo-600",
-
-    purple:
-      "bg-purple-50 text-purple-600",
-
-    emerald:
-      "bg-emerald-50 text-emerald-600",
-  }[color];
-
-  return (
-    <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
-
-      <div className="mb-2.5 flex items-center gap-2.5">
-
+      {showSuccessPopup && (
         <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black ${colorClass}`}
+          className="
+            fixed
+            inset-0
+            z-[9999]
+            flex
+            items-center
+            justify-center
+            bg-black/75
+            px-4
+            backdrop-blur-md
+          "
+          role="dialog"
+          aria-modal="true"
         >
-          {number}
+
+          <div
+            className="
+              w-full
+              max-w-sm
+              rounded-[2rem]
+              border
+              border-green-400/20
+              bg-[#0b1220]
+              p-5
+              text-center
+              shadow-[0_25px_80px_rgba(0,0,0,0.7)]
+            "
+          >
+
+            <div className="flex justify-center">
+
+              <div
+                className="
+                  flex
+                  h-16
+                  w-16
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-green-500/15
+                  ring-1
+                  ring-green-400/20
+                "
+              >
+                <CheckCircle
+                  size={32}
+                  className="text-green-400"
+                />
+              </div>
+
+            </div>
+
+            <h2
+              className="
+                mt-5
+                text-lg
+                font-black
+                text-white
+              "
+            >
+              Produit ajouté avec succès
+            </h2>
+
+            <p
+              className="
+                mt-2
+                text-sm
+                leading-6
+                text-slate-400
+              "
+            >
+              Votre produit a été enregistré
+              correctement dans votre stock.
+            </p>
+
+            <div
+             
+            >
+
+            
+
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowSuccessPopup(false)
+              }
+              className="
+                mt-5
+                flex
+                min-h-[48px]
+                w-full
+                items-center
+                justify-center
+                rounded-2xl
+                bg-green-500
+                px-4
+                py-3
+                text-sm
+                font-black
+                text-black
+                transition
+                active:scale-[0.98]
+              "
+            >
+              Continuer
+            </button>
+
+          </div>
+
         </div>
-
-        <h3 className="text-sm font-black text-slate-900">
-          {title}
-        </h3>
-
-      </div>
-
-      {children}
-
-    </div>
-  );
-}
-
-/* ============================================================
-   CARTE RÉSUMÉ
-============================================================ */
-
-function SummaryCard({
-  icon,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
-
-        {icon}
-
-        {title}
-
-      </div>
-
-      {children}
+      )}
 
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 import {
@@ -11,17 +11,12 @@ import {
   CheckCircle,
   Plus,
   Minus,
-  TrendingUp,
   AlertTriangle,
+  Wifi,
   WifiOff,
   X,
   Info,
-  ShieldAlert,
 } from "lucide-react";
-
-/* =========================================================
-   TYPES
-========================================================= */
 
 type Product = {
   id: string;
@@ -31,405 +26,388 @@ type Product = {
   purchase_price: number;
   selling_price: number;
   currency: string;
-  pieces_per_unit: number;
+  pieces_per_unit?: number;
+  unit?: string;
 };
-
-type PopupType =
-  | "success"
-  | "error"
-  | "warning"
-  | "offline"
-  | "info";
-
-type PopupData = {
-  type: PopupType;
-  title: string;
-  message: string;
-};
-
-/* =========================================================
-   PAGE
-========================================================= */
 
 export default function SalesPage() {
   const [products, setProducts] = useState<Product[]>([]);
 
   const [productId, setProductId] = useState("");
-
   const [searchTerm, setSearchTerm] = useState("");
-
   const [quantity, setQuantity] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   const [showGuide, setShowGuide] = useState(false);
-
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Connexion
   const [isOnline, setIsOnline] = useState(true);
+  const [showConnectionPopup, setShowConnectionPopup] =
+    useState(false);
 
-  const [popup, setPopup] = useState<PopupData | null>(null);
+  // Stock faible
+  const [lowStockMessage, setLowStockMessage] = useState("");
 
-  /* =========================================================
-     POPUP
-  ========================================================= */
+  // ==========================================================
+  // DÉTECTION CONNEXION
+  // ==========================================================
 
-  const showPopup = (
-    type: PopupType,
-    title: string,
-    message: string
-  ) => {
-    setPopup({
-      type,
-      title,
-      message,
-    });
-  };
+  useEffect(() => {
+    const updateConnection = () => {
+      setIsOnline(navigator.onLine);
+    };
 
-  const closePopup = () => {
-    setPopup(null);
-  };
+    updateConnection();
 
-  /* =========================================================
-     CHARGER PRODUITS
-  ========================================================= */
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
+
+    return () => {
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
+    };
+  }, []);
+
+  // ==========================================================
+  // CHARGER LES PRODUITS
+  // ==========================================================
 
   useEffect(() => {
     loadProducts();
 
-    if (typeof window !== "undefined") {
-      setIsOnline(navigator.onLine);
+    const handleOnline = () => {
+      setIsOnline(true);
+      loadProducts();
+    };
 
-      const handleOnline = () => {
-        setIsOnline(true);
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
 
-        loadProducts();
-      };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
-      const handleOffline = () => {
-        setIsOnline(false);
-      };
-
-      window.addEventListener(
-        "online",
-        handleOnline
-      );
-
-      window.addEventListener(
-        "offline",
-        handleOffline
-      );
-
-      return () => {
-        window.removeEventListener(
-          "online",
-          handleOnline
-        );
-
-        window.removeEventListener(
-          "offline",
-          handleOffline
-        );
-      };
-    }
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
-  /* =========================================================
-     CHARGER LES PRODUITS
-  ========================================================= */
+  // ==========================================================
+  // CHARGEMENT PRODUITS DEPUIS SUPABASE
+  // ==========================================================
 
   const loadProducts = async () => {
     try {
-      const userId =
-        localStorage.getItem("user_id");
+      setLoadingProducts(true);
 
-      if (!userId) return;
+      const userId = localStorage.getItem("user_id");
 
-      /*
-        -------------------------------------------------------
-        CACHE LOCAL
-        -------------------------------------------------------
-      */
-
-      const cacheKey =
-        `biso-sales-products-${userId}`;
-
-      const cachedProducts =
-        localStorage.getItem(cacheKey);
-
-      if (cachedProducts) {
-        try {
-          const parsed =
-            JSON.parse(cachedProducts);
-
-          if (Array.isArray(parsed)) {
-            setProducts(parsed);
-          }
-        } catch {
-          console.log(
-            "Cache produits invalide."
-          );
-        }
-      }
-
-      /*
-        -------------------------------------------------------
-        HORS CONNEXION
-        -------------------------------------------------------
-      */
-
-      if (!navigator.onLine) {
+      if (!userId) {
+        setProducts([]);
         return;
       }
 
-      /*
-        -------------------------------------------------------
-        SERVEUR
-        -------------------------------------------------------
-      */
+      // Cette page ne fonctionne pas hors connexion.
+      if (!navigator.onLine) {
+        setProducts([]);
+        return;
+      }
 
-      const {
-        data,
-        error,
-      } = await supabase
+      const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("user_id", userId)
-        .order("name");
+        .order("name", { ascending: true });
 
       if (error) {
-        console.log(
+        console.error(
           "Erreur chargement produits :",
           error
         );
 
+        setProducts([]);
         return;
       }
 
       if (data) {
-        setProducts(data);
-
-        /*
-          Sauvegarde locale pour permettre
-          l'ouverture de la caisse hors connexion.
-        */
-
-        try {
-          localStorage.setItem(
-            cacheKey,
-            JSON.stringify(data)
-          );
-        } catch {
-          console.log(
-            "Impossible de sauvegarder le cache produits."
-          );
-        }
+        setProducts(data as Product[]);
+      } else {
+        setProducts([]);
       }
     } catch (error) {
-      console.log(
-        "Erreur loadProducts :",
+      console.error(
+        "Erreur chargement produits :",
         error
       );
+
+      setProducts([]);
+    } finally {
+      setLoadingProducts(false);
     }
   };
 
-  /* =========================================================
-     PRODUIT SÉLECTIONNÉ
-  ========================================================= */
+  // ==========================================================
+  // PRODUITS QUI ONT RÉELLEMENT DU STOCK
+  // ==========================================================
 
-  const selectedProduct =
-    products.find(
-      (p) => p.id === productId
+  const productsInStock = useMemo(() => {
+    return products.filter((product) => {
+      const stock = Number(product.stock);
+
+      return Number.isFinite(stock) && stock > 0;
+    });
+  }, [products]);
+
+  // ==========================================================
+  // PRODUIT SÉLECTIONNÉ
+  // ==========================================================
+
+  const selectedProduct = products.find(
+    (product) => product.id === productId
+  );
+
+  // ==========================================================
+  // RECHERCHE
+  // IMPORTANT :
+  // ON CHERCHE UNIQUEMENT PARMI LES PRODUITS EN STOCK
+  // ==========================================================
+
+  const filteredProducts = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    // Aucun texte :
+    // on ne montre pas une longue liste inutile.
+    if (!term) {
+      return [];
+    }
+
+    return productsInStock.filter((product) =>
+      product.name.toLowerCase().includes(term)
     );
+  }, [productsInStock, searchTerm]);
 
-  /* =========================================================
-     RECHERCHE
-  ========================================================= */
-
-  const filteredProducts =
-    products.filter((p) =>
-      p.name
-        .toLowerCase()
-        .includes(
-          searchTerm.toLowerCase()
-        )
-    );
-
-  /* =========================================================
-     QUANTITÉ +
-  ========================================================= */
+  // ==========================================================
+  // QUANTITÉ
+  // ==========================================================
 
   const increaseQty = () => {
-    const current =
-      Number(quantity || 0);
+    if (!selectedProduct) {
+      const current = Number(quantity || 0);
 
-    setQuantity(
-      String(current + 1)
-    );
+      if (current < 999999) {
+        setQuantity(String(current + 1));
+      }
+
+      return;
+    }
+
+    const current = Number(quantity || 0);
+    const stock = Number(selectedProduct.stock);
+
+    if (current < stock) {
+      setQuantity(String(current + 1));
+    }
   };
-
-  /* =========================================================
-     QUANTITÉ -
-  ========================================================= */
 
   const decreaseQty = () => {
-    const value =
-      Number(quantity || 0);
+    const value = Number(quantity || 0);
 
     if (value > 1) {
-      setQuantity(
-        String(value - 1)
-      );
+      setQuantity(String(value - 1));
     }
   };
 
-  /* =========================================================
-     TOTAL
-  ========================================================= */
+  // ==========================================================
+  // QUANTITÉ NUMÉRIQUE
+  // ==========================================================
 
-  const totalPreview =
-    selectedProduct
-      ? selectedProduct.selling_price *
-        Number(quantity || 0)
-      : 0;
+  const quantityNumber = Number(quantity || 0);
 
-  /* =========================================================
-     BÉNÉFICE
-  ========================================================= */
+  // ==========================================================
+  // CALCULS DE LA VENTE
+  // ==========================================================
+
+  const totalPreview = selectedProduct
+    ? Number(selectedProduct.selling_price) *
+      quantityNumber
+    : 0;
+
+  const purchaseTotalPreview = selectedProduct
+    ? Number(selectedProduct.purchase_price) *
+      quantityNumber
+    : 0;
 
   const profitPreview =
-    selectedProduct
-      ? (
-          selectedProduct.selling_price -
-          selectedProduct.purchase_price
-        ) *
-        Number(quantity || 0)
-      : 0;
+    totalPreview - purchaseTotalPreview;
 
-  /* =========================================================
-     STOCK APRÈS VENTE
-  ========================================================= */
+  const stockAfterSale = selectedProduct
+    ? Number(selectedProduct.stock) - quantityNumber
+    : 0;
 
-  const stockAfterSale =
-    selectedProduct
-      ? selectedProduct.stock -
-        Number(quantity || 0)
-      : 0;
+  // ==========================================================
+  // VALIDATION GLOBALE
+  // ==========================================================
 
-  /* =========================================================
-     ENREGISTRER VENTE
-  ========================================================= */
+  const saleBlocked =
+    loading ||
+    !isOnline ||
+    !selectedProduct ||
+    !quantity ||
+    quantityNumber <= 0 ||
+    !Number.isInteger(quantityNumber) ||
+    (!!selectedProduct &&
+      quantityNumber > Number(selectedProduct.stock));
+
+  // ==========================================================
+  // CONNEXION OBLIGATOIRE
+  // ==========================================================
+
+  const requireConnection = () => {
+    if (!navigator.onLine) {
+      setIsOnline(false);
+      setShowConnectionPopup(true);
+
+      return false;
+    }
+
+    setIsOnline(true);
+
+    return true;
+  };
+
+  // ==========================================================
+  // SÉLECTION PRODUIT
+  // ==========================================================
+
+  const selectProduct = (product: Product) => {
+    // Produit épuisé = impossible à sélectionner
+    if (Number(product.stock) <= 0) {
+      return;
+    }
+
+    setProductId(product.id);
+    setSearchTerm(product.name);
+    setQuantity("");
+    setLowStockMessage("");
+  };
+
+  // ==========================================================
+  // NETTOYER PRODUIT
+  // ==========================================================
+
+  const clearSelectedProduct = () => {
+    setProductId("");
+    setSearchTerm("");
+    setQuantity("");
+    setLowStockMessage("");
+  };
+
+  // ==========================================================
+  // ENREGISTRER LA VENTE
+  // ==========================================================
 
   const saveSale = async () => {
-    /*
-      -------------------------------------------------------
-      PRODUIT
-      -------------------------------------------------------
-    */
+    if (loading) {
+      return;
+    }
+
+    // ========================================================
+    // INTERNET OBLIGATOIRE
+    // ========================================================
+
+    if (!requireConnection()) {
+      return;
+    }
+
+    // ========================================================
+    // PRODUIT OBLIGATOIRE
+    // ========================================================
 
     if (!selectedProduct) {
-      showPopup(
-        "warning",
-        "Produit manquant",
-        "Veuillez sélectionner un produit avant de continuer."
+      alert(
+        "Sélectionnez un produit disponible en stock avant de continuer."
       );
 
       return;
     }
 
-    /*
-      -------------------------------------------------------
-      QUANTITÉ
-      -------------------------------------------------------
-    */
+    // ========================================================
+    // QUANTITÉ OBLIGATOIRE
+    // ========================================================
 
-    if (!quantity) {
-      showPopup(
-        "warning",
-        "Quantité manquante",
-        "Veuillez indiquer la quantité que vous souhaitez vendre."
+    if (!quantity || quantity.trim() === "") {
+      alert(
+        "Indiquez une quantité avant de continuer."
       );
 
       return;
     }
 
-    const qty =
-      Number(quantity);
+    const qty = Number(quantity);
 
-    /*
-      -------------------------------------------------------
-      QUANTITÉ VALIDE
-      -------------------------------------------------------
-    */
+    // ========================================================
+    // QUANTITÉ VALIDE
+    // ========================================================
 
-    if (
-      !Number.isFinite(qty) ||
-      qty <= 0
-    ) {
-      showPopup(
-        "warning",
-        "Quantité invalide",
-        "La quantité doit être supérieure à zéro."
+    if (!Number.isFinite(qty) || qty <= 0) {
+      alert(
+        "La quantité doit être un nombre supérieur à zéro."
       );
 
       return;
     }
 
-    /*
-      -------------------------------------------------------
-      STOCK INSUFFISANT
-      -------------------------------------------------------
-    */
+    if (!Number.isInteger(qty)) {
+      alert(
+        "La quantité doit être un nombre entier."
+      );
 
-    if (
-      qty >
+      return;
+    }
+
+    // ========================================================
+    // STOCK LOCAL
+    // ========================================================
+
+    const currentStock = Number(
       selectedProduct.stock
-    ) {
-      showPopup(
-        "error",
-        "Stock insuffisant",
-        `Vous souhaitez vendre ${qty} unité(s), mais il ne reste que ${selectedProduct.stock} unité(s) en stock.`
-      );
-
-      return;
-    }
-
-    /*
-      -------------------------------------------------------
-      CONNEXION INTERNET
-      -------------------------------------------------------
-    */
+    );
 
     if (
-      typeof window !==
-        "undefined" &&
-      !navigator.onLine
+      !Number.isFinite(currentStock) ||
+      currentStock <= 0
     ) {
-      showPopup(
-        "offline",
-        "Connexion Internet requise",
-        "La caisse peut être consultée hors connexion, mais l'enregistrement d'une vente nécessite une connexion Internet."
+      alert(
+        "Ce produit est épuisé. Sélectionnez un autre produit."
+      );
+
+      await loadProducts();
+
+      return;
+    }
+
+    if (qty > currentStock) {
+      alert(
+        `Stock insuffisant !\n\nDisponible : ${currentStock}\nDemandé : ${qty}`
       );
 
       return;
     }
 
-    /*
-      -------------------------------------------------------
-      UTILISATEUR
-      -------------------------------------------------------
-    */
+    // ========================================================
+    // UTILISATEUR
+    // ========================================================
 
     const userId =
-      localStorage.getItem(
-        "user_id"
-      );
+      localStorage.getItem("user_id");
 
     if (!userId) {
-      showPopup(
-        "error",
-        "Utilisateur non connecté",
-        "Votre session utilisateur est introuvable. Veuillez vous reconnecter."
+      alert(
+        "Utilisateur non connecté. Veuillez vous reconnecter."
       );
 
       return;
@@ -438,120 +416,150 @@ export default function SalesPage() {
     setLoading(true);
 
     try {
-      /*
-        -----------------------------------------------------
-        PRIX
-        -----------------------------------------------------
-      */
+      // ======================================================
+      // VÉRIFICATION INTERNET AVANT INSERTION
+      // ======================================================
 
-      const prixVente =
-        Number(
-          selectedProduct.selling_price
-        );
+      if (!navigator.onLine) {
+        setIsOnline(false);
+        setShowConnectionPopup(true);
+        setLoading(false);
 
-      const prixAchat =
-        Number(
-          selectedProduct.purchase_price
-        );
+        return;
+      }
+
+      // ======================================================
+      // PRIX
+      // ======================================================
+
+      const prixVente = Number(
+        selectedProduct.selling_price
+      );
+
+      const prixAchat = Number(
+        selectedProduct.purchase_price
+      );
+
+      if (
+        !Number.isFinite(prixVente) ||
+        prixVente < 0
+      ) {
+        alert("Prix de vente invalide.");
+
+        setLoading(false);
+
+        return;
+      }
+
+      if (
+        !Number.isFinite(prixAchat) ||
+        prixAchat < 0
+      ) {
+        alert("Prix d'achat invalide.");
+
+        setLoading(false);
+
+        return;
+      }
+
+      // ======================================================
+      // CALCULS
+      // ======================================================
 
       const totalSale =
         prixVente * qty;
 
-      const profit =
-        (prixVente - prixAchat) *
-        qty;
+      const totalPurchase =
+        prixAchat * qty;
 
-      /*
-        -----------------------------------------------------
-        DONNÉES VENTE
-        -----------------------------------------------------
-      */
+      const profit =
+        totalSale - totalPurchase;
+
+      // ======================================================
+      // ID UNIQUE
+      // ======================================================
+
+      const saleId =
+        crypto.randomUUID();
+
+      // ======================================================
+      // DATE
+      // ======================================================
+
+      const createdAt =
+        new Date().toISOString();
+
+      // ======================================================
+      // DONNÉES VENTE
+      // ======================================================
 
       const saleData = {
-        id: crypto.randomUUID(),
-
+        id: saleId,
         user_id: userId,
-
-        product_id:
-          selectedProduct.id,
-
-        product_name:
-          selectedProduct.name,
-
+        product_id: selectedProduct.id,
+        product_name: selectedProduct.name,
         quantity: qty,
-
-        purchase_price:
-          prixAchat,
-
-        selling_price:
-          prixVente,
-
-        total_sale:
-          totalSale,
-
-        profit,
-
-        currency:
-          selectedProduct.currency,
-
-        created_at:
-          new Date()
-            .toISOString()
-            .slice(0, 19),
+        purchase_price: prixAchat,
+        selling_price: prixVente,
+        total_sale: totalSale,
+        profit: profit,
+        currency: selectedProduct.currency,
+        created_at: createdAt,
       };
 
-      /*
-        -----------------------------------------------------
-        VÉRIFICATION INTERNET JUSTE AVANT INSERTION
-        -----------------------------------------------------
-      */
-
-      if (!navigator.onLine) {
-        setLoading(false);
-
-        showPopup(
-          "offline",
-          "Connexion perdue",
-          "Internet vient d'être interrompu. La vente n'a pas été enregistrée."
-        );
-
-        return;
-      }
-
-      /*
-        -----------------------------------------------------
-        ENREGISTRER LA VENTE
-        -----------------------------------------------------
-      */
+      // ======================================================
+      // ENREGISTRER LA VENTE
+      // ======================================================
 
       const {
-        error,
+        error: saleError,
       } = await supabase
         .from("sales")
         .insert(saleData);
 
-      if (error) {
-        setLoading(false);
-
-        showPopup(
-          "error",
-          "Vente non enregistrée",
-          error.message ||
-            "Une erreur est survenue pendant l'enregistrement de la vente."
+      if (saleError) {
+        console.error(
+          "Erreur vente :",
+          saleError
         );
+
+        alert(
+          `Impossible d'enregistrer la vente.\n\n${saleError.message}`
+        );
+
+        setLoading(false);
 
         return;
       }
 
-      /*
-        -----------------------------------------------------
-        DIMINUER LE STOCK
-        -----------------------------------------------------
-      */
+      // ======================================================
+      // VÉRIFIER INTERNET APRÈS INSERTION
+      // ======================================================
+
+      if (!navigator.onLine) {
+        setIsOnline(false);
+
+        alert(
+          "La connexion Internet a été interrompue pendant l'opération. Vérifiez le stock et la vente."
+        );
+
+        await loadProducts();
+
+        setLoading(false);
+
+        return;
+      }
+
+      // ======================================================
+      // NOUVEAU STOCK
+      // ======================================================
 
       const nouveauStock =
-        selectedProduct.stock -
-        qty;
+        currentStock - qty;
+
+      // ======================================================
+      // METTRE À JOUR LE STOCK
+      // ======================================================
 
       const {
         error: updateError,
@@ -560,265 +568,185 @@ export default function SalesPage() {
         .update({
           stock: nouveauStock,
         })
-        .eq(
-          "id",
-          selectedProduct.id
-        )
-        .eq(
-          "user_id",
-          userId
-        );
+        .eq("id", selectedProduct.id)
+        .eq("user_id", userId);
 
       if (updateError) {
+        console.error(
+          "Erreur mise à jour stock :",
+          updateError
+        );
+
+        alert(
+          `La vente a été enregistrée, mais le stock n'a pas pu être mis à jour.\n\n${updateError.message}`
+        );
+
         setLoading(false);
 
-        showPopup(
-          "error",
-          "Stock non mis à jour",
-          updateError.message ||
-            "La vente a été enregistrée mais le stock n'a pas pu être mis à jour."
-        );
+        await loadProducts();
 
         return;
       }
 
-      /*
-        -----------------------------------------------------
-        METTRE À JOUR LE PRODUIT LOCAL
-        -----------------------------------------------------
-      */
+      // ======================================================
+      // MISE À JOUR IMMÉDIATE DE L'ÉCRAN
+      // ======================================================
 
-      const updatedProducts =
-        products.map((product) =>
-          product.id ===
-          selectedProduct.id
+      setProducts((currentProducts) =>
+        currentProducts.map((product) =>
+          product.id === selectedProduct.id
             ? {
                 ...product,
-                stock:
-                  nouveauStock,
+                stock: nouveauStock,
               }
             : product
-        );
-
-      setProducts(
-        updatedProducts
+        )
       );
 
-      try {
-        localStorage.setItem(
-          `biso-sales-products-${userId}`,
-          JSON.stringify(
-            updatedProducts
-          )
+      // ======================================================
+      // STOCK FAIBLE
+      // ======================================================
+
+      if (nouveauStock <= 5) {
+        setLowStockMessage(
+          `${selectedProduct.name} est presque épuisé. Stock restant : ${nouveauStock}`
         );
-      } catch {
-        console.log(
-          "Cache produit non sauvegardé."
-        );
-      }
-
-      /*
-        -----------------------------------------------------
-        STOCK PRESQUE VIDE
-        -----------------------------------------------------
-      */
-
-      if (
-        nouveauStock <= 5
-      ) {
-        setLoading(false);
-
-        showPopup(
-          "warning",
-          "Vente enregistrée",
-          `${selectedProduct.name} est presque épuisé. Il reste seulement ${nouveauStock} unité(s) en stock.`
-        );
-
-        setShowSuccess(true);
       } else {
-        setLoading(false);
-
-        setShowSuccess(true);
+        setLowStockMessage("");
       }
 
-      /*
-        -----------------------------------------------------
-        RESET
-        -----------------------------------------------------
-      */
+      // ======================================================
+      // NETTOYAGE
+      // ======================================================
 
       setQuantity("");
-
       setProductId("");
-
       setSearchTerm("");
 
-      /*
-        Actualiser depuis Supabase.
-      */
+      // ======================================================
+      // SUCCÈS
+      // ======================================================
 
-      void loadProducts();
+      setShowSuccess(true);
+
+      // ======================================================
+      // RECHARGEMENT SERVEUR
+      // ======================================================
+
+      await loadProducts();
     } catch (error) {
       console.error(
-        "Erreur vente :",
+        "Erreur pendant l'enregistrement :",
         error
       );
 
+      if (!navigator.onLine) {
+        setIsOnline(false);
+        setShowConnectionPopup(true);
+      } else {
+        alert(
+          "Une erreur est survenue pendant l'enregistrement de la vente."
+        );
+      }
+    } finally {
       setLoading(false);
-
-      showPopup(
-        "error",
-        "Une erreur est survenue",
-        "Impossible d'enregistrer la vente pour le moment. Vérifiez votre connexion puis réessayez."
-      );
     }
   };
 
-  /* =========================================================
-     COULEUR POPUP
-  ========================================================= */
-
-  const popupIcon =
-    popup?.type === "success"
-      ? CheckCircle
-      : popup?.type === "offline"
-      ? WifiOff
-      : popup?.type === "warning"
-      ? AlertTriangle
-      : popup?.type === "info"
-      ? Info
-      : ShieldAlert;
-
-  const PopupIcon =
-    popupIcon;
-
-  /* =========================================================
-     RETURN
-  ========================================================= */
+  // ==========================================================
+  // RENDU
+  // ==========================================================
 
   return (
     <main
       className="
-      relative
-      min-h-screen
-      overflow-hidden
-      bg-[#081221]
-      text-white
-      px-4
-      py-6
-      pb-28
+        relative
+        min-h-screen
+        overflow-x-hidden
+        bg-[#081221]
+        px-3
+        py-4
+        pb-28
+        text-white
+        sm:px-5
+        sm:py-6
       "
     >
-      {/* =====================================================
-          FOND
-      ===================================================== */}
-
       <div
         className="
-        pointer-events-none
-        absolute
-        -left-32
-        -top-32
-        h-72
-        w-72
-        rounded-full
-        bg-orange-500/10
-        blur-3xl
-        "
-      />
-
-      <div
-        className="
-        pointer-events-none
-        absolute
-        -bottom-40
-        -right-32
-        h-80
-        w-80
-        rounded-full
-        bg-yellow-400/5
-        blur-3xl
-        "
-      />
-
-      <div
-        className="
-        relative
-        z-10
-        mx-auto
-        max-w-xl
+          relative
+          z-10
+          mx-auto
+          w-full
+          max-w-xl
         "
       >
-        {/* ===================================================
+        {/* ======================================================
             HEADER
-        =================================================== */}
+        ====================================================== */}
 
         <div
           className="
-          mb-6
-          flex
-          items-center
-          justify-between
-          gap-3
+            mb-5
+            flex
+            items-start
+            justify-between
+            gap-3
+            sm:mb-6
           "
         >
-          <div>
+          <div className="min-w-0">
             <h1
               className="
-              text-3xl
-              font-black
-              tracking-tight
+                text-2xl
+                font-black
+                tracking-tight
+                sm:text-3xl
               "
             >
               💰 Caisse
-              <span
-                className="
-                text-orange-400
-                "
-              >
-                {" "}
-                vente
+              <span className="text-orange-400">
+                {" "}vente
               </span>
             </h1>
 
             <p
               className="
-              mt-1
-              text-sm
-              text-slate-400
+                mt-1
+                text-xs
+                leading-5
+                text-slate-400
+                sm:text-sm
               "
             >
-              Enregistrez vos ventes
-              rapidement avec
-              BISO-COMMERCE
+              Enregistrez rapidement vos ventes.
             </p>
           </div>
 
           <button
+            type="button"
             onClick={() =>
-              setShowGuide(
-                !showGuide
-              )
+              setShowGuide(!showGuide)
             }
             className="
-            shrink-0
-            rounded-full
-            border
-            border-orange-400/30
-            bg-orange-500/10
-            px-4
-            py-2
-            text-xs
-            font-bold
-            text-orange-300
-            transition
-            hover:bg-orange-500/20
+              flex
+              min-h-11
+              shrink-0
+              items-center
+              gap-1.5
+              rounded-full
+              border
+              border-orange-400/30
+              bg-orange-500/10
+              px-3
+              text-xs
+              font-bold
+              text-orange-300
+              transition
+              active:scale-95
             "
           >
-            <Sparkles
-              size={14}
-              className="mr-1 inline"
-            />
+            <Sparkles size={14} />
 
             {showGuide
               ? "Fermer"
@@ -826,366 +754,364 @@ export default function SalesPage() {
           </button>
         </div>
 
-        {/* ===================================================
-            INDICATEUR HORS CONNEXION
-        =================================================== */}
+        {/* ======================================================
+            ÉTAT CONNEXION
+        ====================================================== */}
 
         {!isOnline && (
           <div
             className="
-            mb-5
-            flex
-            items-center
-            gap-3
-            rounded-2xl
-            border
-            border-red-400/30
-            bg-red-500/10
-            p-4
+              mb-5
+              flex
+              items-start
+              gap-3
+              rounded-2xl
+              border
+              border-red-400/30
+              bg-red-500/10
+              p-4
             "
           >
-            <div
+            <WifiOff
+              size={21}
               className="
-              flex
-              h-10
-              w-10
-              shrink-0
-              items-center
-              justify-center
-              rounded-xl
-              bg-red-500/15
+                mt-0.5
+                shrink-0
+                text-red-400
               "
-            >
-              <WifiOff
-                size={20}
-                className="text-red-300"
-              />
-            </div>
+            />
 
-            <div>
-              <p
-                className="
-                text-sm
-                font-black
-                text-red-200
-                "
-              >
-                Hors connexion
+            <div className="min-w-0">
+              <p className="text-sm font-black text-red-300">
+                Connexion Internet requise
               </p>
 
-              <p
-                className="
-                mt-0.5
-                text-xs
-                text-red-300/80
-                "
-              >
-                La caisse reste
-                consultable, mais
-                une vente nécessite
-                Internet.
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                La vente est temporairement désactivée.
+                Connectez-vous à Internet pour charger
+                les produits et enregistrer une vente.
               </p>
             </div>
           </div>
         )}
 
-        {/* ===================================================
+        {/* ======================================================
             GUIDE
-        =================================================== */}
+        ====================================================== */}
 
         {showGuide && (
           <div
             className="
-            mb-5
-            rounded-3xl
-            border
-            border-orange-400/20
-            bg-white/5
-            p-5
-            shadow-xl
-            backdrop-blur-xl
+              mb-5
+              rounded-3xl
+              border
+              border-orange-400/20
+              bg-white/5
+              p-4
+              shadow-xl
+              backdrop-blur-xl
+              sm:p-5
             "
           >
-            <div
-              className="
-              mb-5
-              flex
-              items-center
-              gap-2
-              "
-            >
+            <div className="mb-4 flex items-center gap-2">
               <Sparkles
+                size={20}
                 className="text-orange-400"
               />
 
-              <h2
-                className="
-                font-bold
-                text-orange-300
-                "
-              >
-                Guide de vente
-                BISO-COMMERCE
+              <h2 className="font-bold text-orange-300">
+                Guide rapide
               </h2>
             </div>
 
-            <div
+            <div className="space-y-3 text-sm text-slate-300">
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/30
+                  p-4
+                "
+              >
+                <h3 className="mb-1 font-bold text-white">
+                  1️⃣ Sélectionner le produit
+                </h3>
+
+                <p className="text-xs leading-5 text-slate-400">
+                  Recherchez un produit qui possède
+                  encore du stock.
+                </p>
+              </div>
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-white/10
+                  bg-black/30
+                  p-4
+                "
+              >
+                <h3 className="mb-1 font-bold text-white">
+                  2️⃣ Indiquer la quantité
+                </h3>
+
+                <p className="text-xs leading-5 text-slate-400">
+                  La quantité ne peut jamais dépasser
+                  le stock disponible.
+                </p>
+              </div>
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-orange-400/20
+                  bg-orange-500/10
+                  p-4
+                "
+              >
+                <h3 className="mb-1 font-bold text-orange-200">
+                  3️⃣ Vérifier le total
+                </h3>
+
+                <p className="text-xs leading-5 text-slate-400">
+                  Vérifiez le montant du client,
+                  le bénéfice et le stock restant.
+                </p>
+              </div>
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-green-400/20
+                  bg-green-500/10
+                  p-4
+                "
+              >
+                <h3 className="mb-1 font-bold text-green-300">
+                  4️⃣ Valider
+                </h3>
+
+                <p className="text-xs leading-5 text-slate-400">
+                  La vente est enregistrée et le stock
+                  est diminué.
+                </p>
+              </div>
+
+              <div
+                className="
+                  rounded-2xl
+                  border
+                  border-blue-400/20
+                  bg-blue-500/10
+                  p-4
+                "
+              >
+                <h3 className="mb-1 font-bold text-blue-300">
+                  💡 Important
+                </h3>
+
+                <p className="text-xs leading-5 text-slate-400">
+                  Une connexion Internet est nécessaire
+                  pour enregistrer une vente.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowGuide(false)
+              }
               className="
-              space-y-3
-              text-sm
-              text-slate-300
-              "
-            >
-              <div
-                className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-black/30
-                p-4
-                "
-              >
-                <h3
-                  className="
-                  mb-2
-                  font-bold
-                  text-white
-                  "
-                >
-                  1️⃣ Rechercher un
-                  produit
-                </h3>
-
-                <p>
-                  Cherchez le produit
-                  dans votre stock puis
-                  sélectionnez-le.
-                </p>
-              </div>
-
-              <div
-                className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-black/30
-                p-4
-                "
-              >
-                <h3
-                  className="
-                  mb-2
-                  font-bold
-                  text-white
-                  "
-                >
-                  2️⃣ Choisir la
-                  quantité
-                </h3>
-
-                <p>
-                  Indiquez combien de
-                  produits vous vendez.
-                  Le système vérifie
-                  automatiquement le
-                  stock disponible.
-                </p>
-              </div>
-
-              <div
-                className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-black/30
-                p-4
-                "
-              >
-                <h3
-                  className="
-                  mb-2
-                  font-bold
-                  text-white
-                  "
-                >
-                  3️⃣ Vérifier le
-                  résumé
-                </h3>
-
-                <ul
-                  className="
-                  space-y-1
-                  text-xs
-                  "
-                >
-                  <li>
-                    ✅ Montant total
-                    de la vente
-                  </li>
-
-                  <li>
-                    ✅ Bénéfice estimé
-                  </li>
-
-                  <li>
-                    ✅ Stock restant
-                  </li>
-                </ul>
-              </div>
-
-              <div
-                className="
-                rounded-2xl
-                border
-                border-orange-400/30
-                bg-orange-500/10
-                p-4
-                "
-              >
-                <h3
-                  className="
-                  font-bold
-                  text-orange-200
-                  "
-                >
-                  4️⃣ Valider la vente
-                </h3>
-
-                <p>
-                  Cliquez sur
-                  « Valider la vente ».
-                  BISO-COMMERCE enregistre
-                  automatiquement :
-                </p>
-
-                <ul
-                  className="
-                  mt-2
-                  space-y-1
-                  text-xs
-                  "
-                >
-                  <li>
-                    ✅ La vente
-                  </li>
-
-                  <li>
-                    ✅ Le bénéfice
-                  </li>
-
-                  <li>
-                    ✅ La diminution
-                    du stock
-                  </li>
-
-                  <li>
-                    ✅ La mise à jour
-                    du Dashboard
-                  </li>
-                </ul>
-              </div>
-
-              <div
-                className="
-                rounded-2xl
-                border
-                border-blue-400/30
-                bg-blue-500/10
-                p-4
-                "
-              >
-                <h3
-                  className="
-                  font-bold
-                  text-blue-300
-                  "
-                >
-                  🌐 Connexion
-                </h3>
-
-                <p>
-                  La caisse peut être
-                  ouverte hors connexion,
-                  mais l'enregistrement
-                  d'une vente nécessite
-                  Internet.
-                </p>
-              </div>
-
-              <div
-                className="
-                rounded-2xl
-                border
-                border-green-400/30
-                bg-green-500/10
-                p-4
-                "
-              >
-                <h3
-                  className="
-                  font-bold
-                  text-green-300
-                  "
-                >
-                  5️⃣ Après la vente
-                </h3>
-
-                <p>
-                  Un message de succès
-                  apparaît après
-                  l'enregistrement.
-                </p>
-              </div>
-
-              <button
-                onClick={() =>
-                  setShowGuide(false)
-                }
-                className="
-                mt-2
+                mt-4
+                min-h-11
                 w-full
                 rounded-2xl
                 bg-orange-500
+                px-4
                 py-3
                 font-black
                 text-black
                 transition
-                hover:bg-orange-400
-                "
-              >
-                Fermer le guide
-              </button>
-            </div>
+                active:scale-[0.98]
+              "
+            >
+              J'ai compris
+            </button>
           </div>
         )}
 
-        {/* ===================================================
+        {/* ======================================================
+            AUCUN PRODUIT
+        ====================================================== */}
+
+        {!loadingProducts &&
+          isOnline &&
+          products.length === 0 && (
+            <div
+              className="
+                mb-5
+                rounded-3xl
+                border
+                border-yellow-400/20
+                bg-yellow-500/10
+                p-5
+              "
+            >
+              <div className="flex gap-3">
+                <Info
+                  size={22}
+                  className="
+                    mt-0.5
+                    shrink-0
+                    text-yellow-400
+                  "
+                />
+
+                <div>
+                  <p className="font-black text-yellow-300">
+                    Aucun produit enregistré
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Vous devez d'abord créer un produit
+                    dans votre stock avant de pouvoir
+                    effectuer une vente.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+        {/* ======================================================
+            PRODUITS EXISTANTS MAIS STOCK VIDE
+        ====================================================== */}
+
+        {!loadingProducts &&
+          isOnline &&
+          products.length > 0 &&
+          productsInStock.length === 0 && (
+            <div
+              className="
+                mb-5
+                rounded-3xl
+                border
+                border-red-400/20
+                bg-red-500/10
+                p-5
+              "
+            >
+              <div className="flex gap-3">
+                <AlertTriangle
+                  size={22}
+                  className="
+                    mt-0.5
+                    shrink-0
+                    text-red-400
+                  "
+                />
+
+                <div>
+                  <p className="font-black text-red-300">
+                    Stock épuisé
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Vos produits sont enregistrés,
+                    mais aucun ne possède actuellement
+                    de stock disponible pour une vente.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+        {/* ======================================================
+            STOCK FAIBLE
+        ====================================================== */}
+
+        {lowStockMessage && (
+          <div
+            className="
+              mb-5
+              flex
+              items-start
+              gap-3
+              rounded-2xl
+              border
+              border-orange-400/30
+              bg-orange-500/10
+              p-4
+            "
+          >
+            <AlertTriangle
+              size={20}
+              className="
+                mt-0.5
+                shrink-0
+                text-orange-400
+              "
+            />
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-orange-200">
+                Stock faible
+              </p>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                {lowStockMessage}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setLowStockMessage("")
+              }
+              className="
+                shrink-0
+                text-slate-500
+              "
+              aria-label="Fermer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
+
+        {/* ======================================================
             CARTE CAISSE
-        =================================================== */}
+        ====================================================== */}
 
         <div
           className="
-          space-y-5
-          rounded-3xl
-          border
-          border-white/10
-          bg-white/5
-          p-5
-          shadow-2xl
-          backdrop-blur-xl
+            space-y-5
+            rounded-3xl
+            border
+            border-white/10
+            bg-white/5
+            p-4
+            shadow-2xl
+            backdrop-blur-xl
+            sm:p-5
           "
         >
-          {/* =================================================
-              RECHERCHE
-          ================================================= */}
+          {/* ==================================================
+              RECHERCHE PRODUIT
+          ================================================== */}
 
           <div>
             <label
               className="
-              mb-2
-              block
-              text-xs
-              text-slate-400
+                mb-2
+                block
+                text-xs
+                font-bold
+                text-slate-400
               "
             >
               Produit
@@ -1193,243 +1119,310 @@ export default function SalesPage() {
 
             <div
               className="
-              flex
-              items-center
-              gap-3
-              rounded-2xl
-              border
-              border-white/10
-              bg-black/30
-              px-4
+                flex
+                min-h-12
+                items-center
+                gap-3
+                rounded-2xl
+                border
+                border-white/10
+                bg-black/30
+                px-4
+                focus-within:border-orange-400/40
               "
             >
               <Search
                 size={18}
-                className="text-orange-400"
+                className="
+                  shrink-0
+                  text-orange-400
+                "
               />
 
               <input
                 value={searchTerm}
+                disabled={
+                  !isOnline ||
+                  productsInStock.length === 0
+                }
                 onChange={(e) => {
-                  setSearchTerm(
-                    e.target.value
-                  );
+                  const value =
+                    e.target.value;
 
+                  setSearchTerm(value);
                   setProductId("");
+
+                  if (!value.trim()) {
+                    setQuantity("");
+                  }
                 }}
-                placeholder="Rechercher un produit..."
+                placeholder={
+                  !isOnline
+                    ? "Connexion Internet requise"
+                    : productsInStock.length === 0
+                    ? "Aucun produit en stock"
+                    : "Rechercher un produit..."
+                }
                 className="
-                w-full
-                bg-transparent
-                py-3
-                text-white
-                outline-none
-                placeholder:text-slate-500
+                  min-w-0
+                  w-full
+                  bg-transparent
+                  py-3
+                  text-sm
+                  text-white
+                  outline-none
+                  placeholder:text-slate-500
+                  disabled:cursor-not-allowed
                 "
               />
             </div>
 
+            {/* ==================================================
+                LISTE PRODUITS
+            ================================================== */}
+
             {searchTerm &&
-              !productId && (
+              !productId &&
+              isOnline && (
                 <div
                   className="
-                  mt-3
-                  max-h-60
-                  overflow-y-auto
-                  rounded-2xl
-                  border
-                  border-white/10
-                  bg-black/70
-                  shadow-xl
+                    mt-3
+                    max-h-64
+                    overflow-y-auto
+                    rounded-2xl
+                    border
+                    border-white/10
+                    bg-[#0b1424]
+                    shadow-xl
                   "
                 >
-                  {filteredProducts.length >
-                  0 ? (
+                  {filteredProducts.length > 0 ? (
                     filteredProducts.map(
-                      (p) => (
+                      (product) => (
                         <button
-                          key={p.id}
-                          onClick={() => {
-                            setProductId(
-                              p.id
-                            );
-
-                            setSearchTerm(
-                              p.name
-                            );
-                          }}
+                          type="button"
+                          key={product.id}
+                          onClick={() =>
+                            selectProduct(product)
+                          }
                           className="
-                          flex
-                          w-full
-                          items-center
-                          justify-between
-                          border-b
-                          border-white/5
-                          px-4
-                          py-3
-                          text-left
-                          transition
-                          hover:bg-white/10
+                            flex
+                            min-h-14
+                            w-full
+                            items-center
+                            justify-between
+                            gap-3
+                            border-b
+                            border-white/5
+                            px-4
+                            py-3
+                            text-left
+                            transition
+                            hover:bg-white/10
+                            active:bg-white/10
                           "
                         >
                           <div
                             className="
-                            flex
-                            items-center
-                            gap-3
+                              flex
+                              min-w-0
+                              items-center
+                              gap-3
                             "
                           >
                             <Package
                               size={18}
-                              className="text-orange-400"
+                              className="
+                                shrink-0
+                                text-orange-400
+                              "
                             />
 
-                            <span>
-                              {p.name}
-                            </span>
+                            <div className="min-w-0">
+                              <span
+                                className="
+                                  block
+                                  truncate
+                                  text-sm
+                                  font-semibold
+                                "
+                              >
+                                {product.name}
+                              </span>
+
+                              <span
+                                className="
+                                  mt-0.5
+                                  block
+                                  text-[11px]
+                                  text-slate-500
+                                "
+                              >
+                                Disponible
+                              </span>
+                            </div>
                           </div>
 
                           <span
                             className="
-                            text-xs
-                            text-slate-400
+                              shrink-0
+                              rounded-lg
+                              bg-green-500/10
+                              px-2
+                              py-1
+                              text-xs
+                              font-bold
+                              text-green-400
                             "
                           >
-                            Stock :{" "}
-                            {p.stock}
+                            {product.stock}
                           </span>
                         </button>
                       )
                     )
                   ) : (
-                    <div
-                      className="
-                      p-5
-                      text-center
-                      text-sm
-                      text-slate-400
-                      "
-                    >
-                      Aucun produit
-                      trouvé.
+                    <div className="p-5 text-center">
+                      <Package
+                        size={25}
+                        className="
+                          mx-auto
+                          mb-2
+                          text-slate-600
+                        "
+                      />
+
+                      <p className="text-sm text-slate-400">
+                        Aucun produit en stock trouvé.
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-600">
+                        Essayez un autre nom.
+                      </p>
                     </div>
                   )}
                 </div>
               )}
-          </div>
 
-          {/* =================================================
-              PRODUIT SÉLECTIONNÉ
-          ================================================= */}
+            {/* ==================================================
+                PRODUIT SÉLECTIONNÉ
+            ================================================== */}
 
-          {selectedProduct && (
-            <div
-              className="
-              rounded-2xl
-              border
-              border-orange-400/20
-              bg-orange-500/5
-              p-4
-              "
-            >
+            {selectedProduct && (
               <div
                 className="
-                flex
-                items-center
-                justify-between
-                gap-3
+                  mt-3
+                  flex
+                  items-center
+                  justify-between
+                  gap-3
+                  rounded-2xl
+                  border
+                  border-orange-400/20
+                  bg-orange-500/10
+                  p-3
                 "
               >
-                <div>
-                  <p
-                    className="
-                    text-xs
-                    text-slate-400
-                    "
-                  >
-                    Produit sélectionné
-                  </p>
-
-                  <p
-                    className="
-                    mt-1
-                    font-black
-                    text-white
-                    "
-                  >
-                    {selectedProduct.name}
-                  </p>
-                </div>
-
                 <div
                   className="
-                  rounded-xl
-                  bg-orange-500/10
-                  px-3
-                  py-2
-                  text-right
+                    flex
+                    min-w-0
+                    items-center
+                    gap-3
                   "
                 >
-                  <p
+                  <div
                     className="
-                    text-[10px]
-                    text-slate-400
+                      flex
+                      h-10
+                      w-10
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-orange-500/15
                     "
                   >
-                    Stock
-                  </p>
+                    <Package
+                      size={19}
+                      className="text-orange-400"
+                    />
+                  </div>
 
-                  <p
-                    className="
-                    font-black
-                    text-orange-300
-                    "
-                  >
-                    {selectedProduct.stock}
-                  </p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-white">
+                      {selectedProduct.name}
+                    </p>
+
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Stock disponible :{" "}
+                      {selectedProduct.stock}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
 
-          {/* =================================================
+                <button
+                  type="button"
+                  onClick={
+                    clearSelectedProduct
+                  }
+                  className="
+                    shrink-0
+                    rounded-lg
+                    p-2
+                    text-slate-500
+                    transition
+                    hover:bg-white/10
+                    hover:text-white
+                  "
+                  aria-label="Changer de produit"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ==================================================
               QUANTITÉ
-          ================================================= */}
+          ================================================== */}
 
           <div>
             <label
               className="
-              mb-2
-              block
-              text-xs
-              text-slate-400
+                mb-2
+                block
+                text-xs
+                font-bold
+                text-slate-400
               "
             >
               Quantité vendue
             </label>
 
-            <div
-              className="
-              flex
-              items-center
-              gap-3
-              "
-            >
+            <div className="flex items-center gap-3">
               <button
-                onClick={
-                  decreaseQty
+                type="button"
+                onClick={decreaseQty}
+                disabled={
+                  !quantity ||
+                  Number(quantity) <= 1 ||
+                  !isOnline
                 }
                 className="
-                flex
-                h-12
-                w-12
-                items-center
-                justify-center
-                rounded-xl
-                bg-white/10
-                transition
-                hover:bg-white/15
+                  flex
+                  h-12
+                  w-12
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-white/10
+                  transition
+                  active:scale-95
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
                 "
+                aria-label="Diminuer"
               >
                 <Minus size={18} />
               </button>
@@ -1437,556 +1430,567 @@ export default function SalesPage() {
               <input
                 type="number"
                 min="1"
+                step="1"
                 value={quantity}
-                onChange={(e) =>
-                  setQuantity(
-                    e.target.value
-                  )
+                disabled={
+                  !selectedProduct ||
+                  !isOnline
                 }
+                onChange={(e) => {
+                  const value =
+                    e.target.value;
+
+                  if (value === "") {
+                    setQuantity("");
+                    return;
+                  }
+
+                  const numberValue =
+                    Number(value);
+
+                  if (
+                    Number.isInteger(
+                      numberValue
+                    ) &&
+                    numberValue >= 0
+                  ) {
+                    setQuantity(value);
+                  }
+                }}
                 placeholder="Ex : 5"
                 className="
-                flex-1
-                rounded-xl
-                border
-                border-white/10
-                bg-black/30
-                p-3
-                text-center
-                outline-none
+                  min-w-0
+                  flex-1
+                  rounded-xl
+                  border
+                  border-white/10
+                  bg-black/30
+                  p-3
+                  text-center
+                  text-base
+                  font-bold
+                  text-white
+                  outline-none
+                  focus:border-orange-400/40
+                  disabled:cursor-not-allowed
+                  disabled:opacity-50
                 "
               />
 
               <button
-                onClick={
-                  increaseQty
+                type="button"
+                onClick={increaseQty}
+                disabled={
+                  !selectedProduct ||
+                  !isOnline ||
+                  (!!selectedProduct &&
+                    quantityNumber >=
+                      Number(
+                        selectedProduct.stock
+                      ))
                 }
                 className="
-                flex
-                h-12
-                w-12
-                items-center
-                justify-center
-                rounded-xl
-                bg-orange-500/20
-                text-orange-300
-                transition
-                hover:bg-orange-500/30
+                  flex
+                  h-12
+                  w-12
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-orange-500/20
+                  text-orange-300
+                  transition
+                  active:scale-95
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
                 "
+                aria-label="Augmenter"
               >
                 <Plus size={18} />
               </button>
             </div>
+
+            {selectedProduct &&
+              quantityNumber >
+                Number(
+                  selectedProduct.stock
+                ) && (
+                <p className="mt-2 text-xs font-bold text-red-400">
+                  Quantité supérieure au stock disponible.
+                </p>
+              )}
           </div>
 
-          {/* =================================================
+          {/* ==================================================
               RÉSUMÉ
-          ================================================= */}
+          ================================================== */}
 
           {selectedProduct &&
-            Number(quantity) >
-              0 && (
+            quantityNumber > 0 && (
               <div
                 className="
-                rounded-2xl
-                border
-                border-orange-400/30
-                bg-orange-500/10
-                p-5
+                  overflow-hidden
+                  rounded-2xl
+                  border
+                  border-orange-400/30
+                  bg-orange-500/10
                 "
               >
                 <div
                   className="
-                  mb-3
-                  flex
-                  items-center
-                  gap-2
-                  "
-                >
-                  <ShoppingCart
-                    className="text-orange-400"
-                  />
-
-                  <p
-                    className="
-                    font-bold
-                    text-orange-200
-                    "
-                  >
-                    Résumé de la
-                    vente
-                  </p>
-                </div>
-
-                <p
-                  className="
-                  text-sm
-                  text-slate-300
-                  "
-                >
-                  Produit :
-                  <span
-                    className="
-                    font-bold
-                    text-white
-                    "
-                  >
-                    {" "}
-                    {
-                      selectedProduct.name
-                    }
-                  </span>
-                </p>
-
-                <p
-                  className="
-                  mt-2
-                  text-sm
-                  text-slate-300
-                  "
-                >
-                  Prix unité :
-                  <span
-                    className="
-                    font-bold
-                    text-white
-                    "
-                  >
-                    {" "}
-                    {
-                      selectedProduct.selling_price
-                    }{" "}
-                    {
-                      selectedProduct.currency
-                    }
-                  </span>
-                </p>
-
-                <div
-                  className="
-                  mt-4
-                  rounded-xl
-                  bg-black/30
-                  p-3
-                  "
-                >
-                  <p
-                    className="
-                    text-xs
-                    text-slate-400
-                    "
-                  >
-                    Total client
-                  </p>
-
-                  <p
-                    className="
-                    text-3xl
-                    font-black
-                    text-orange-400
-                    "
-                  >
-                    {totalPreview}{" "}
-                    {
-                      selectedProduct.currency
-                    }
-                  </p>
-                </div>
-
-                <div
-                  className="
-                  mt-3
-                  flex
-                  items-center
-                  gap-2
-                  text-sm
-                  text-green-300
-                  "
-                >
-                  <TrendingUp
-                    size={16}
-                  />
-
-                  Bénéfice estimé :
-                  {" "}
-                  {profitPreview}{" "}
-                  {
-                    selectedProduct.currency
-                  }
-                </div>
-
-                {stockAfterSale <=
-                  5 && (
-                  <div
-                    className="
-                    mt-3
                     flex
                     items-center
                     gap-2
-                    rounded-xl
-                    bg-red-500/10
-                    p-3
-                    text-xs
-                    text-red-300
+                    border-b
+                    border-white/10
+                    p-4
+                  "
+                >
+                  <ShoppingCart
+                    size={19}
+                    className="text-orange-400"
+                  />
+
+                  <p className="font-bold text-orange-200">
+                    Résumé de la vente
+                  </p>
+                </div>
+
+                <div className="space-y-3 p-4">
+                  {/* PRODUIT */}
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-xs text-slate-400">
+                      Produit
+                    </span>
+
+                    <span className="max-w-[60%] text-right text-sm font-bold text-white">
+                      {selectedProduct.name}
+                    </span>
+                  </div>
+
+                  {/* QUANTITÉ */}
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-xs text-slate-400">
+                      Quantité
+                    </span>
+
+                    <span className="text-sm font-bold text-white">
+                      {quantityNumber}
+                    </span>
+                  </div>
+
+                  {/* PRIX */}
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-xs text-slate-400">
+                      Prix unitaire
+                    </span>
+
+                    <span className="text-sm font-bold text-white">
+                      {Number(
+                        selectedProduct.selling_price
+                      ).toLocaleString(
+                        "fr-FR"
+                      )}{" "}
+                      {selectedProduct.currency}
+                    </span>
+                  </div>
+
+                  <div className="border-t border-white/10" />
+
+                  {/* TOTAL */}
+
+                  <div
+                    className="
+                      rounded-xl
+                      bg-black/30
+                      p-4
                     "
                   >
-                    <AlertTriangle
-                      size={16}
-                    />
+                    <p className="text-xs text-slate-400">
+                      Total client
+                    </p>
 
-                    Attention : stock
-                    presque épuisé (
-                    {stockAfterSale})
+                    <p
+                      className="
+                        mt-1
+                        break-words
+                        text-2xl
+                        font-black
+                        text-orange-400
+                        sm:text-3xl
+                      "
+                    >
+                      {totalPreview.toLocaleString(
+                        "fr-FR"
+                      )}{" "}
+                      {selectedProduct.currency}
+                    </p>
                   </div>
-                )}
+
+                 
+                  {/* ALERT STOCK */}
+
+                  {stockAfterSale <= 5 &&
+                    stockAfterSale >= 0 && (
+                      <div
+                        className="
+                          flex
+                          items-center
+                          gap-2
+                          rounded-xl
+                          bg-orange-500/10
+                          p-3
+                          text-xs
+                          text-orange-300
+                        "
+                      >
+                        <AlertTriangle
+                          size={16}
+                          className="shrink-0"
+                        />
+
+                        <span>
+                          Attention : stock presque épuisé.
+                        </span>
+                      </div>
+                    )}
+                </div>
               </div>
             )}
 
-          {/* =================================================
+          {/* ==================================================
+              MESSAGE AVANT VENTE
+          ================================================== */}
+
+          {!isOnline && (
+            <div
+              className="
+                flex
+                items-start
+                gap-3
+                rounded-2xl
+                border
+                border-red-400/20
+                bg-red-500/10
+                p-4
+              "
+            >
+              <WifiOff
+                size={19}
+                className="
+                  mt-0.5
+                  shrink-0
+                  text-red-400
+                "
+              />
+
+              <div>
+                <p className="text-sm font-bold text-red-300">
+                  Vente désactivée
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Cette page nécessite une connexion
+                  Internet pour enregistrer les ventes.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isOnline &&
+            products.length === 0 &&
+            !loadingProducts && (
+              <div
+                className="
+                  flex
+                  items-start
+                  gap-3
+                  rounded-2xl
+                  border
+                  border-yellow-400/20
+                  bg-yellow-500/10
+                  p-4
+                "
+              >
+                <Info
+                  size={19}
+                  className="
+                    mt-0.5
+                    shrink-0
+                    text-yellow-400
+                  "
+                />
+
+                <div>
+                  <p className="text-sm font-bold text-yellow-300">
+                    Aucun produit à vendre
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Créez d'abord un produit dans votre
+                    stock.
+                  </p>
+                </div>
+              </div>
+            )}
+
+          {/* ==================================================
               BOUTON VALIDATION
-          ================================================= */}
+          ================================================== */}
 
           <button
+            type="button"
             onClick={saveSale}
-            disabled={loading}
+            disabled={saleBlocked}
             className="
-            flex
-            w-full
-            items-center
-            justify-center
-            gap-2
-            rounded-2xl
-            bg-gradient-to-r
-            from-orange-500
-            to-yellow-400
-            py-4
-            font-black
-            text-black
-            shadow-lg
-            transition
-            hover:scale-[1.02]
-            disabled:cursor-not-allowed
-            disabled:opacity-50
+              flex
+              min-h-14
+              w-full
+              items-center
+              justify-center
+              gap-2
+              rounded-2xl
+              bg-gradient-to-r
+              from-orange-500
+              to-yellow-400
+              px-4
+              py-4
+              text-sm
+              font-black
+              text-black
+              shadow-lg
+              transition
+              active:scale-[0.98]
+              disabled:cursor-not-allowed
+              disabled:opacity-40
+              disabled:grayscale
             "
           >
             {loading ? (
               <>
                 <span
                   className="
-                  h-5
-                  w-5
-                  animate-spin
-                  rounded-full
-                  border-2
-                  border-black/30
-                  border-t-black
+                    h-5
+                    w-5
+                    animate-spin
+                    rounded-full
+                    border-2
+                    border-black/30
+                    border-t-black
                   "
                 />
 
                 Enregistrement...
               </>
+            ) : !isOnline ? (
+              <>
+                <WifiOff size={20} />
+
+                Connexion Internet requise
+              </>
+            ) : !selectedProduct ? (
+              <>
+                <Package size={20} />
+
+                Sélectionnez un produit
+              </>
+            ) : !quantity ? (
+              <>
+                <ShoppingCart size={20} />
+
+                Indiquez une quantité
+              </>
             ) : (
               <>
-                <CheckCircle
-                  size={20}
-                />
+                <CheckCircle size={20} />
 
                 Valider la vente
               </>
             )}
           </button>
 
-          {/* =================================================
-              INFORMATION HORS CONNEXION
-          ================================================= */}
-
-          {!isOnline && (
-            <div
-              className="
-              flex
-              items-start
-              gap-3
-              rounded-2xl
-              border
-              border-red-400/20
-              bg-red-500/5
-              p-4
-              "
-            >
-              <WifiOff
-                size={18}
-                className="
-                mt-0.5
-                shrink-0
-                text-red-300
-                "
-              />
-
-              <div>
-                <p
-                  className="
-                  text-sm
-                  font-bold
-                  text-red-200
-                  "
-                >
-                  Vente temporairement
-                  indisponible
-                </p>
-
-                <p
-                  className="
-                  mt-1
-                  text-xs
-                  leading-5
-                  text-slate-400
-                  "
-                >
-                  Vous pouvez consulter
-                  les produits et préparer
-                  la vente, mais vous devez
-                  être connecté à Internet
-                  pour la valider.
-                </p>
-              </div>
-            </div>
-          )}
+          <p className="pb-1 text-center text-[11px] leading-5 text-slate-500">
+            Vérifiez le produit, la quantité, le total
+            et le stock avant de valider.
+          </p>
         </div>
+      </div>
 
-        {/* ===================================================
-            POPUP ERREUR / INFO
-        =================================================== */}
+      {/* ======================================================
+          POPUP CONNEXION
+      ====================================================== */}
 
-        {popup && (
-          <div
-            className="
+      {showConnectionPopup && (
+        <div
+          className="
             fixed
             inset-0
-            z-[100]
+            z-[60]
             flex
             items-center
             justify-center
             bg-black/75
-            px-5
+            px-4
             backdrop-blur-sm
-            "
-          >
-            <div
-              className="
-              w-full
-              max-w-sm
-              overflow-hidden
-              rounded-[2rem]
-              border
-              border-white/10
-              bg-[#081221]
-              shadow-[0_25px_80px_rgba(0,0,0,0.65)]
-              "
-            >
-              <div
-                className="
-                p-6
-                text-center
-                "
-              >
-                <button
-                  onClick={
-                    closePopup
-                  }
-                  className="
-                  absolute
-                  "
-                  aria-label="Fermer"
-                />
-
-                <div
-                  className={`
-                  mx-auto
-                  mb-5
-                  flex
-                  h-16
-                  w-16
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  ${
-                    popup.type ===
-                    "offline"
-                      ? "bg-red-500/15 text-red-300"
-                      : popup.type ===
-                        "error"
-                      ? "bg-red-500/15 text-red-300"
-                      : popup.type ===
-                        "warning"
-                      ? "bg-orange-500/15 text-orange-300"
-                      : popup.type ===
-                        "success"
-                      ? "bg-green-500/15 text-green-300"
-                      : "bg-blue-500/15 text-blue-300"
-                  }
-                  `}
-                >
-                  <PopupIcon
-                    size={32}
-                  />
-                </div>
-
-                <h2
-                  className="
-                  text-xl
-                  font-black
-                  text-white
-                  "
-                >
-                  {popup.title}
-                </h2>
-
-                <p
-                  className="
-                  mt-3
-                  text-sm
-                  leading-6
-                  text-slate-400
-                  "
-                >
-                  {popup.message}
-                </p>
-
-                <button
-                  onClick={
-                    closePopup
-                  }
-                  className={`
-                  mt-6
-                  w-full
-                  rounded-2xl
-                  py-3.5
-                  font-black
-                  text-black
-                  transition
-                  ${
-                    popup.type ===
-                    "offline"
-                      ? "bg-red-400 hover:bg-red-300"
-                      : popup.type ===
-                        "error"
-                      ? "bg-red-400 hover:bg-red-300"
-                      : popup.type ===
-                        "warning"
-                      ? "bg-orange-400 hover:bg-orange-300"
-                      : "bg-orange-400 hover:bg-orange-300"
-                  }
-                  `}
-                >
-                  Compris
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ===================================================
-            POPUP SUCCÈS
-        =================================================== */}
-
-        {showSuccess && (
+          "
+        >
           <div
             className="
-            fixed
-            inset-0
-            z-[90]
-            flex
-            items-center
-            justify-center
-            bg-black/75
-            px-5
-            backdrop-blur-sm
-            "
-          >
-            <div
-              className="
               w-full
               max-w-sm
-              rounded-[2rem]
+              rounded-3xl
               border
-              border-green-400/20
+              border-orange-400/20
               bg-[#081221]
               p-6
               text-center
-              shadow-[0_25px_80px_rgba(0,0,0,0.65)]
-              "
-            >
-              <div
-                className="
+              shadow-2xl
+            "
+          >
+            <div
+              className="
                 mx-auto
-                mb-5
+                mb-4
                 flex
-                h-20
-                w-20
+                h-14
+                w-14
                 items-center
                 justify-center
-                rounded-full
-                bg-green-500/10
-                "
-              >
-                <CheckCircle
-                  size={48}
-                  className="
-                  text-green-400
-                  "
-                />
-              </div>
+                rounded-2xl
+                bg-orange-500/10
+                text-orange-400
+              "
+            >
+              <Wifi size={27} />
+            </div>
 
-              <h2
-                className="
+            <h2 className="text-xl font-black text-white">
+              Connexion Internet requise
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Cette opération nécessite une connexion
+              Internet. Connectez-vous à Internet puis
+              réessayez.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowConnectionPopup(false)
+              }
+              className="
+                mt-6
+                min-h-12
+                w-full
+                rounded-2xl
+                bg-orange-500
+                px-4
+                py-3
+                font-black
+                text-black
+                transition
+                active:scale-[0.98]
+              "
+            >
+              Compris
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================
+          POPUP SUCCÈS
+      ====================================================== */}
+
+      {showSuccess && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-50
+            flex
+            items-center
+            justify-center
+            bg-black/75
+            px-4
+            backdrop-blur-sm
+          "
+        >
+          <div
+            className="
+              w-full
+              max-w-sm
+              rounded-3xl
+              border
+              border-green-400/30
+              bg-[#081221]
+              p-6
+              text-center
+              shadow-2xl
+            "
+          >
+            <CheckCircle
+              size={55}
+              className="
+                mx-auto
+                mb-4
+                text-green-400
+              "
+            />
+
+            <h2
+              className="
                 text-2xl
                 font-black
                 text-white
-                "
-              >
-                Vente réussie
-                ✅
-              </h2>
+              "
+            >
+              Vente réussie ✅
+            </h2>
 
-              <p
-                className="
+            <p
+              className="
                 mt-3
                 text-sm
                 leading-6
                 text-slate-300
-                "
-              >
-                Votre vente a été
-                enregistrée avec
-                succès.
-              </p>
+              "
+            >
+              Votre vente a été enregistrée,
+              le bénéfice a été calculé et le stock
+              a été mis à jour.
+            </p>
 
-              <button
-                onClick={() => {
-                  setShowSuccess(
-                    false
-                  );
-
-                  window.location.href =
-                    "/dashboard";
-                }}
-                className="
+            <button
+              type="button"
+              onClick={() => {
+                setShowSuccess(false);
+                window.location.href =
+                  "/dashboard";
+              }}
+              className="
                 mt-6
+                min-h-12
                 w-full
                 rounded-2xl
                 bg-green-500
-                py-3.5
+                px-4
+                py-3
                 font-black
                 text-black
                 transition
-                hover:bg-green-400
-                "
-              >
-                OK
-              </button>
-            </div>
+                active:scale-[0.98]
+              "
+            >
+              OK
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </main>
   );
 }
