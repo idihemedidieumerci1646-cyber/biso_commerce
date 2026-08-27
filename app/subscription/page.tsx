@@ -68,80 +68,121 @@ export default function SubscriptionPage() {
   ===================================================== */
 
   const loadSubscription = async () => {
-    if (!navigator.onLine) {
-      setIsOnline(false);
+  if (!navigator.onLine) {
+    setIsOnline(false);
+    return;
+  }
+
+  try {
+    const phoneStorage = localStorage.getItem("phone");
+
+    if (!phoneStorage) {
+      setStatus("expired");
       return;
     }
 
-    try {
-      const phoneStorage = localStorage.getItem("phone");
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phoneStorage)
+      .single();
 
-      if (!phoneStorage) return;
-
-      const { data: user } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone", phoneStorage)
-        .single();
-
-      if (!user) return;
-
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", {
-          ascending: false,
-        })
-        .limit(1)
-        .maybeSingle();
-
-      if (!data) {
-        setStatus("expired");
-        return;
-      }
-
-      setSubscription(data);
-
-      const now = new Date();
-
-      const start = data.start_date
-        ? new Date(data.start_date)
-        : null;
-
-      let used = 0;
-
-      if (start) {
-        const diff =
-          now.getTime() - start.getTime();
-
-        used = Math.floor(
-          diff /
-            (1000 * 60 * 60 * 24)
-        );
-
-        if (used < 0) used = 0;
-      }
-
-      const left = Math.max(0, 30 - used);
-
-      setDaysUsed(used);
-      setDaysLeft(left);
-
-      if (data.status === "pending") {
-        setStatus("pending");
-      } else if (
-        data.is_active === true ||
-        data.status === "trial"
-      ) {
-        setStatus("active");
-      } else {
-        setStatus("expired");
-      }
-    } catch {
-      // La page reste utilisable visuellement hors connexion.
+    if (userError || !user) {
+      setStatus("expired");
+      return;
     }
-  };
+
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", {
+        ascending: false,
+      })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      setSubscription(null);
+      setDaysUsed(0);
+      setDaysLeft(0);
+      setStatus("expired");
+      return;
+    }
+
+    setSubscription(data);
+
+    if (data.status === "pending") {
+      setStatus("pending");
+    }
+
+    const now = new Date();
+
+    const start = data.start_date
+      ? new Date(data.start_date)
+      : null;
+
+    if (!start || isNaN(start.getTime())) {
+      setDaysUsed(0);
+      setDaysLeft(0);
+
+      if (data.status !== "pending") {
+        setStatus("expired");
+      }
+
+      return;
+    }
+
+    const diffMs = now.getTime() - start.getTime();
+
+    let used = Math.floor(
+      diffMs / (1000 * 60 * 60 * 24)
+    );
+
+    if (used < 0) {
+      used = 0;
+    }
+
+    const displayedUsed = Math.min(30, used);
+
+    const displayedLeft = Math.max(
+      0,
+      30 - used
+    );
+
+    setDaysUsed(displayedUsed);
+    setDaysLeft(displayedLeft);
+
+    const expirationDate = new Date(start);
+
+    expirationDate.setDate(
+      expirationDate.getDate() + 30
+    );
+
+    const isExpired =
+      now.getTime() >= expirationDate.getTime();
+
+    if (isExpired) {
+      setStatus("expired");
+    } else if (data.status === "pending") {
+      setStatus("pending");
+    } else if (
+      data.is_active === true ||
+      data.status === "trial"
+    ) {
+      setStatus("active");
+    } else {
+      setStatus("expired");
+    }
+  } catch (error) {
+    console.error(
+      "Erreur chargement abonnement:",
+      error
+    );
+
+    setStatus("expired");
+  }
+};
 
   /* =====================================================
      ACTION REQUIRANT INTERNET
