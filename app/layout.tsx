@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import IosInstallPrompt from "@/components/IosInstallPrompt";
+import PerformanceOptimizer from "@/components/PerformanceOptimizer";
 
 import Navbar from "../components/Navbar";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
@@ -97,6 +98,8 @@ export default function RootLayout({
 
       <body className="bg-slate-950 min-h-screen">
         <ServiceWorkerRegistration />
+
+        <PerformanceOptimizer />
 
         <Navbar />
 

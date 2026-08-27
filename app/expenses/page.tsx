@@ -98,26 +98,12 @@ export default function ExpensesPage() {
 
     updateConnection();
 
-    window.addEventListener(
-      "online",
-      updateConnection
-    );
-
-    window.addEventListener(
-      "offline",
-      updateConnection
-    );
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
 
     return () => {
-      window.removeEventListener(
-        "online",
-        updateConnection
-      );
-
-      window.removeEventListener(
-        "offline",
-        updateConnection
-      );
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
     };
   }, []);
 
@@ -168,19 +154,14 @@ export default function ExpensesPage() {
       return null;
     }
 
-    const { data: user, error } =
-      await supabase
-        .from("users")
-        .select("id")
-        .eq("phone", phone)
-        .single();
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
+      .single();
 
     if (error || !user) {
-      console.log(
-        "Erreur utilisateur :",
-        error
-      );
-
+      console.log("Erreur utilisateur :", error);
       return null;
     }
 
@@ -192,16 +173,11 @@ export default function ExpensesPage() {
   // ======================================================
 
   const formatMoney = (value: number) => {
-    const number = Math.round(
-      Number(value || 0)
-    );
+    const number = Math.round(Number(value || 0));
 
     return number
       .toString()
-      .replace(
-        /\B(?=(\d{3})+(?!\d))/g,
-        " "
-      );
+      .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   };
 
   // ======================================================
@@ -219,20 +195,16 @@ export default function ExpensesPage() {
         return;
       }
 
-      const { data, error } =
-        await supabase
-          .from("expenses")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", {
-            ascending: false,
-          });
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", {
+          ascending: false,
+        });
 
       if (error) {
-        console.log(
-          "Erreur chargement dépenses :",
-          error
-        );
+        console.log("Erreur chargement dépenses :", error);
 
         if (!navigator.onLine) {
           setNotice({
@@ -252,8 +224,7 @@ export default function ExpensesPage() {
         return;
       }
 
-      const list =
-        (data || []) as Expense[];
+      const list = (data || []) as Expense[];
 
       setExpenses(list);
 
@@ -266,22 +237,16 @@ export default function ExpensesPage() {
 
         if (expenseDate === todayStr) {
           if (
-            String(
-              expense.currency
-            ).toUpperCase() === "FC"
+            String(expense.currency).toUpperCase() ===
+            "FC"
           ) {
-            fc += Number(
-              expense.amount || 0
-            );
+            fc += Number(expense.amount || 0);
           } else if (
             expense.currency === "$" ||
-            String(
-              expense.currency
-            ).toUpperCase() === "USD"
+            String(expense.currency).toUpperCase() ===
+              "USD"
           ) {
-            usd += Number(
-              expense.amount || 0
-            );
+            usd += Number(expense.amount || 0);
           }
         }
       });
@@ -330,14 +295,12 @@ export default function ExpensesPage() {
       return;
     }
 
-    const numericAmount =
-      Number(amount);
+    const numericAmount = Number(amount);
 
     if (!Number.isFinite(numericAmount)) {
       setNotice({
         type: "error",
-        message:
-          "Montant invalide.",
+        message: "Montant invalide.",
       });
 
       return;
@@ -368,19 +331,17 @@ export default function ExpensesPage() {
     setLoading(true);
 
     try {
-      const { error } =
-        await supabase
-          .from("expenses")
-          .insert([
-            {
-              title: title.trim(),
-              amount: numericAmount,
-              currency: currency,
-              user_id: user.id,
-              created_at:
-                new Date().toISOString(),
-            },
-          ]);
+      const { error } = await supabase
+        .from("expenses")
+        .insert([
+          {
+            title: title.trim(),
+            amount: numericAmount,
+            currency: currency,
+            user_id: user.id,
+            created_at: new Date().toISOString(),
+          },
+        ]);
 
       if (error) {
         console.log(error);
@@ -420,9 +381,7 @@ export default function ExpensesPage() {
   // OUVRIR POPUP SUPPRESSION
   // ======================================================
 
-  const requestDeleteExpense = (
-    id: number
-  ) => {
+  const requestDeleteExpense = (id: number) => {
     setExpenseToDelete(id);
     setDeletePopup(true);
   };
@@ -467,12 +426,11 @@ export default function ExpensesPage() {
     setDeletePopup(false);
 
     try {
-      const { error } =
-        await supabase
-          .from("expenses")
-          .delete()
-          .eq("id", id)
-          .eq("user_id", user.id);
+      const { error } = await supabase
+        .from("expenses")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
 
       if (error) {
         console.log(error);
@@ -488,8 +446,7 @@ export default function ExpensesPage() {
 
       setExpenses((current) =>
         current.filter(
-          (expense) =>
-            expense.id !== id
+          (expense) => expense.id !== id
         )
       );
 
@@ -517,48 +474,49 @@ export default function ExpensesPage() {
   // DÉPENSES AUJOURD'HUI
   // ======================================================
 
-  const todayExpenses =
-    expenses.filter(
-      (expense) =>
-        expense.created_at.split(
-          "T"
-        )[0] === todayStr
-    );
+  const todayExpenses = expenses.filter(
+    (expense) =>
+      expense.created_at.split("T")[0] === todayStr
+  );
 
   // ======================================================
   // DÉPENSES HIER
   // ======================================================
 
-  const yesterdayExpenses =
-    expenses.filter(
-      (expense) =>
-        expense.created_at.split(
-          "T"
-        )[0] === yesterdayStr
-    );
+  const yesterdayExpenses = expenses.filter(
+    (expense) =>
+      expense.created_at.split("T")[0] ===
+      yesterdayStr
+  );
 
   // ======================================================
   // RECHERCHE PAR DATE
   // ======================================================
 
-  const searchedExpenses =
-    searchDate
-      ? expenses.filter(
-          (expense) =>
-            expense.created_at.split(
-              "T"
-            )[0] === searchDate
-        )
-      : expenses;
+  const searchedExpenses = searchDate
+    ? expenses.filter(
+        (expense) =>
+          expense.created_at.split("T")[0] ===
+          searchDate
+      )
+    : expenses;
 
   // ======================================================
   // DÉPENSES À AFFICHER
+  //
+  // Sans recherche :
+  // - 5 dernières dépenses
+  // - toutes les dépenses si showAll = true
+  //
+  // Avec recherche :
+  // - toutes les dépenses correspondant à la date
   // ======================================================
 
-  const displayedExpenses =
-    searchDate
-      ? searchedExpenses
-      : expenses;
+  const displayedExpenses = searchDate
+    ? searchedExpenses
+    : showAll
+    ? expenses
+    : expenses.slice(0, 5);
 
   // ======================================================
   // AFFICHAGE
@@ -588,7 +546,6 @@ export default function ExpensesPage() {
             sm:space-y-6
           "
         >
-
           {/* ======================================================
               HEADER
           ====================================================== */}
@@ -619,7 +576,6 @@ export default function ExpensesPage() {
                 sm:justify-between
               "
             >
-
               <div
                 className="
                   flex
@@ -689,9 +645,7 @@ export default function ExpensesPage() {
               <button
                 type="button"
                 onClick={loadExpenses}
-                disabled={
-                  loadingExpenses
-                }
+                disabled={loadingExpenses}
                 className="
                   inline-flex
                   min-h-[48px]
@@ -805,19 +759,16 @@ export default function ExpensesPage() {
                 border
                 p-4
                 ${
-                  notice.type ===
-                  "success"
+                  notice.type === "success"
                     ? "border-green-400/20 bg-green-500/10"
-                    : notice.type ===
-                      "error"
+                    : notice.type === "error"
                     ? "border-red-400/20 bg-red-500/10"
                     : "border-orange-400/20 bg-orange-500/10"
                 }
               `}
               role="status"
             >
-              {notice.type ===
-              "success" ? (
+              {notice.type === "success" ? (
                 <CheckCircle2
                   size={19}
                   className="
@@ -833,8 +784,7 @@ export default function ExpensesPage() {
                     mt-0.5
                     shrink-0
                     ${
-                      notice.type ===
-                      "error"
+                      notice.type === "error"
                         ? "text-red-400"
                         : "text-orange-400"
                     }
@@ -850,11 +800,9 @@ export default function ExpensesPage() {
                   text-sm
                   font-bold
                   ${
-                    notice.type ===
-                    "success"
+                    notice.type === "success"
                       ? "text-green-300"
-                      : notice.type ===
-                        "error"
+                      : notice.type === "error"
                       ? "text-red-300"
                       : "text-orange-300"
                   }
@@ -865,9 +813,7 @@ export default function ExpensesPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setNotice(null)
-                }
+                onClick={() => setNotice(null)}
                 className="
                   flex
                   h-8
@@ -890,6 +836,7 @@ export default function ExpensesPage() {
 
           {/* ======================================================
               TOTAUX
+              FC ET USD TOUJOURS CÔTE À CÔTE
           ====================================================== */}
 
           <section
@@ -897,21 +844,19 @@ export default function ExpensesPage() {
               grid
               w-full
               min-w-0
-              grid-cols-1
-              gap-4
-              sm:grid-cols-2
+              grid-cols-2
+              gap-3
               sm:gap-5
             "
           >
             <MoneyCard
               title="Dépenses du jour FC"
               value={
-                formatMoney(totalFc) +
-                " FC"
+                formatMoney(totalFc) + " FC"
               }
               icon={
                 <Banknote
-                  size={23}
+                  size={21}
                   className="text-orange-400"
                 />
               }
@@ -920,12 +865,11 @@ export default function ExpensesPage() {
             <MoneyCard
               title="Dépenses du jour USD"
               value={
-                formatMoney(totalUsd) +
-                " $"
+                formatMoney(totalUsd) + " $"
               }
               icon={
                 <Banknote
-                  size={23}
+                  size={21}
                   className="text-orange-400"
                 />
               }
@@ -1011,7 +955,6 @@ export default function ExpensesPage() {
                 lg:grid-cols-3
               "
             >
-
               {/* NOM */}
 
               <div className="min-w-0">
@@ -1032,9 +975,7 @@ export default function ExpensesPage() {
                   placeholder="Ex : Transport, loyer..."
                   value={title}
                   onChange={(e) =>
-                    setTitle(
-                      e.target.value
-                    )
+                    setTitle(e.target.value)
                   }
                   className="
                     block
@@ -1082,9 +1023,7 @@ export default function ExpensesPage() {
                   placeholder="Ex : 5000"
                   value={amount}
                   onChange={(e) =>
-                    setAmount(
-                      e.target.value
-                    )
+                    setAmount(e.target.value)
                   }
                   className="
                     block
@@ -1127,9 +1066,7 @@ export default function ExpensesPage() {
                 <select
                   value={currency}
                   onChange={(e) =>
-                    setCurrency(
-                      e.target.value
-                    )
+                    setCurrency(e.target.value)
                   }
                   className="
                     block
@@ -1154,8 +1091,7 @@ export default function ExpensesPage() {
                     value="FC"
                     className="bg-[#111827]"
                   >
-                    🇨🇩 Franc Congolais
-                    (FC)
+                    🇨🇩 Franc Congolais (FC)
                   </option>
 
                   <option
@@ -1170,48 +1106,45 @@ export default function ExpensesPage() {
 
             {/* RESUME */}
 
-            {amount &&
-              Number(amount) > 0 && (
-                <div
+            {amount && Number(amount) > 0 && (
+              <div
+                className="
+                  mt-4
+                  w-full
+                  min-w-0
+                  overflow-hidden
+                  rounded-2xl
+                  border
+                  border-orange-400/20
+                  bg-orange-500/10
+                  p-4
+                "
+              >
+                <p
                   className="
-                    mt-4
-                    w-full
-                    min-w-0
-                    overflow-hidden
-                    rounded-2xl
-                    border
-                    border-orange-400/20
-                    bg-orange-500/10
-                    p-4
+                    text-xs
+                    font-bold
+                    text-slate-400
                   "
                 >
-                  <p
-                    className="
-                      text-xs
-                      font-bold
-                      text-slate-400
-                    "
-                  >
-                    Montant
-                  </p>
+                  Montant
+                </p>
 
-                  <p
-                    className="
-                      mt-1
-                      break-words
-                      text-2xl
-                      font-black
-                      text-orange-400
-                      sm:text-3xl
-                    "
-                  >
-                    {formatMoney(
-                      Number(amount)
-                    )}{" "}
-                    {currency}
-                  </p>
-                </div>
-              )}
+                <p
+                  className="
+                    mt-1
+                    break-words
+                    text-2xl
+                    font-black
+                    text-orange-400
+                    sm:text-3xl
+                  "
+                >
+                  {formatMoney(Number(amount))}{" "}
+                  {currency}
+                </p>
+              </div>
+            )}
 
             {/* BOUTON */}
 
@@ -1344,12 +1277,7 @@ export default function ExpensesPage() {
             >
               {/* DATE */}
 
-              <div
-                className="
-                  relative
-                  min-w-0
-                "
-              >
+              <div className="relative min-w-0">
                 <CalendarDays
                   size={18}
                   className="
@@ -1367,9 +1295,7 @@ export default function ExpensesPage() {
                   type="date"
                   value={searchDate}
                   onChange={(e) =>
-                    setSearchDate(
-                      e.target.value
-                    )
+                    setSearchDate(e.target.value)
                   }
                   className="
                     block
@@ -1466,147 +1392,123 @@ export default function ExpensesPage() {
           </section>
 
           {/* ======================================================
-              AUJOURD'HUI / HIER
-          ====================================================== */}
-
-         
-                
-
-               
-
-          {/* ======================================================
               DATE RECHERCHEE
           ====================================================== */}
 
-          {searchDate &&
-            !showAll && (
-              <section
+          {searchDate && !showAll && (
+            <section
+              className="
+                w-full
+                min-w-0
+                overflow-hidden
+                rounded-3xl
+                border
+                border-white/10
+                bg-white/[0.04]
+                p-4
+                shadow-xl
+                sm:p-6
+              "
+            >
+              <div
                 className="
-                  w-full
+                  mb-5
+                  flex
                   min-w-0
-                  overflow-hidden
-                  rounded-3xl
-                  border
-                  border-white/10
-                  bg-white/[0.04]
-                  p-4
-                  shadow-xl
-                  sm:p-6
+                  items-start
+                  justify-between
+                  gap-3
                 "
               >
                 <div
                   className="
-                    mb-5
                     flex
                     min-w-0
                     items-start
-                    justify-between
                     gap-3
                   "
                 >
                   <div
                     className="
                       flex
-                      min-w-0
-                      items-start
-                      gap-3
-                    "
-                  >
-                    <div
-                      className="
-                        flex
-                        h-10
-                        w-10
-                        shrink-0
-                        items-center
-                        justify-center
-                        rounded-xl
-                        bg-orange-500/10
-                        text-orange-400
-                      "
-                    >
-                      <CalendarDays
-                        size={19}
-                      />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h2
-                        className="
-                          break-words
-                          text-lg
-                          font-black
-                          text-white
-                          sm:text-xl
-                        "
-                      >
-                        Dépenses du{" "}
-                        {searchDate}
-                      </h2>
-
-                      <p
-                        className="
-                          mt-1
-                          break-words
-                          text-xs
-                          leading-5
-                          text-slate-500
-                        "
-                      >
-                        Dépenses enregistrées
-                        à cette date
-                      </p>
-                    </div>
-                  </div>
-
-                  <span
-                    className="
+                      h-10
+                      w-10
                       shrink-0
+                      items-center
+                      justify-center
                       rounded-xl
                       bg-orange-500/10
-                      px-3
-                      py-2
-                      text-xs
-                      font-black
                       text-orange-400
                     "
                   >
-                    {
-                      searchedExpenses.length
-                    }
-                  </span>
+                    <CalendarDays size={19} />
+                  </div>
+
+                  <div className="min-w-0">
+                    <h2
+                      className="
+                        break-words
+                        text-lg
+                        font-black
+                        text-white
+                        sm:text-xl
+                      "
+                    >
+                      Dépenses du {searchDate}
+                    </h2>
+
+                    <p
+                      className="
+                        mt-1
+                        break-words
+                        text-xs
+                        leading-5
+                        text-slate-500
+                      "
+                    >
+                      Dépenses enregistrées
+                      à cette date
+                    </p>
+                  </div>
                 </div>
 
-                {searchedExpenses.length ===
-                0 ? (
-                  <EmptyState />
-                ) : (
-                  <div className="min-w-0">
-                    {searchedExpenses.map(
-                      (expense) => (
-                        <ExpenseRow
-                          key={
-                            expense.id
-                          }
-                          expense={
-                            expense
-                          }
-                          onDelete={
-                            requestDeleteExpense
-                          }
-                        />
-                      )
-                    )}
-                  </div>
-                )}
-              </section>
-            )}
+                <span
+                  className="
+                    shrink-0
+                    rounded-xl
+                    bg-orange-500/10
+                    px-3
+                    py-2
+                    text-xs
+                    font-black
+                    text-orange-400
+                  "
+                >
+                  {searchedExpenses.length}
+                </span>
+              </div>
+
+              {searchedExpenses.length === 0 ? (
+                <EmptyState />
+              ) : (
+                <div className="min-w-0">
+                  {searchedExpenses.map((expense) => (
+                    <ExpenseRow
+                      key={expense.id}
+                      expense={expense}
+                      onDelete={requestDeleteExpense}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ======================================================
-              HISTORIQUE COMPLET
+              HISTORIQUE COMPLET / 5 DERNIÈRES
           ====================================================== */}
 
-          {showAll && (
+          {!searchDate && (
             <section
               className="
                 w-full
@@ -1665,7 +1567,9 @@ export default function ExpensesPage() {
                         sm:text-xl
                       "
                     >
-                      Historique complet
+                      {showAll
+                        ? "Historique complet"
+                        : "Dernières dépenses"}
                     </h2>
 
                     <p
@@ -1677,8 +1581,9 @@ export default function ExpensesPage() {
                         text-slate-500
                       "
                     >
-                      Toutes les dépenses
-                      enregistrées
+                      {showAll
+                        ? "Toutes les dépenses enregistrées"
+                        : "Vos 5 dernières dépenses"}
                     </p>
                   </div>
                 </div>
@@ -1695,34 +1600,65 @@ export default function ExpensesPage() {
                     text-orange-400
                   "
                 >
-                  {
-                    displayedExpenses.length
-                  }{" "}
+                  {displayedExpenses.length}{" "}
                   dépense
-                  {displayedExpenses.length >
-                  1
+                  {displayedExpenses.length > 1
                     ? "s"
                     : ""}
                 </div>
               </div>
 
-              {displayedExpenses.length ===
-              0 ? (
+              {displayedExpenses.length === 0 ? (
                 <EmptyState />
               ) : (
                 <div className="min-w-0">
-                  {displayedExpenses.map(
-                    (expense) => (
-                      <ExpenseRow
-                        key={expense.id}
-                        expense={expense}
-                        onDelete={
-                          requestDeleteExpense
-                        }
-                      />
-                    )
-                  )}
+                  {displayedExpenses.map((expense) => (
+                    <ExpenseRow
+                      key={expense.id}
+                      expense={expense}
+                      onDelete={requestDeleteExpense}
+                      compact
+                    />
+                  ))}
                 </div>
+              )}
+
+              {/* BOUTON POUR VOIR TOUT */}
+
+              {expenses.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowAll(!showAll)
+                  }
+                  className="
+                    mt-4
+                    flex
+                    min-h-[50px]
+                    w-full
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-xl
+                    border
+                    border-orange-400/20
+                    bg-orange-500/10
+                    px-4
+                    py-3
+                    text-sm
+                    font-black
+                    text-orange-400
+                    transition
+                    hover:bg-orange-500/20
+                    active:scale-[0.99]
+                  "
+                >
+                  <Search size={17} />
+
+                  {showAll
+                    ? "Afficher seulement les 5 dernières"
+                    : `Voir toutes les ${expenses.length} dépenses`}
+                </button>
               )}
             </section>
           )}
@@ -2020,12 +1956,13 @@ function MoneyCard({
         w-full
         min-w-0
         overflow-hidden
-        rounded-3xl
+        rounded-2xl
         border
         border-white/10
         bg-white/[0.04]
-        p-4
+        p-3
         shadow-xl
+        sm:rounded-3xl
         sm:p-5
       "
     >
@@ -2035,18 +1972,20 @@ function MoneyCard({
           min-w-0
           items-start
           justify-between
-          gap-3
+          gap-2
+          sm:gap-3
         "
       >
         <div className="min-w-0">
           <p
             className="
               break-words
-              text-sm
+              text-xs
               font-black
-              leading-5
+              leading-4
               text-white
               sm:text-base
+              sm:leading-5
             "
           >
             {title}
@@ -2055,10 +1994,12 @@ function MoneyCard({
           <p
             className="
               mt-1
+              hidden
               break-words
               text-xs
               leading-5
               text-slate-500
+              sm:block
             "
           >
             Total enregistré aujourd'hui
@@ -2068,15 +2009,16 @@ function MoneyCard({
         <div
           className="
             flex
-            h-10
-            w-10
+            h-8
+            w-8
             shrink-0
             items-center
             justify-center
-            rounded-xl
+            rounded-lg
             bg-orange-500/10
             sm:h-11
             sm:w-11
+            sm:rounded-xl
           "
         >
           {icon}
@@ -2085,12 +2027,13 @@ function MoneyCard({
 
       <p
         className="
-          mt-5
+          mt-4
           break-words
-          text-2xl
+          text-lg
           font-black
           leading-tight
           text-white
+          sm:mt-5
           sm:text-3xl
         "
       >
@@ -2113,8 +2056,7 @@ function ExpenseList({
   data: Expense[];
   onDelete: (id: number) => void;
 }) {
-  const [showAll, setShowAll] =
-    useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const visibleExpenses = showAll
     ? data
@@ -2207,16 +2149,14 @@ function ExpenseList({
       ) : (
         <>
           <div className="min-w-0">
-            {visibleExpenses.map(
-              (expense) => (
-                <ExpenseRow
-                  key={expense.id}
-                  expense={expense}
-                  onDelete={onDelete}
-                  compact
-                />
-              )
-            )}
+            {visibleExpenses.map((expense) => (
+              <ExpenseRow
+                key={expense.id}
+                expense={expense}
+                onDelete={onDelete}
+                compact
+              />
+            ))}
           </div>
 
           {data.length > 5 && (
@@ -2267,17 +2207,11 @@ function ExpenseRow({
   onDelete: (id: number) => void;
   compact?: boolean;
 }) {
-  const formattedAmount =
-    Math.round(
-      Number(
-        expense.amount || 0
-      )
-    )
-      .toString()
-      .replace(
-        /\B(?=(\d{3})+(?!\d))/g,
-        " "
-      );
+  const formattedAmount = Math.round(
+    Number(expense.amount || 0)
+  )
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 
   return (
     <article
@@ -2288,11 +2222,7 @@ function ExpenseRow({
         border-b
         border-white/10
         last:border-0
-        ${
-          compact
-            ? "py-3"
-            : "py-4"
-        }
+        ${compact ? "py-3" : "py-4"}
       `}
     >
       <div
@@ -2300,7 +2230,8 @@ function ExpenseRow({
           flex
           min-w-0
           items-start
-          gap-3
+          gap-2
+          sm:gap-3
         "
       >
         {/* ICÔNE */}
@@ -2352,16 +2283,13 @@ function ExpenseRow({
           >
             {new Date(
               expense.created_at
-            ).toLocaleString(
-              "fr-FR",
-              {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              }
-            )}
+            ).toLocaleString("fr-FR", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </p>
         </div>
 
@@ -2372,15 +2300,16 @@ function ExpenseRow({
             flex
             shrink-0
             items-center
-            gap-2
+            gap-1.5
+            sm:gap-2
           "
         >
           <p
             className="
-              max-w-[110px]
+              max-w-[85px]
               break-words
               text-right
-              text-sm
+              text-xs
               font-black
               leading-5
               text-orange-400
@@ -2388,8 +2317,7 @@ function ExpenseRow({
               sm:text-base
             "
           >
-            {formattedAmount}{" "}
-            {expense.currency}
+            {formattedAmount} {expense.currency}
           </p>
 
           <button
