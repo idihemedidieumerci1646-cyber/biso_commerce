@@ -1,6 +1,5 @@
 "use client";
 
-
 import {
   useCallback,
   useEffect,
@@ -10,7 +9,9 @@ import {
 } from "react";
 
 import Link from "next/link";
+
 import { useRouter } from "next/navigation";
+
 import { supabase } from "@/lib/supabase";
 
 import {
@@ -42,7 +43,7 @@ import {
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
-/* TYPES                                                               */
+/* TYPES                                                              */
 /* ------------------------------------------------------------------ */
 
 type Sale = {
@@ -82,21 +83,11 @@ type Expense = {
 type Debt = {
   id?: string;
   client_name?: string | null;
-
-  /*
-    Compatibilité avec différentes structures
-    de ta table debts.
-  */
-
   amount?: number | null;
   total_amount?: number | null;
-
   paid_amount?: number | null;
-
   currency?: string | null;
-
   is_paid?: boolean | null;
-
   created_at: string;
 };
 
@@ -127,7 +118,7 @@ const zero = (): Money => ({
 });
 
 /* ------------------------------------------------------------------ */
-/* CACHE LOCAL                                                         */
+/* CACHE LOCAL                                                        */
 /* ------------------------------------------------------------------ */
 
 const DASHBOARD_CACHE_PREFIX =
@@ -149,7 +140,7 @@ function getSubscriptionCacheKey(
 }
 
 /* ------------------------------------------------------------------ */
-/* SAUVEGARDER DASHBOARD LOCAL                                         */
+/* SAUVEGARDER DASHBOARD LOCAL                                        */
 /* ------------------------------------------------------------------ */
 
 function saveDashboardCache(
@@ -176,7 +167,7 @@ function saveDashboardCache(
 }
 
 /* ------------------------------------------------------------------ */
-/* LIRE DASHBOARD LOCAL                                                */
+/* LIRE DASHBOARD LOCAL                                               */
 /* ------------------------------------------------------------------ */
 
 function getDashboardCache(
@@ -246,7 +237,7 @@ function getDashboardCache(
 }
 
 /* ------------------------------------------------------------------ */
-/* SAUVEGARDER ABONNEMENT LOCAL                                       */
+/* SAUVEGARDER ABONNEMENT LOCAL                                      */
 /* ------------------------------------------------------------------ */
 
 function saveSubscriptionCache(
@@ -261,9 +252,7 @@ function saveSubscriptionCache(
 
   try {
     localStorage.setItem(
-      getSubscriptionCacheKey(
-        userId
-      ),
+      getSubscriptionCacheKey(userId),
       JSON.stringify(subscription)
     );
   } catch (error) {
@@ -275,7 +264,7 @@ function saveSubscriptionCache(
 }
 
 /* ------------------------------------------------------------------ */
-/* LIRE ABONNEMENT LOCAL                                               */
+/* LIRE ABONNEMENT LOCAL                                              */
 /* ------------------------------------------------------------------ */
 
 function getSubscriptionCache(
@@ -290,9 +279,7 @@ function getSubscriptionCache(
   try {
     const raw =
       localStorage.getItem(
-        getSubscriptionCacheKey(
-          userId
-        )
+        getSubscriptionCacheKey(userId)
       );
 
     if (!raw) {
@@ -334,7 +321,95 @@ function getSubscriptionCache(
 }
 
 /* ------------------------------------------------------------------ */
-/* HELPERS                                                             */
+/* TEST INTERNET RÉEL                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+  IMPORTANT :
+
+  navigator.onLine === true signifie seulement que
+  le téléphone possède une interface réseau active.
+
+  Cela ne garantit PAS que l'accès Internet fonctionne.
+
+  Exemple :
+  - données mobiles activées
+  - Wi-Fi connecté
+  - forfait SIM épuisé
+  - portail captif
+  - réseau sans accès Internet
+
+  Dans ces cas, navigator.onLine peut rester à true.
+
+  Cette fonction effectue donc un véritable test réseau.
+
+  Le timeout est volontairement court afin de ne jamais
+  bloquer le démarrage du Dashboard.
+*/
+
+const REAL_CONNECTIVITY_TIMEOUT = 1500;
+
+async function checkRealInternet(): Promise<boolean> {
+  if (
+    typeof window === "undefined"
+  ) {
+    return false;
+  }
+
+  /*
+    Si le navigateur sait déjà qu'il n'y a aucune
+    connexion réseau, inutile de lancer une requête.
+  */
+
+  if (!navigator.onLine) {
+    return false;
+  }
+
+  const controller =
+    new AbortController();
+
+  const timeout =
+    window.setTimeout(
+      () => {
+        controller.abort();
+      },
+      REAL_CONNECTIVITY_TIMEOUT
+    );
+
+  try {
+    /*
+      generate_204 est un endpoint extrêmement léger.
+
+      mode no-cors permet uniquement de vérifier que
+      la requête Internet peut réellement sortir du téléphone.
+
+      On ne dépend donc pas de la réponse métier de Biso-Commerce
+      ni de Supabase pour déterminer si Internet fonctionne.
+    */
+
+    await fetch(
+      "https://www.google.com/generate_204",
+      {
+        method: "GET",
+        mode: "no-cors",
+        cache: "no-store",
+        signal:
+          controller.signal,
+      }
+    );
+
+    return true;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(
+      timeout
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* HELPERS                                                            */
 /* ------------------------------------------------------------------ */
 
 const nf =
@@ -389,9 +464,7 @@ function addTo(
 
 /*
   Les statistiques "aujourd'hui" utilisent volontairement
-  l'heure locale de l'appareil pour déterminer le début de journée.
-
-  Cela permet au changement de journée de fonctionner sans Internet.
+  l'heure locale de l'appareil.
 */
 
 function startOfToday() {
@@ -412,7 +485,8 @@ function startOfWeek() {
     startOfToday();
 
   const day =
-    (d.getDay() + 6) % 7;
+    (d.getDay() + 6) %
+    7;
 
   d.setDate(
     d.getDate() - day
@@ -429,11 +503,6 @@ function startOfMonth() {
 
   return d;
 }
-
-/*
-  Heure utilisée pour le texte "Bonjour",
-  "Bon après-midi", etc., dans le fuseau de Kinshasa.
-*/
 
 function getKinshasaHour(
   date: Date
@@ -466,29 +535,33 @@ function greeting(h: number) {
   return "Bonsoir";
 }
 
-/*
-  Affichage des dates/heures corrigé avec Africa/Kinshasa.
+function relative(
+  dateStr: string
+) {
+  const date =
+    new Date(dateStr);
 
-  La date réellement enregistrée dans Supabase
-  n'est jamais modifiée.
-*/
-
-function relative(dateStr: string) {
-  const date = new Date(dateStr);
-
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return "Date inconnue";
   }
 
-  return date.toLocaleString("fr-FR", {
-    timeZone: "Africa/Kinshasa",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return date.toLocaleString(
+    "fr-FR",
+    {
+      timeZone:
+        "Africa/Kinshasa",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }
+  );
 }
 
 function daysBetween(
@@ -547,20 +620,8 @@ function isDebtPaid(
 }
 
 /* ------------------------------------------------------------------ */
-/* CALCUL LOCAL DE L'ABONNEMENT                                       */
+/* CALCUL LOCAL DE L'ABONNEMENT                                      */
 /* ------------------------------------------------------------------ */
-
-/*
-  Cette fonction est utilisée aussi bien hors connexion
-  que lors d'une erreur Supabase.
-
-  Elle ne supprime aucune donnée.
-
-  Elle se contente de recalculer :
-  - jours utilisés
-  - jours restants
-  - statut
-*/
 
 function evaluateCachedSubscription(
   cached: CachedSubscription
@@ -607,11 +668,6 @@ function evaluateCachedSubscription(
       ? 0
       : diffDays;
 
-  /*
-    L'expiration locale est basée sur la date
-    d'expiration conservée localement.
-  */
-
   const active =
     cached.is_active === true &&
     end > current;
@@ -633,7 +689,7 @@ function evaluateCachedSubscription(
 }
 
 /* ------------------------------------------------------------------ */
-/* PETITS COMPOSANTS UI                                                */
+/* PETITS COMPOSANTS UI                                               */
 /* ------------------------------------------------------------------ */
 
 function GlassCard({
@@ -696,7 +752,7 @@ function StatCard({
   };
 
   return (
-    <GlassCard className="relative overflow-hidden p-3 transition duration-300 hover:-translate-y-0.5 hover:border-white/20">
+    <GlassCard className="relative overflow-hidden">
       <div
         className={`pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-gradient-to-br blur-2xl ${tones[tone]}`}
       />
@@ -729,42 +785,38 @@ function StatCard({
 }
 
 /* ------------------------------------------------------------------ */
-/* SKELETON                                                            */
+/* SKELETON                                                           */
 /* ------------------------------------------------------------------ */
 
 function Skeleton() {
   return (
-    <div className="min-h-screen bg-[#050b16] p-4">
-      <div className="mx-auto max-w-md space-y-4">
-        <div className="h-24 animate-pulse rounded-[1.6rem] bg-white/5" />
+    <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
+      <div className="h-28 animate-pulse rounded-[1.6rem] bg-white/5" />
 
-        <div className="h-28 animate-pulse rounded-[1.6rem] bg-white/5" />
-
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-          {Array.from({
-            length: 6,
-          }).map(
-            (_, i) => (
-              <div
-                key={i}
-                className="h-24 animate-pulse rounded-[1.6rem] bg-white/5"
-              />
-            )
-          )}
-        </div>
-
-        <div className="h-40 animate-pulse rounded-[1.6rem] bg-white/5" />
-
-        <p className="pt-2 text-center text-xs text-slate-500">
-          Chargement du tableau de bord...
-        </p>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        {Array.from({
+          length: 6,
+        }).map(
+          (_, i) => (
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-[1.6rem] bg-white/5"
+            />
+          )
+        )}
       </div>
+
+      <div className="h-40 animate-pulse rounded-[1.6rem] bg-white/5" />
+
+      <p className="pt-2 text-center text-xs text-slate-500">
+        Chargement du tableau de bord...
+      </p>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* PAGE                                                                */
+/* PAGE                                                               */
 /* ------------------------------------------------------------------ */
 
 export default function DashboardPage() {
@@ -807,14 +859,15 @@ export default function DashboardPage() {
   const [
     now,
     setNow,
-  ] = useState<Date | null>(
-    null
-  );
+  ] =
+    useState<Date | null>(
+      null
+    );
 
   const [
     isOnline,
     setIsOnline,
-  ] = useState(true);
+  ] = useState(false);
 
   const [
     daysUsed,
@@ -872,10 +925,17 @@ export default function DashboardPage() {
     );
 
   /*
+    Empêche plusieurs tests Internet simultanés.
+  */
+
+  const connectivityCheckRef =
+    useRef<Promise<boolean> | null>(
+      null
+    );
+
+  /*
     Permet de détecter précisément le passage :
     23:59:59 -> 00:00:00
-
-    sans dépendre d'Internet.
   */
 
   const currentDayRef =
@@ -911,6 +971,47 @@ export default function DashboardPage() {
   }, []);
 
   /* =========================================================
+     CONNECTIVITÉ RÉELLE
+  ========================================================= */
+
+  const verifyRealConnectivity =
+    useCallback(
+      async () => {
+        /*
+          Évite de lancer plusieurs fetch de test
+          en même temps.
+        */
+
+        if (
+          connectivityCheckRef.current
+        ) {
+          return connectivityCheckRef.current;
+        }
+
+        const check =
+          checkRealInternet();
+
+        connectivityCheckRef.current =
+          check;
+
+        try {
+          const result =
+            await check;
+
+          setIsOnline(
+            result
+          );
+
+          return result;
+        } finally {
+          connectivityCheckRef.current =
+            null;
+        }
+      },
+      []
+    );
+
+  /* =========================================================
      ABONNEMENT
   ========================================================= */
 
@@ -921,14 +1022,15 @@ export default function DashboardPage() {
       ) => {
         /*
           ----------------------------------------------------
-          HORS CONNEXION
+          HORS CONNEXION RÉELLE
           ----------------------------------------------------
         */
 
+        const realOnline =
+          await verifyRealConnectivity();
+
         if (
-          typeof window !==
-            "undefined" &&
-          !navigator.onLine
+          !realOnline
         ) {
           const cached =
             getSubscriptionCache(
@@ -976,7 +1078,7 @@ export default function DashboardPage() {
 
         /*
           ----------------------------------------------------
-          EN LIGNE
+          INTERNET RÉEL DISPONIBLE
           ----------------------------------------------------
         */
 
@@ -1008,12 +1110,6 @@ export default function DashboardPage() {
               "Erreur abonnement :",
               error
             );
-
-            /*
-              En cas d'erreur Supabase,
-              le calcul local reste prioritaire
-              si un abonnement a déjà été enregistré.
-            */
 
             const cached =
               getSubscriptionCache(
@@ -1070,12 +1166,6 @@ export default function DashboardPage() {
 
             return false;
           }
-
-          /*
-            Sauvegarder la vraie information serveur
-            localement afin que l'expiration continue
-            à fonctionner sans Internet.
-          */
 
           saveSubscriptionCache(
             userId,
@@ -1158,11 +1248,6 @@ export default function DashboardPage() {
             error
           );
 
-          /*
-            Même avec une panne réseau inattendue,
-            utiliser l'abonnement sauvegardé localement.
-          */
-
           const cached =
             getSubscriptionCache(
               userId
@@ -1200,7 +1285,9 @@ export default function DashboardPage() {
           return true;
         }
       },
-      []
+      [
+        verifyRealConnectivity,
+      ]
     );
 
   /* ============================================================
@@ -1214,13 +1301,21 @@ export default function DashboardPage() {
       ) => {
         /*
           ----------------------------------------------------
-          HORS CONNEXION
+          TEST INTERNET RÉEL AVANT SUPABASE
+          ----------------------------------------------------
+        */
+
+        const realOnline =
+          await verifyRealConnectivity();
+
+        /*
+          ----------------------------------------------------
+          HORS CONNEXION RÉELLE
           ----------------------------------------------------
         */
 
         if (
-          typeof window !== "undefined" &&
-          !navigator.onLine
+          !realOnline
         ) {
           const cached =
             getDashboardCache(
@@ -1277,7 +1372,7 @@ export default function DashboardPage() {
 
         /*
           ----------------------------------------------------
-          EN LIGNE
+          INTERNET RÉEL DISPONIBLE
           ----------------------------------------------------
         */
 
@@ -1442,10 +1537,6 @@ export default function DashboardPage() {
             syncDate
           );
 
-          /*
-            CACHE
-          */
-
           saveDashboardCache(
             userId,
             {
@@ -1475,9 +1566,14 @@ export default function DashboardPage() {
           );
 
           /*
-            En cas d'erreur réseau :
-            récupérer le dernier cache.
+            Si la connexion disparaît pendant
+            les requêtes Supabase, repasser
+            immédiatement au cache local.
           */
+
+          setIsOnline(
+            false
+          );
 
           const cached =
             getDashboardCache(
@@ -1524,7 +1620,9 @@ export default function DashboardPage() {
           }
         }
       },
-      []
+      [
+        verifyRealConnectivity,
+      ]
     );
 
   /* ============================================================
@@ -1564,24 +1662,33 @@ export default function DashboardPage() {
 
           /*
             --------------------------------------------------
-            HORS CONNEXION
+            TEST INTERNET RÉEL
+            --------------------------------------------------
+          */
+
+          const realOnline =
+            await verifyRealConnectivity();
+
+          /*
+            --------------------------------------------------
+            HORS CONNEXION RÉELLE
             --------------------------------------------------
           */
 
           if (
-            !navigator.onLine
+            !realOnline
           ) {
+            /*
+              Le user_id doit normalement
+              avoir été sauvegardé au login.
+
+              On ne redirige pas vers Supabase
+              puisqu'il n'y a pas Internet.
+            */
+
             if (
               !userId
             ) {
-              /*
-                Le user_id doit normalement
-                avoir été sauvegardé au login.
-
-                On ne redirige pas vers Supabase
-                puisqu'il n'y a pas Internet.
-              */
-
               setInitialLoading(
                 false
               );
@@ -1613,7 +1720,7 @@ export default function DashboardPage() {
 
           /*
             --------------------------------------------------
-            EN LIGNE
+            INTERNET RÉEL DISPONIBLE
             --------------------------------------------------
           */
 
@@ -1755,6 +1862,7 @@ export default function DashboardPage() {
         router,
         loadDashboard,
         checkSubscription,
+        verifyRealConnectivity,
       ]
     );
 
@@ -1777,6 +1885,32 @@ export default function DashboardPage() {
         );
 
         try {
+          /*
+            Actualiser = tester Internet réel
+            avant de lancer Supabase.
+          */
+
+          const realOnline =
+            await verifyRealConnectivity();
+
+          if (
+            !realOnline
+          ) {
+            /*
+              On reste en mode local.
+            */
+
+            await loadDashboard(
+              userIdRef.current
+            );
+
+            await checkSubscription(
+              userIdRef.current
+            );
+
+            return;
+          }
+
           await Promise.all(
             [
               loadDashboard(
@@ -1798,6 +1932,7 @@ export default function DashboardPage() {
         refreshing,
         loadDashboard,
         checkSubscription,
+        verifyRealConnectivity,
       ]
     );
 
@@ -1813,43 +1948,50 @@ export default function DashboardPage() {
       return;
     }
 
-    setIsOnline(
-      navigator.onLine
-    );
+    /*
+      Ne pas utiliser directement navigator.onLine
+      pour afficher "En ligne".
+
+      On effectue immédiatement un vrai test.
+    */
+
+    void verifyRealConnectivity();
+
+    /*
+      Quand Android/iOS annonce "online",
+      on vérifie Internet réellement.
+    */
 
     const handleOnline =
       () => {
-        setIsOnline(
-          true
-        );
+        void (async () => {
+          const realOnline =
+            await verifyRealConnectivity();
 
-        /*
-          Resynchronisation
-          dès le retour Internet.
-        */
-
-        if (
-          userIdRef.current
-        ) {
-          window.setTimeout(
-            () => {
-              void refresh();
-            },
-            300
-          );
-        }
+          if (
+            realOnline &&
+            userIdRef.current
+          ) {
+            window.setTimeout(
+              () => {
+                void refresh();
+              },
+              300
+            );
+          }
+        })();
       };
+
+    /*
+      Quand le téléphone annonce "offline",
+      passage immédiat en mode local.
+    */
 
     const handleOffline =
       () => {
         setIsOnline(
           false
         );
-
-        /*
-          Recharger immédiatement
-          depuis le cache.
-        */
 
         if (
           userIdRef.current
@@ -1874,6 +2016,48 @@ export default function DashboardPage() {
       handleOffline
     );
 
+    /*
+      IMPORTANT :
+
+      navigator.onLine peut rester TRUE alors que
+      le forfait SIM est épuisé.
+
+      On effectue donc régulièrement un vrai test.
+
+      10 secondes est suffisamment léger tout en
+      permettant de détecter automatiquement le retour
+      d'Internet.
+    */
+
+    const connectivityTimer =
+      window.setInterval(
+        async () => {
+          const previous =
+            isOnline;
+
+          const current =
+            await verifyRealConnectivity();
+
+          /*
+            Internet vient réellement de revenir.
+          */
+
+          if (
+            !previous &&
+            current &&
+            userIdRef.current
+          ) {
+            window.setTimeout(
+              () => {
+                void refresh();
+              },
+              300
+            );
+          }
+        },
+        10000
+      );
+
     return () => {
       window.removeEventListener(
         "online",
@@ -1884,11 +2068,17 @@ export default function DashboardPage() {
         "offline",
         handleOffline
       );
+
+      window.clearInterval(
+        connectivityTimer
+      );
     };
   }, [
     refresh,
     loadDashboard,
     checkSubscription,
+    verifyRealConnectivity,
+    isOnline,
   ]);
 
   /* ============================================================
@@ -1910,16 +2100,6 @@ export default function DashboardPage() {
       return;
     }
 
-    /*
-      La clé est calculée avec la date locale
-      de l'appareil.
-
-      Exemple :
-      26/08/2026
-      puis
-      27/08/2026
-    */
-
     const dayKey =
       `${now.getFullYear()}-${String(
         now.getMonth() + 1
@@ -1933,11 +2113,6 @@ export default function DashboardPage() {
         "0"
       )}`;
 
-    /*
-      Première initialisation :
-      on mémorise simplement le jour actuel.
-    */
-
     if (
       currentDayRef.current ===
       null
@@ -1948,27 +2123,12 @@ export default function DashboardPage() {
       return;
     }
 
-    /*
-      Si la date change, un nouveau jour
-      vient de commencer.
-
-      AUCUNE donnée n'est supprimée.
-      Les statistiques sont simplement
-      recalculées grâce à now qui déclenche
-      le useMemo des statistiques.
-    */
-
     if (
       currentDayRef.current !==
       dayKey
     ) {
       currentDayRef.current =
         dayKey;
-
-      /*
-        Recalcul local immédiat de
-        l'abonnement, même sans Internet.
-      */
 
       if (
         userIdRef.current
@@ -1977,26 +2137,9 @@ export default function DashboardPage() {
           userIdRef.current
         );
 
-        /*
-          Si Internet est disponible,
-          on resynchronise également les
-          données serveur.
-
-          Sans Internet, loadDashboard
-          utilise uniquement le cache local.
-        */
-
-        if (
-          navigator.onLine
-        ) {
-          void loadDashboard(
-            userIdRef.current
-          );
-        } else {
-          void loadDashboard(
-            userIdRef.current
-          );
-        }
+        void loadDashboard(
+          userIdRef.current
+        );
       }
     }
   }, [
@@ -2011,13 +2154,6 @@ export default function DashboardPage() {
 
   const stats =
     useMemo(() => {
-      /*
-        IMPORTANT :
-        Le produit le plus vendu est maintenant
-        calculé UNIQUEMENT avec les ventes
-        du jour actuel.
-      */
-
       const dayStartDate =
         startOfToday();
 
@@ -2077,12 +2213,6 @@ export default function DashboardPage() {
         ) {
           continue;
         }
-
-        /*
-          --------------------------------------------------
-          PRODUIT LE PLUS VENDU — AUJOURD'HUI UNIQUEMENT
-          --------------------------------------------------
-        */
 
         if (
           t >=
@@ -2166,11 +2296,6 @@ export default function DashboardPage() {
           );
         }
       }
-
-      /*
-        Le classement est construit APRÈS avoir
-        filtré les ventes du jour.
-      */
 
       const bestProduct =
         Object.entries(
@@ -2651,53 +2776,55 @@ export default function DashboardPage() {
     "expired"
   ) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050b16] p-5">
-        <GlassCard className="w-full max-w-md text-center">
-          <div className="mx-auto mb-4 w-fit rounded-2xl bg-gradient-to-br from-rose-500/30 to-orange-400/10 p-4">
-            <ShieldCheck className="h-8 w-8 text-rose-300" />
-          </div>
+      <div className="min-h-screen bg-[#020817] p-4 text-white">
+        <div className="mx-auto flex min-h-[80vh] w-full max-w-md items-center justify-center">
+          <GlassCard className="w-full text-center">
+            <div className="mx-auto flex w-fit rounded-2xl bg-orange-500/10 p-4">
+              <Crown className="h-8 w-8 text-orange-300" />
+            </div>
 
-          <h1 className="text-2xl font-black text-white">
-            Abonnement expiré
-          </h1>
+            <h1 className="mt-4 text-2xl font-black text-white">
+              Abonnement expiré
+            </h1>
 
-          <p className="mt-3 text-sm leading-relaxed text-slate-400">
-            Votre période gratuite ou votre abonnement est terminé.
-            <br />
-            Renouvelez votre accès pour continuer à gérer votre commerce.
-          </p>
+            <p className="mt-3 text-sm leading-relaxed text-slate-400">
+              Votre période gratuite ou votre abonnement est terminé.
+              <br />
+              Renouvelez votre accès pour continuer à gérer votre commerce.
+            </p>
 
-          <Link
-            href="/subscription"
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black"
-          >
-            <Crown className="h-5 w-5" />
-            Renouveler abonnement
-          </Link>
+            <Link
+              href="/subscription"
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-4 font-black text-black"
+            >
+              <Crown className="h-5 w-5" />
+              Renouveler abonnement
+            </Link>
 
-          <a
-            href="https://wa.me/243994864173"
-            className="mt-3 block w-full rounded-2xl border border-white/10 p-4 text-sm font-semibold text-slate-300"
-          >
-            Contacter le support WhatsApp
-          </a>
+            <a
+              href="https://wa.me/243994864173"
+              className="mt-3 block w-full rounded-2xl border border-white/10 p-4 text-sm font-semibold text-slate-300"
+            >
+              Contacter le support WhatsApp
+            </a>
 
-          <div className="mt-5 flex items-center justify-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-3 py-1.5 text-[10px] font-black text-rose-300">
-              {isOnline ? (
-                <>
-                  <Wifi className="h-3.5 w-3.5" />
-                  En ligne
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-3.5 w-3.5" />
-                  Hors connexion
-                </>
-              )}
-            </span>
-          </div>
-        </GlassCard>
+            <div className="mt-5 flex items-center justify-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-3 py-1.5 text-[10px] font-black text-rose-300">
+                {isOnline ? (
+                  <>
+                    <Wifi className="h-3.5 w-3.5" />
+                    En ligne
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="h-3.5 w-3.5" />
+                    Hors connexion
+                  </>
+                )}
+              </span>
+            </div>
+          </GlassCard>
+        </div>
       </div>
     );
   }
@@ -2811,16 +2938,16 @@ export default function DashboardPage() {
   const alerts = [
     stats.lowStock.length >
       0 && {
-      key: "low",
-      icon:
-        AlertTriangle,
-      text:
-        `${stats.lowStock.length} produit(s) presque épuisé(s)`,
-      href:
-        "/products/low-stock",
-      tone:
-        "text-amber-300",
-    },
+        key: "low",
+        icon:
+          AlertTriangle,
+        text:
+          `${stats.lowStock.length} produit(s) presque épuisé(s)`,
+        href:
+          "/products/low-stock",
+        tone:
+          "text-amber-300",
+      },
 
     stats.outOfStock
       .length > 0 && {
@@ -2890,11 +3017,9 @@ export default function DashboardPage() {
     },
   ].filter(Boolean) as {
     key: string;
-
     icon: React.ComponentType<{
       className?: string;
     }>;
-
     text: string;
     href: string;
     tone: string;
@@ -2905,8 +3030,7 @@ export default function DashboardPage() {
   ============================================================ */
 
   return (
-    <div className="min-h-screen bg-[#050b16] pb-16 text-white">
-
+    <div className="min-h-screen bg-[#020817] text-white">
       {/* HALO */}
 
       <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(249,115,22,0.18),transparent)]" />
@@ -3075,6 +3199,7 @@ export default function DashboardPage() {
 
           {!isOnline && (
             <p className="mt-3 rounded-xl bg-amber-500/10 p-2.5 text-[10px] font-semibold text-amber-300">
+              Mode hors connexion — abonnement vérifié localement.
             </p>
           )}
 
@@ -3557,8 +3682,6 @@ export default function DashboardPage() {
             className="w-full max-w-md overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f] shadow-[0_25px_80px_-20px_rgba(0,0,0,0.9)]"
           >
 
-            {/* HEADER */}
-
             <div className="border-b border-white/10 bg-[#07111f] px-5 py-4">
 
               <div className="flex items-center justify-between gap-3">
@@ -3593,13 +3716,9 @@ export default function DashboardPage() {
 
             </div>
 
-            {/* CONTENU */}
-
             <div className="max-h-[82vh] overflow-y-auto p-5">
 
               <div className="space-y-5">
-
-                {/* BIENVENUE */}
 
                 <div className="overflow-hidden rounded-[1.5rem] border border-orange-400/20 bg-gradient-to-br from-orange-500/15 via-orange-500/5 to-yellow-400/5 p-5">
 
@@ -3632,8 +3751,6 @@ export default function DashboardPage() {
                   </p>
 
                 </div>
-
-                {/* FONCTIONNALITÉS */}
 
                 <div>
 
@@ -3719,8 +3836,6 @@ export default function DashboardPage() {
 
                 </div>
 
-                {/* POURQUOI */}
-
                 <div className="rounded-[1.5rem] border border-emerald-400/15 bg-emerald-500/[0.04] p-4">
 
                   <p className="text-sm font-black text-white">
@@ -3761,10 +3876,6 @@ export default function DashboardPage() {
                   </div>
 
                 </div>
-
-               
-
-                {/* INSTALLATION */}
 
                 <div className="rounded-[1.5rem] border border-sky-400/15 bg-sky-500/[0.04] p-4">
 
@@ -3855,8 +3966,6 @@ export default function DashboardPage() {
 
                 </div>
 
-                {/* SUPPORT */}
-
                 <div className="rounded-[1.5rem] border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.02] p-4">
 
                   <div className="flex items-center gap-3">
@@ -3894,8 +4003,6 @@ export default function DashboardPage() {
 
                 </div>
 
-                {/* CONSEIL */}
-
                 <div className="rounded-2xl border border-orange-400/10 bg-orange-500/[0.03] p-4">
 
                   <p className="text-xs font-black text-orange-300">
@@ -3907,8 +4014,6 @@ export default function DashboardPage() {
                   </p>
 
                 </div>
-
-                {/* FINAL */}
 
                 <div className="border-t border-white/10 pt-5 text-center">
 
