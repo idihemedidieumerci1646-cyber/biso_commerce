@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from "next/image";
@@ -14,15 +15,122 @@ import {
   WifiOff,
 } from "lucide-react";
 
+/**
+ * Vérifie si Internet fonctionne réellement.
+ *
+ * navigator.onLine peut être TRUE alors que :
+ * - les données mobiles sont épuisées ;
+ * - le réseau est connecté mais Internet ne répond pas ;
+ * - la requête reste bloquée.
+ *
+ * On utilise donc une vraie requête avec timeout.
+ */
+async function hasRealInternet(timeout = 3000): Promise<boolean> {
+  if (!navigator.onLine) {
+    return false;
+  }
+
+  const controller = new AbortController();
+
+  const timer = window.setTimeout(() => {
+    controller.abort();
+  }, timeout);
+
+  try {
+    await fetch("https://www.gstatic.com/generate_204", {
+      method: "GET",
+      mode: "no-cors",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    return true;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const phone = localStorage.getItem("phone");
+    let cancelled = false;
 
-    if (phone) {
-      router.replace("/dashboard");
-    }
+    const checkAndRedirect = async () => {
+      try {
+        const phone = localStorage.getItem("phone");
+
+        /**
+         * Aucun utilisateur connecté :
+         * on laisse simplement la page principale s'afficher.
+         */
+        if (!phone) {
+          return;
+        }
+
+        /**
+         * Si le téléphone est réellement hors connexion,
+         * on ne fait PAS de requête Internet et on ne force
+         * pas une navigation qui pourrait rester bloquée.
+         *
+         * La page principale reste donc immédiatement visible.
+         */
+        if (!navigator.onLine) {
+          return;
+        }
+
+        /**
+         * Même si navigator.onLine === true, Internet peut
+         * ne pas fonctionner réellement lorsque le forfait
+         * mobile est épuisé.
+         *
+         * On attend au maximum 3 secondes.
+         */
+        const internetWorks = await hasRealInternet(3000);
+
+        if (cancelled) {
+          return;
+        }
+
+        /**
+         * Internet fonctionne réellement :
+         * comportement normal → Dashboard.
+         */
+        if (internetWorks) {
+          router.replace("/dashboard");
+          return;
+        }
+
+        /**
+         * Internet ne fonctionne pas réellement.
+         *
+         * IMPORTANT :
+         * on ne fait PAS router.replace("/dashboard")
+         * dans ce cas.
+         *
+         * Cela évite que la première page reste blanche
+         * lorsque le téléphone indique "connecté" alors
+         * que le forfait/data est épuisé.
+         */
+        console.warn(
+          "Internet détecté comme indisponible malgré navigator.onLine = true."
+        );
+      } catch (error) {
+        /**
+         * Une erreur pendant le test réseau ne doit jamais
+         * empêcher l'affichage de cette page.
+         */
+        console.warn("Test de connexion impossible :", error);
+      }
+    };
+
+    checkAndRedirect();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   return (
@@ -233,7 +341,6 @@ export default function Home() {
           ================================================== */}
 
           <div className="px-4 py-5 sm:px-6 sm:py-6">
-
             {/* MINI FONCTIONS */}
 
             <div className="grid grid-cols-2 gap-2.5">
@@ -479,3 +586,4 @@ function FeatureCard({
     </div>
   );
 }
+
