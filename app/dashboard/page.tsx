@@ -409,6 +409,49 @@ async function checkRealInternet(): Promise<boolean> {
 }
 
 /* ------------------------------------------------------------------ */
+/* TIMEOUT RÉSEAU SUPABASE                                            */
+/* ------------------------------------------------------------------ */
+
+/*
+  Les requêtes Supabase doivent elles aussi avoir une limite de temps.
+  Cela évite qu'une mauvaise connexion, un forfait épuisé ou Safari/iOS
+  garde une requête en attente assez longtemps pour donner l'impression
+  que le Dashboard est bloqué.
+
+  Le signal est transmis directement à Supabase afin que la requête soit
+  réellement annulée lorsque le délai est dépassé.
+*/
+const SUPABASE_REQUEST_TIMEOUT = 5000;
+
+async function withSupabaseTimeout<T>(
+  request: (
+    signal: AbortSignal
+  ) => PromiseLike<T>,
+  timeout = SUPABASE_REQUEST_TIMEOUT
+): Promise<T> {
+  const controller =
+    new AbortController();
+
+  const timer =
+    window.setTimeout(
+      () => {
+        controller.abort();
+      },
+      timeout
+    );
+
+  try {
+    return await request(
+      controller.signal
+    );
+  } finally {
+    window.clearTimeout(
+      timer
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* HELPERS                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -1087,23 +1130,29 @@ export default function DashboardPage() {
             data,
             error,
           } =
-            await supabase
-              .from(
-                "subscriptions"
-              )
-              .select("*")
-              .eq(
-                "user_id",
-                userId
-              )
-              .order(
-                "created_at",
-                {
-                  ascending:
-                    false,
-                }
-              )
-              .limit(1);
+            await withSupabaseTimeout(
+              (signal) =>
+                supabase
+                  .from(
+                    "subscriptions"
+                  )
+                  .select("*")
+                  .eq(
+                    "user_id",
+                    userId
+                  )
+                  .order(
+                    "created_at",
+                    {
+                      ascending:
+                        false,
+                    }
+                  )
+                  .limit(1)
+                  .abortSignal(
+                    signal
+                  )
+            );
 
           if (error) {
             console.error(
@@ -1301,6 +1350,60 @@ export default function DashboardPage() {
       ) => {
         /*
           ----------------------------------------------------
+          CACHE LOCAL EN PREMIER
+          ----------------------------------------------------
+
+          IMPORTANT :
+          le Dashboard ne doit jamais attendre Internet pour
+          afficher les données déjà disponibles localement.
+
+          Cette étape est volontairement AVANT le test réseau.
+        */
+
+        const cached =
+          getDashboardCache(
+            userId
+          );
+
+        if (cached) {
+          setSales(
+            cached.sales || []
+          );
+
+          setProducts(
+            cached.products || []
+          );
+
+          setExpenses(
+            cached.expenses || []
+          );
+
+          setDebts(
+            cached.debts || []
+          );
+
+          setClientsCount(
+            cached.clientsCount || 0
+          );
+
+          const savedAt =
+            new Date(
+              cached.savedAt
+            );
+
+          if (
+            !Number.isNaN(
+              savedAt.getTime()
+            )
+          ) {
+            setLastSync(
+              savedAt
+            );
+          }
+        }
+
+        /*
+          ----------------------------------------------------
           TEST INTERNET RÉEL AVANT SUPABASE
           ----------------------------------------------------
         */
@@ -1317,55 +1420,18 @@ export default function DashboardPage() {
         if (
           !realOnline
         ) {
-          const cached =
-            getDashboardCache(
-              userId
-            );
+          /*
+            Les données locales ont déjà été affichées.
+            Aucun appel Supabase n'est lancé.
+          */
 
-          if (cached) {
-            setSales(
-              cached.sales || []
-            );
-
-            setProducts(
-              cached.products || []
-            );
-
-            setExpenses(
-              cached.expenses || []
-            );
-
-            setDebts(
-              cached.debts || []
-            );
-
-            setClientsCount(
-              cached.clientsCount || 0
-            );
-
-            const savedAt =
-              new Date(
-                cached.savedAt
-              );
-
-            if (
-              !Number.isNaN(
-                savedAt.getTime()
-              )
-            ) {
-              setLastSync(
-                savedAt
-              );
-            }
-
-            return;
+          if (!cached) {
+            setSales([]);
+            setProducts([]);
+            setExpenses([]);
+            setDebts([]);
+            setClientsCount(0);
           }
-
-          setSales([]);
-          setProducts([]);
-          setExpenses([]);
-          setDebts([]);
-          setClientsCount(0);
 
           return;
         }
@@ -1398,81 +1464,105 @@ export default function DashboardPage() {
           ] =
             await Promise.all(
               [
-                supabase
-                  .from(
-                    "sales"
-                  )
-                  .select("*")
-                  .eq(
-                    "user_id",
-                    userId
-                  )
-                  .gte(
-                    "created_at",
-                    chartStart.toISOString()
-                  )
-                  .order(
-                    "created_at",
-                    {
-                      ascending:
-                        false,
-                    }
-                  ),
+                withSupabaseTimeout(
+                  (signal) =>
+                    supabase
+                      .from(
+                        "sales"
+                      )
+                      .select("*")
+                      .eq(
+                        "user_id",
+                        userId
+                      )
+                      .gte(
+                        "created_at",
+                        chartStart.toISOString()
+                      )
+                      .order(
+                        "created_at",
+                        {
+                          ascending:
+                            false,
+                        }
+                      )
+                      .abortSignal(
+                        signal
+                      )
+                ),
 
-                supabase
-                  .from(
-                    "products"
-                  )
-                  .select("*")
-                  .eq(
-                    "user_id",
-                    userId
-                  )
-                  .order(
-                    "created_at",
-                    {
-                      ascending:
-                        false,
-                    }
-                  ),
+                withSupabaseTimeout(
+                  (signal) =>
+                    supabase
+                      .from(
+                        "products"
+                      )
+                      .select("*")
+                      .eq(
+                        "user_id",
+                        userId
+                      )
+                      .order(
+                        "created_at",
+                        {
+                          ascending:
+                            false,
+                        }
+                      )
+                      .abortSignal(
+                        signal
+                      )
+                ),
 
-                supabase
-                  .from(
-                    "expenses"
-                  )
-                  .select("*")
-                  .eq(
-                    "user_id",
-                    userId
-                  )
-                  .gte(
-                    "created_at",
-                    chartStart.toISOString()
-                  )
-                  .order(
-                    "created_at",
-                    {
-                      ascending:
-                        false,
-                    }
-                  ),
+                withSupabaseTimeout(
+                  (signal) =>
+                    supabase
+                      .from(
+                        "expenses"
+                      )
+                      .select("*")
+                      .eq(
+                        "user_id",
+                        userId
+                      )
+                      .gte(
+                        "created_at",
+                        chartStart.toISOString()
+                      )
+                      .order(
+                        "created_at",
+                        {
+                          ascending:
+                            false,
+                        }
+                      )
+                      .abortSignal(
+                        signal
+                      )
+                ),
 
-                supabase
-                  .from(
-                    "debts"
-                  )
-                  .select("*")
-                  .eq(
-                    "user_id",
-                    userId
-                  )
-                  .order(
-                    "created_at",
-                    {
-                      ascending:
-                        false,
-                    }
-                  ),
+                withSupabaseTimeout(
+                  (signal) =>
+                    supabase
+                      .from(
+                        "debts"
+                      )
+                      .select("*")
+                      .eq(
+                        "user_id",
+                        userId
+                      )
+                      .order(
+                        "created_at",
+                        {
+                          ascending:
+                            false,
+                        }
+                      )
+                      .abortSignal(
+                        signal
+                      )
+                ),
               ]
             );
 
@@ -1662,32 +1752,36 @@ export default function DashboardPage() {
 
           /*
             --------------------------------------------------
-            TEST INTERNET RÉEL
+            IDENTITÉ LOCALE + CACHE IMMÉDIAT
             --------------------------------------------------
-          */
 
-          const realOnline =
-            await verifyRealConnectivity();
+            IMPORTANT :
+            on ne teste PAS Internet avant cette étape.
 
-          /*
-            --------------------------------------------------
-            HORS CONNEXION RÉELLE
-            --------------------------------------------------
+            navigator.onLine peut être true avec un forfait
+            épuisé, un réseau très lent ou aucun accès réel.
+            Dans tous ces cas, le Dashboard doit quand même
+            afficher immédiatement ses données locales.
           */
 
           if (
-            !realOnline
+            !userId
           ) {
             /*
-              Le user_id doit normalement
-              avoir été sauvegardé au login.
+              Le user_id est normalement sauvegardé au login.
 
-              On ne redirige pas vers Supabase
-              puisqu'il n'y a pas Internet.
+              S'il manque, Internet est nécessaire uniquement
+              pour retrouver l'identité de l'utilisateur.
+              On vérifie d'abord l'accès Internet réel afin
+              de ne pas lancer inutilement Supabase lorsque
+              le forfait est épuisé ou le réseau indisponible.
             */
 
+            const realOnline =
+              await verifyRealConnectivity();
+
             if (
-              !userId
+              !realOnline
             ) {
               setInitialLoading(
                 false
@@ -1696,53 +1790,43 @@ export default function DashboardPage() {
               return;
             }
 
-            userIdRef.current =
-              userId;
+           const userRequest = supabase
+  .from("users")
+  .select("id")
+  .eq("phone", phone)
+  .single();
 
-            /*
-              AFFICHAGE LOCAL IMMÉDIAT
-            */
+const timeoutPromise = new Promise<never>((_, reject) => {
+  setTimeout(() => {
+    reject(
+      new Error(
+        "La connexion Internet est trop lente."
+      )
+    );
+  }, SUPABASE_REQUEST_TIMEOUT);
+});
 
-            setInitialLoading(
-              false
-            );
+let user: { id: string } | null = null;
+let error: any = null;
 
-            await loadDashboard(
-              userId
-            );
+try {
+  const result = await Promise.race([
+    userRequest,
+    timeoutPromise,
+  ]);
 
-            await checkSubscription(
-              userId
-            );
+  user = result.data;
+  error = result.error;
+} catch (err) {
+  console.error(
+    "Timeout connexion utilisateur :",
+    err
+  );
 
-            return;
-          }
-
-          /*
-            --------------------------------------------------
-            INTERNET RÉEL DISPONIBLE
-            --------------------------------------------------
-          */
-
-          if (
-            !userId
-          ) {
-            const {
-              data: user,
-              error,
-            } =
-              await supabase
-                .from(
-                  "users"
-                )
-                .select(
-                  "id"
-                )
-                .eq(
-                  "phone",
-                  phone
-                )
-                .single();
+  setInitialLoading(false);
+  return;
+}
+              
 
             if (
               error ||
@@ -1826,6 +1910,9 @@ export default function DashboardPage() {
 
           /*
             Dashboard visible immédiatement.
+
+            La synchronisation Internet est lancée ensuite.
+            Elle ne participe PAS au rendu initial.
           */
 
           setInitialLoading(
@@ -1833,10 +1920,10 @@ export default function DashboardPage() {
           );
 
           /*
-            Synchronisation serveur.
+            Synchronisation serveur non bloquante.
           */
 
-          await Promise.all(
+          void Promise.all(
             [
               loadDashboard(
                 userId
@@ -1846,6 +1933,13 @@ export default function DashboardPage() {
                 userId
               ),
             ]
+          ).catch(
+            (error) => {
+              console.error(
+                "Erreur synchronisation Dashboard :",
+                error
+              );
+            }
           );
         } catch (error) {
           console.error(
@@ -3197,11 +3291,6 @@ export default function DashboardPage() {
 
           </div>
 
-          {!isOnline && (
-            <p className="mt-3 rounded-xl bg-amber-500/10 p-2.5 text-[10px] font-semibold text-amber-300">
-              Mode hors connexion — abonnement vérifié localement.
-            </p>
-          )}
 
         </GlassCard>
 
