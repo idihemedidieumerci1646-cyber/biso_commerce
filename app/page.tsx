@@ -1,4 +1,3 @@
-
 "use client";
 
 import Image from "next/image";
@@ -21,74 +20,30 @@ export default function Home() {
   const [checkingUser, setCheckingUser] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
-
-    /**
-     * IMPORTANT :
-     *
-     * Cette page ne vérifie PAS Internet.
-     *
-     * On vérifie uniquement si un numéro de téléphone
-     * est déjà enregistré dans localStorage.
-     *
-     * Si l'utilisateur est déjà connecté :
-     * → redirection immédiate vers /dashboard
-     *
-     * Aucun :
-     * - fetch
-     * - test Internet
-     * - navigator.onLine
-     * - délai
-     * - attente de Supabase
-     */
-
     try {
       const phone = localStorage.getItem("phone");
 
-      /**
-       * UTILISATEUR DÉJÀ CONNECTÉ
-       *
-       * On ne construit pas toute la page d'accueil.
-       * On lance directement la navigation vers le Dashboard.
-       */
       if (phone) {
-        router.replace("/dashboard");
+        // Navigation navigateur directe.
+        // Aucun test Internet.
+        // Aucun appel Supabase.
+        window.location.replace("/dashboard");
         return;
       }
     } catch (error) {
       console.warn("LocalStorage indisponible :", error);
     }
 
-    /**
-     * Aucun utilisateur connecté.
-     *
-     * On peut maintenant afficher normalement
-     * la page d'accueil.
-     */
-    if (!cancelled) {
-      setCheckingUser(false);
-    }
+    setCheckingUser(false);
+  }, []);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
-
-  /**
-   * Pendant la vérification de localStorage,
-   * on évite de construire toute la grosse interface.
-   *
-   * Cela permet également d'éviter que l'utilisateur
-   * voie brièvement la page d'accueil avant d'être
-   * envoyé vers le Dashboard.
-   */
   if (checkingUser) {
     return (
       <main className="flex min-h-screen w-full items-center justify-center bg-[#060d1b]">
         <div
           className="
-            h-8
-            w-8
+            h-7
+            w-7
             animate-spin
             rounded-full
             border-2
@@ -119,10 +74,6 @@ export default function Home() {
         sm:py-8
       "
     >
-      {/* ==================================================
-          FOND
-      ================================================== */}
-
       <div
         className="
           absolute
@@ -136,10 +87,6 @@ export default function Home() {
         "
       />
 
-      {/* ==================================================
-          CONTENU
-      ================================================== */}
-
       <section
         className="
           overflow-hidden
@@ -151,10 +98,6 @@ export default function Home() {
           backdrop-blur-2xl
         "
       >
-        {/* ==================================================
-            HAUT
-        ================================================== */}
-
         <div
           className="
             border-b
@@ -191,8 +134,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* LOGO */}
-
           <div className="mt-5 flex justify-center">
             <div className="relative">
               <div
@@ -228,8 +169,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-          {/* TITRE */}
 
           <h1
             className="
@@ -274,13 +213,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* ==================================================
-            CONTENU
-        ================================================== */}
-
         <div className="px-4 py-5 sm:px-6 sm:py-6">
-          {/* MINI FONCTIONS */}
-
           <div className="grid grid-cols-2 gap-2.5">
             <FeatureCard
               icon={
@@ -322,8 +255,6 @@ export default function Home() {
               text="Pensé pour mobile"
             />
           </div>
-
-          {/* ACTIONS */}
 
           <div className="mt-5 space-y-2.5">
             <Link
@@ -389,8 +320,6 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* INFORMATIONS */}
-
           <div
             className="
               mt-5
@@ -443,10 +372,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ==================================================
-          PIED
-      ================================================== */}
-
       <p
         className="
           mt-4
@@ -465,10 +390,6 @@ export default function Home() {
     </main>
   );
 }
-
-/* ======================================================
-   PETITE CARTE
-====================================================== */
 
 function FeatureCard({
   icon,
