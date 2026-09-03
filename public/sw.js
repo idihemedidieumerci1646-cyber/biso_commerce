@@ -1,4 +1,4 @@
-const CACHE_VERSION = "biso-commerce-v13";
+const CACHE_VERSION = "biso-commerce-v14";
 
 const APP_SHELL = [
   "/",
@@ -15,6 +15,50 @@ const APP_SHELL = [
 ];
 
 /* =========================================================
+   TIMEOUT RÉSEAU
+========================================================= */
+
+const NETWORK_TIMEOUT = 1500;
+
+/*
+ * Évite que fetch() reste bloqué lorsque :
+ *
+ * - le Wi-Fi est connecté sans Internet
+ * - les données mobiles sont épuisées
+ * - le réseau répond très lentement
+ *
+ * IMPORTANT :
+ * Cette fonction ne touche PAS aux requêtes POST / PUT /
+ * PATCH / DELETE car ce Service Worker n'intercepte que GET.
+ */
+
+async function fetchWithTimeout(
+  request,
+  options = {},
+  timeout = NETWORK_TIMEOUT
+) {
+  const controller =
+    new AbortController();
+
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeout);
+
+  try {
+    return await fetch(
+      request,
+      {
+        ...options,
+        signal:
+          controller.signal,
+      }
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* =========================================================
    INSTALLATION
 ========================================================= */
 
@@ -22,7 +66,9 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const cache =
-        await caches.open(CACHE_VERSION);
+        await caches.open(
+          CACHE_VERSION
+        );
 
       /*
        * Pages principales.
@@ -30,11 +76,13 @@ self.addEventListener("install", (event) => {
       for (const url of APP_SHELL) {
         try {
           const response =
-            await fetch(
+            await fetchWithTimeout(
               new Request(url, {
                 method: "GET",
                 cache: "no-store",
-              })
+              }),
+              {},
+              3000
             );
 
           if (response.ok) {
@@ -160,11 +208,15 @@ function isProductEditRoute(url) {
     )
   );
 }
+
 /* =========================================================
    PRODUIT — CACHE DE LA PAGE ÉDITION
 ========================================================= */
 
-async function cacheProductEditPage(request, response) {
+async function cacheProductEditPage(
+  request,
+  response
+) {
   if (
     !response ||
     !response.ok ||
@@ -174,9 +226,10 @@ async function cacheProductEditPage(request, response) {
   }
 
   try {
-    const cache = await caches.open(
-      CACHE_VERSION
-    );
+    const cache =
+      await caches.open(
+        CACHE_VERSION
+      );
 
     /*
      * On sauvegarde l'URL exacte :
@@ -317,12 +370,14 @@ self.addEventListener(
           /*
            * =================================================
            * INTERNET D'ABORD
+           *
+           * MAIS avec timeout.
            * =================================================
            */
 
           try {
             const response =
-              await fetch(
+              await fetchWithTimeout(
                 request,
                 {
                   cache:
@@ -367,8 +422,11 @@ self.addEventListener(
           } catch (error) {
             /*
              * =================================================
-             * HORS CONNEXION
+             * HORS CONNEXION / INTERNET INDISPONIBLE
              * =================================================
+             *
+             * Le timeout empêche maintenant
+             * l'application de rester blanche.
              */
 
             console.warn(
@@ -539,7 +597,7 @@ self.addEventListener(
         (async () => {
           try {
             const response =
-              await fetch(
+              await fetchWithTimeout(
                 request,
                 {
                   cache:
@@ -613,12 +671,18 @@ self.addEventListener(
           if (cached) {
             /*
              * Mise à jour en arrière-plan.
+             *
+             * Avec timeout pour éviter
+             * une requête qui reste bloquée.
              */
 
-            fetch(request, {
-              cache:
-                "no-store",
-            })
+            fetchWithTimeout(
+              request,
+              {
+                cache:
+                  "no-store",
+              }
+            )
               .then(
                 (response) => {
                   if (
@@ -643,7 +707,7 @@ self.addEventListener(
 
           try {
             const response =
-              await fetch(
+              await fetchWithTimeout(
                 request,
                 {
                   cache:
@@ -698,7 +762,7 @@ self.addEventListener(
 
           try {
             const response =
-              await fetch(
+              await fetchWithTimeout(
                 request
               );
 
@@ -748,7 +812,7 @@ self.addEventListener(
 
           try {
             const response =
-              await fetch(
+              await fetchWithTimeout(
                 request
               );
 
@@ -788,7 +852,7 @@ self.addEventListener(
         (async () => {
           try {
             const response =
-              await fetch(
+              await fetchWithTimeout(
                 request,
                 {
                   cache:
@@ -843,7 +907,7 @@ self.addEventListener(
       (async () => {
         try {
           const response =
-            await fetch(
+            await fetchWithTimeout(
               request
             );
 

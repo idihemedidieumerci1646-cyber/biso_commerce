@@ -434,26 +434,19 @@ function startOfMonth() {
   Heure utilisée pour le texte "Bonjour",
   "Bon après-midi", etc., dans le fuseau de Kinshasa.
 */
+function getKinshasaHour(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Africa/Kinshasa",
+    hour: "numeric",
+    hour12: false,
+  }).formatToParts(date);
 
-function getKinshasaHour(
-  date: Date
-) {
-  const hour =
-    Number(
-      new Intl.DateTimeFormat(
-        "fr-FR",
-        {
-          timeZone:
-            APP_TIME_ZONE,
-          hour: "2-digit",
-          hour12: false,
-        }
-      ).format(date)
-    );
+  const hourPart = parts.find(
+    (part) => part.type === "hour"
+  );
 
-  return hour;
+  return Number(hourPart?.value ?? 0);
 }
-
 function greeting(h: number) {
   if (h < 12) {
     return "Bonjour";
@@ -1717,9 +1710,7 @@ export default function DashboardPage() {
             }
           }
 
-          /*
-            Dashboard visible immédiatement.
-          */
+
 
           setInitialLoading(
             false
@@ -2967,6 +2958,7 @@ export default function DashboardPage() {
                   )}
                 </span>
 
+                
               
 
               </div>
@@ -3017,9 +3009,10 @@ export default function DashboardPage() {
                 )
               : "—"}
 
-          
+            {!isOnline &&
+              " • VEUILLEZ RENOUVELER VOTRE FORFAIT POUR CONTINUER À UTILISER L’APPLICATION  ."}
           </p>
-        </GlassCard> 
+        </GlassCard>
 
         {/* ========================================================
             ABONNEMENT
@@ -3068,7 +3061,6 @@ export default function DashboardPage() {
 
           </div>
 
-         
 
         </GlassCard>
 
@@ -4166,9 +4158,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-
-
-
-
-
