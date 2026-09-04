@@ -1,6 +1,5 @@
 "use client";
 
-
 import {
   useCallback,
   useEffect,
@@ -82,21 +81,11 @@ type Expense = {
 type Debt = {
   id?: string;
   client_name?: string | null;
-
-  /*
-    Compatibilité avec différentes structures
-    de ta table debts.
-  */
-
   amount?: number | null;
   total_amount?: number | null;
-
   paid_amount?: number | null;
-
   currency?: string | null;
-
   is_paid?: boolean | null;
-
   created_at: string;
 };
 
@@ -135,6 +124,154 @@ const DASHBOARD_CACHE_PREFIX =
 
 const SUBSCRIPTION_CACHE_PREFIX =
   "biso-subscription-cache-";
+
+/* ------------------------------------------------------------------ */
+/* CONNEXION INTERNET RÉELLE                                          */
+/* ------------------------------------------------------------------ */
+
+const REAL_CONNECTIVITY_TIMEOUT = 1500;
+
+const SUPABASE_REQUEST_TIMEOUT = 5000;
+
+async function checkRealInternetConnection(): Promise<boolean> {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (
+    !supabaseUrl ||
+    !supabaseAnonKey
+  ) {
+    return false;
+  }
+
+  const controller =
+    new AbortController();
+
+  const timeout =
+    window.setTimeout(
+      () => controller.abort(),
+      REAL_CONNECTIVITY_TIMEOUT
+    );
+
+  try {
+    /*
+      Test réel de connexion Internet vers
+      le Supabase utilisé par Biso-Commerce.
+
+      On ne se fie PAS à navigator.onLine :
+      même si le téléphone indique "en ligne",
+      cette requête doit réellement réussir.
+    */
+
+    const response =
+      await fetch(
+        `${supabaseUrl}/rest/v1/subscriptions?select=id&limit=1`,
+        {
+          method: "GET",
+          headers: {
+            apikey:
+              supabaseAnonKey,
+
+            Authorization:
+              `Bearer ${supabaseAnonKey}`,
+          },
+          cache: "no-store",
+          signal:
+            controller.signal,
+        }
+      );
+
+    /*
+      Une réponse HTTP réussie signifie que
+      l'application peut réellement joindre
+      son serveur Supabase.
+    */
+
+    return response.ok;
+  } catch {
+    /*
+      Timeout, forfait épuisé, absence d'Internet,
+      DNS, réseau mobile sans Internet, etc.
+    */
+
+    return false;
+  } finally {
+    window.clearTimeout(
+      timeout
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* TIMEOUT REQUÊTES RÉSEAU                                            */
+/* ------------------------------------------------------------------ */
+
+function withTimeout<T>(
+  promise: PromiseLike<T>,
+  timeoutMs: number
+): Promise<T> {
+  return new Promise<T>(
+    (resolve, reject) => {
+      let finished = false;
+
+      const timer =
+        window.setTimeout(
+          () => {
+            if (finished) {
+              return;
+            }
+
+            finished = true;
+
+            reject(
+              new Error(
+                "La requête réseau a expiré."
+              )
+            );
+          },
+          timeoutMs
+        );
+
+      Promise.resolve(
+        promise
+      ).then(
+        (value) => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+
+          window.clearTimeout(
+            timer
+          );
+
+          resolve(value);
+        },
+        (error) => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+
+          window.clearTimeout(
+            timer
+          );
+
+          reject(error);
+        }
+      );
+    }
+  );
+}
 
 function getDashboardCacheKey(
   userId: string
@@ -387,13 +524,6 @@ function addTo(
   }
 }
 
-/*
-  Les statistiques "aujourd'hui" utilisent volontairement
-  l'heure locale de l'appareil pour déterminer le début de journée.
-
-  Cela permet au changement de journée de fonctionner sans Internet.
-*/
-
 function startOfToday() {
   const d = new Date();
 
@@ -430,23 +560,25 @@ function startOfMonth() {
   return d;
 }
 
-/*
-  Heure utilisée pour le texte "Bonjour",
-  "Bon après-midi", etc., dans le fuseau de Kinshasa.
-*/
 function getKinshasaHour(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Africa/Kinshasa",
-    hour: "numeric",
-    hour12: false,
-  }).formatToParts(date);
+  const parts = new Intl.DateTimeFormat(
+    "en-US",
+    {
+      timeZone: "Africa/Kinshasa",
+      hour: "numeric",
+      hour12: false,
+    }
+  ).formatToParts(date);
 
   const hourPart = parts.find(
     (part) => part.type === "hour"
   );
 
-  return Number(hourPart?.value ?? 0);
+  return Number(
+    hourPart?.value ?? 0
+  );
 }
+
 function greeting(h: number) {
   if (h < 12) {
     return "Bonjour";
@@ -459,29 +591,32 @@ function greeting(h: number) {
   return "Bonsoir";
 }
 
-/*
-  Affichage des dates/heures corrigé avec Africa/Kinshasa.
-
-  La date réellement enregistrée dans Supabase
-  n'est jamais modifiée.
-*/
-
 function relative(dateStr: string) {
-  const date = new Date(dateStr);
+  const date = new Date(
+    dateStr
+  );
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return "Date inconnue";
   }
 
-  return date.toLocaleString("fr-FR", {
-    timeZone: "Africa/Kinshasa",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return date.toLocaleString(
+    "fr-FR",
+    {
+      timeZone:
+        "Africa/Kinshasa",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }
+  );
 }
 
 function daysBetween(
@@ -543,18 +678,6 @@ function isDebtPaid(
 /* CALCUL LOCAL DE L'ABONNEMENT                                       */
 /* ------------------------------------------------------------------ */
 
-/*
-  Cette fonction est utilisée aussi bien hors connexion
-  que lors d'une erreur Supabase.
-
-  Elle ne supprime aucune donnée.
-
-  Elle se contente de recalculer :
-  - jours utilisés
-  - jours restants
-  - statut
-*/
-
 function evaluateCachedSubscription(
   cached: CachedSubscription
 ) {
@@ -599,11 +722,6 @@ function evaluateCachedSubscription(
     diffDays < 0
       ? 0
       : diffDays;
-
-  /*
-    L'expiration locale est basée sur la date
-    d'expiration conservée localement.
-  */
 
   const active =
     cached.is_active === true &&
@@ -807,7 +925,7 @@ export default function DashboardPage() {
   const [
     isOnline,
     setIsOnline,
-  ] = useState(true);
+  ] = useState(false);
 
   const [
     daysUsed,
@@ -864,13 +982,6 @@ export default function DashboardPage() {
       null
     );
 
-  /*
-    Permet de détecter précisément le passage :
-    23:59:59 -> 00:00:00
-
-    sans dépendre d'Internet.
-  */
-
   const currentDayRef =
     useRef<string | null>(
       null
@@ -912,23 +1023,20 @@ export default function DashboardPage() {
       async (
         userId: string
       ) => {
-        /*
-          ----------------------------------------------------
-          HORS CONNEXION
-          ----------------------------------------------------
-        */
-
-        if (
-          typeof window !==
-            "undefined" &&
-          !navigator.onLine
-        ) {
+        try {
           const cached =
             getSubscriptionCache(
               userId
             );
 
-          if (cached) {
+          /*
+            Le cache local est toujours calculé
+            immédiatement avant la requête serveur.
+          */
+
+          if (
+            cached
+          ) {
             const result =
               evaluateCachedSubscription(
                 cached
@@ -947,71 +1055,82 @@ export default function DashboardPage() {
                 ? "active"
                 : "expired"
             );
-
-            return result.active;
           }
 
           /*
-            S'il n'y a encore aucun cache,
-            on laisse le Dashboard visible,
-            comme dans le comportement existant.
+            La vérification Internet réelle est faite
+            avant d'utiliser Supabase.
           */
 
-          setStatus(
-            "active"
-          );
+          const realOnline =
+            await checkRealInternetConnection();
 
-          setDaysUsed(0);
-          setDaysLeft(30);
+          if (!realOnline) {
+            if (
+              cached
+            ) {
+              const result =
+                evaluateCachedSubscription(
+                  cached
+                );
 
-          return true;
-        }
+              setDaysUsed(
+                result.used
+              );
 
-        /*
-          ----------------------------------------------------
-          EN LIGNE
-          ----------------------------------------------------
-        */
+              setDaysLeft(
+                result.left
+              );
 
-        try {
+              setStatus(
+                result.active
+                  ? "active"
+                  : "expired"
+              );
+
+              return result.active;
+            }
+
+            setStatus(
+              "active"
+            );
+
+            setDaysUsed(0);
+            setDaysLeft(30);
+
+            return true;
+          }
+
           const {
             data,
             error,
           } =
-            await supabase
-              .from(
-                "subscriptions"
-              )
-              .select("*")
-              .eq(
-                "user_id",
-                userId
-              )
-              .order(
-                "created_at",
-                {
-                  ascending:
-                    false,
-                }
-              )
-              .limit(1);
+            await withTimeout(
+              supabase
+                .from(
+                  "subscriptions"
+                )
+                .select("*")
+                .eq(
+                  "user_id",
+                  userId
+                )
+                .order(
+                  "created_at",
+                  {
+                    ascending:
+                      false,
+                  }
+                )
+                .limit(1),
+              SUPABASE_REQUEST_TIMEOUT
+            );
 
           if (error) {
             console.error(
               "Erreur abonnement :",
               error
             );
-
-            /*
-              En cas d'erreur Supabase,
-              le calcul local reste prioritaire
-              si un abonnement a déjà été enregistré.
-            */
-
-            const cached =
-              getSubscriptionCache(
-                userId
-              );
 
             if (
               cached
@@ -1063,12 +1182,6 @@ export default function DashboardPage() {
 
             return false;
           }
-
-          /*
-            Sauvegarder la vraie information serveur
-            localement afin que l'expiration continue
-            à fonctionner sans Internet.
-          */
 
           saveSubscriptionCache(
             userId,
@@ -1151,11 +1264,6 @@ export default function DashboardPage() {
             error
           );
 
-          /*
-            Même avec une panne réseau inattendue,
-            utiliser l'abonnement sauvegardé localement.
-          */
-
           const cached =
             getSubscriptionCache(
               userId
@@ -1190,6 +1298,9 @@ export default function DashboardPage() {
             "active"
           );
 
+          setDaysUsed(0);
+          setDaysLeft(30);
+
           return true;
         }
       },
@@ -1205,22 +1316,20 @@ export default function DashboardPage() {
       async (
         userId: string
       ) => {
-        /*
-          ----------------------------------------------------
-          HORS CONNEXION
-          ----------------------------------------------------
-        */
-
-        if (
-          typeof window !== "undefined" &&
-          !navigator.onLine
-        ) {
+        try {
           const cached =
             getDashboardCache(
               userId
             );
 
-          if (cached) {
+          /*
+            Toujours afficher le cache local
+            avant toute tentative Supabase.
+          */
+
+          if (
+            cached
+          ) {
             setSales(
               cached.sales || []
             );
@@ -1255,26 +1364,29 @@ export default function DashboardPage() {
                 savedAt
               );
             }
+          }
+
+          /*
+            L'application ne doit jamais attendre
+            Supabase si la vraie connexion Internet
+            n'est pas disponible.
+          */
+
+          const realOnline =
+            await checkRealInternetConnection();
+
+          if (!realOnline) {
+            if (!cached) {
+              setSales([]);
+              setProducts([]);
+              setExpenses([]);
+              setDebts([]);
+              setClientsCount(0);
+            }
 
             return;
           }
 
-          setSales([]);
-          setProducts([]);
-          setExpenses([]);
-          setDebts([]);
-          setClientsCount(0);
-
-          return;
-        }
-
-        /*
-          ----------------------------------------------------
-          EN LIGNE
-          ----------------------------------------------------
-        */
-
-        try {
           const monthStart =
             startOfMonth();
 
@@ -1288,107 +1400,160 @@ export default function DashboardPage() {
               )
             );
 
-          const [
-            salesRes,
-            productsRes,
-            expensesRes,
-            debtsRes,
-          ] =
-            await Promise.all(
+          /*
+            Les quatre requêtes sont indépendantes.
+            Promise.allSettled permet à une requête
+            en échec de ne pas bloquer les autres.
+          */
+
+          const results =
+            await Promise.allSettled(
               [
-                supabase
-                  .from(
-                    "sales"
-                  )
-                  .select("*")
-                  .eq(
-                    "user_id",
-                    userId
-                  )
-                  .gte(
-                    "created_at",
-                    chartStart.toISOString()
-                  )
-                  .order(
-                    "created_at",
-                    {
-                      ascending:
-                        false,
-                    }
-                  ),
+                withTimeout(
+                  supabase
+                    .from(
+                      "sales"
+                    )
+                    .select("*")
+                    .eq(
+                      "user_id",
+                      userId
+                    )
+                    .gte(
+                      "created_at",
+                      chartStart.toISOString()
+                    )
+                    .order(
+                      "created_at",
+                      {
+                        ascending:
+                          false,
+                      }
+                    ),
+                  SUPABASE_REQUEST_TIMEOUT
+                ),
 
-                supabase
-                  .from(
-                    "products"
-                  )
-                  .select("*")
-                  .eq(
-                    "user_id",
-                    userId
-                  )
-                  .order(
-                    "created_at",
-                    {
-                      ascending:
-                        false,
-                    }
-                  ),
+                withTimeout(
+                  supabase
+                    .from(
+                      "products"
+                    )
+                    .select("*")
+                    .eq(
+                      "user_id",
+                      userId
+                    )
+                    .order(
+                      "created_at",
+                      {
+                        ascending:
+                          false,
+                      }
+                    ),
+                  SUPABASE_REQUEST_TIMEOUT
+                ),
 
-                supabase
-                  .from(
-                    "expenses"
-                  )
-                  .select("*")
-                  .eq(
-                    "user_id",
-                    userId
-                  )
-                  .gte(
-                    "created_at",
-                    chartStart.toISOString()
-                  )
-                  .order(
-                    "created_at",
-                    {
-                      ascending:
-                        false,
-                    }
-                  ),
+                withTimeout(
+                  supabase
+                    .from(
+                      "expenses"
+                    )
+                    .select("*")
+                    .eq(
+                      "user_id",
+                      userId
+                    )
+                    .gte(
+                      "created_at",
+                      chartStart.toISOString()
+                    )
+                    .order(
+                      "created_at",
+                      {
+                        ascending:
+                          false,
+                      }
+                    ),
+                  SUPABASE_REQUEST_TIMEOUT
+                ),
 
-                supabase
-                  .from(
-                    "debts"
-                  )
-                  .select("*")
-                  .eq(
-                    "user_id",
-                    userId
-                  )
-                  .order(
-                    "created_at",
-                    {
-                      ascending:
-                        false,
-                    }
-                  ),
+                withTimeout(
+                  supabase
+                    .from(
+                      "debts"
+                    )
+                    .select("*")
+                    .eq(
+                      "user_id",
+                      userId
+                    )
+                    .order(
+                      "created_at",
+                      {
+                        ascending:
+                          false,
+                      }
+                    ),
+                  SUPABASE_REQUEST_TIMEOUT
+                ),
               ]
             );
 
+          const salesRes =
+            results[0].status ===
+            "fulfilled"
+              ? results[0].value
+              : null;
+
+          const productsRes =
+            results[1].status ===
+            "fulfilled"
+              ? results[1].value
+              : null;
+
+          const expensesRes =
+            results[2].status ===
+            "fulfilled"
+              ? results[2].value
+              : null;
+
+          const debtsRes =
+            results[3].status ===
+            "fulfilled"
+              ? results[3].value
+              : null;
+
           const salesData =
-            (salesRes.data as Sale[]) ||
-            [];
+            (
+              salesRes?.data as
+                | Sale[]
+                | null
+                | undefined
+            ) || [];
 
           const productsData =
-            (productsRes.data as Product[]) ||
-            [];
+            (
+              productsRes?.data as
+                | Product[]
+                | null
+                | undefined
+            ) || [];
 
           const expensesData =
-            (expensesRes.data as Expense[]) ||
-            [];
+            (
+              expensesRes?.data as
+                | Expense[]
+                | null
+                | undefined
+            ) || [];
 
           const debtRows =
-            (debtsRes.data as Debt[]) ||
-            [];
+            (
+              debtsRes?.data as
+                | Debt[]
+                | null
+                | undefined
+            ) || [];
 
           const uniqueClients =
             new Set(
@@ -1408,59 +1573,103 @@ export default function DashboardPage() {
           const clients =
             uniqueClients.size;
 
-          setSales(
-            salesData
-          );
-
-          setProducts(
-            productsData
-          );
-
-          setExpenses(
-            expensesData
-          );
-
-          setDebts(
-            debtRows
-          );
-
-          setClientsCount(
-            clients
-          );
-
-          const syncDate =
-            new Date();
-
-          setLastSync(
-            syncDate
-          );
-
           /*
-            CACHE
+            Ne remplacer les données locales
+            que lorsqu'une requête serveur
+            a réellement répondu.
           */
 
-          saveDashboardCache(
-            userId,
-            {
-              sales:
-                salesData,
+          if (
+            salesRes
+          ) {
+            setSales(
+              salesData
+            );
+          }
 
-              products:
-                productsData,
+          if (
+            productsRes
+          ) {
+            setProducts(
+              productsData
+            );
+          }
 
-              expenses:
-                expensesData,
+          if (
+            expensesRes
+          ) {
+            setExpenses(
+              expensesData
+            );
+          }
 
-              debts:
-                debtRows,
+          if (
+            debtsRes
+          ) {
+            setDebts(
+              debtRows
+            );
 
-              clientsCount:
-                clients,
+            setClientsCount(
+              clients
+            );
+          }
 
-              savedAt:
-                syncDate.toISOString(),
-            }
-          );
+          const atLeastOneSuccess =
+            results.some(
+              (result) =>
+                result.status ===
+                "fulfilled"
+            );
+
+          if (
+            atLeastOneSuccess
+          ) {
+            const syncDate =
+              new Date();
+
+            setLastSync(
+              syncDate
+            );
+
+            saveDashboardCache(
+              userId,
+              {
+                sales:
+                  salesRes
+                    ? salesData
+                    : cached?.sales ||
+                      [],
+
+                products:
+                  productsRes
+                    ? productsData
+                    : cached?.products ||
+                      [],
+
+                expenses:
+                  expensesRes
+                    ? expensesData
+                    : cached?.expenses ||
+                      [],
+
+                debts:
+                  debtsRes
+                    ? debtRows
+                    : cached?.debts ||
+                      [],
+
+                clientsCount:
+                  debtsRes
+                    ? clients
+                    : cached?.clientsCount ||
+                      0,
+
+                savedAt:
+                  syncDate.toISOString(),
+              }
+            );
+          }
         } catch (error) {
           console.error(
             "Erreur loadDashboard :",
@@ -1468,8 +1677,8 @@ export default function DashboardPage() {
           );
 
           /*
-            En cas d'erreur réseau :
-            récupérer le dernier cache.
+            En cas d'erreur réseau,
+            le cache local reste affiché.
           */
 
           const cached =
@@ -1527,28 +1736,28 @@ export default function DashboardPage() {
   const loadAll =
     useCallback(
       async () => {
+        if (
+          typeof window ===
+          "undefined"
+        ) {
+          setInitialLoading(
+            false
+          );
+
+          return;
+        }
+
         try {
-          if (
-            typeof window ===
-            "undefined"
-          ) {
-            return;
-          }
+          /*
+            --------------------------------------------------
+            LECTURE LOCALE IMMÉDIATE
+            --------------------------------------------------
+          */
 
           const phone =
             localStorage.getItem(
               "phone"
             );
-
-          if (
-            !phone
-          ) {
-            router.replace(
-              "/login"
-            );
-
-            return;
-          }
 
           let userId =
             localStorage.getItem(
@@ -1557,48 +1766,25 @@ export default function DashboardPage() {
 
           /*
             --------------------------------------------------
-            HORS CONNEXION
+            SI PAS DE TÉLÉPHONE
             --------------------------------------------------
           */
 
           if (
-            !navigator.onLine
+            !phone &&
+            !userId
           ) {
-            if (
-              !userId
-            ) {
-              /*
-                Le user_id doit normalement
-                avoir été sauvegardé au login.
-
-                On ne redirige pas vers Supabase
-                puisqu'il n'y a pas Internet.
-              */
-
-              setInitialLoading(
-                false
-              );
-
-              return;
-            }
-
-            userIdRef.current =
-              userId;
-
             /*
-              AFFICHAGE LOCAL IMMÉDIAT
+              Le Dashboard ne doit jamais rester
+              bloqué sur le Skeleton.
             */
 
             setInitialLoading(
               false
             );
 
-            await loadDashboard(
-              userId
-            );
-
-            await checkSubscription(
-              userId
+            router.replace(
+              "/login"
             );
 
             return;
@@ -1606,136 +1792,339 @@ export default function DashboardPage() {
 
           /*
             --------------------------------------------------
-            EN LIGNE
+            USER_ID DÉJÀ DISPONIBLE
             --------------------------------------------------
           */
 
           if (
-            !userId
+            userId
           ) {
-            const {
-              data: user,
-              error,
-            } =
-              await supabase
-                .from(
-                  "users"
-                )
-                .select(
-                  "id"
-                )
-                .eq(
-                  "phone",
-                  phone
-                )
-                .single();
+            userIdRef.current =
+              userId;
+
+            /*
+              CACHE DASHBOARD IMMÉDIAT
+            */
+
+            const cached =
+              getDashboardCache(
+                userId
+              );
 
             if (
-              error ||
-              !user
+              cached
             ) {
-              console.error(
-                "Erreur utilisateur :",
-                error
+              setSales(
+                cached.sales
               );
 
-              setInitialLoading(
-                false
+              setProducts(
+                cached.products
               );
 
-              return;
+              setExpenses(
+                cached.expenses
+              );
+
+              setDebts(
+                cached.debts
+              );
+
+              setClientsCount(
+                cached.clientsCount
+              );
+
+              const savedAt =
+                new Date(
+                  cached.savedAt
+                );
+
+              if (
+                !Number.isNaN(
+                  savedAt.getTime()
+                )
+              ) {
+                setLastSync(
+                  savedAt
+                );
+              }
             }
 
-            userId =
-              String(
-                user.id
+            /*
+              ABONNEMENT LOCAL IMMÉDIAT
+            */
+
+            const cachedSubscription =
+              getSubscriptionCache(
+                userId
               );
 
-            localStorage.setItem(
-              "user_id",
-              userId
-            );
-          }
+            if (
+              cachedSubscription
+            ) {
+              const result =
+                evaluateCachedSubscription(
+                  cachedSubscription
+                );
 
-          userIdRef.current =
-            userId;
+              setDaysUsed(
+                result.used
+              );
+
+              setDaysLeft(
+                result.left
+              );
+
+              setStatus(
+                result.active
+                  ? "active"
+                  : "expired"
+              );
+            }
+
+            /*
+              ------------------------------------------------
+              GARANTIE PRINCIPALE
+              ------------------------------------------------
+
+              CETTE INSTRUCTION EST EXÉCUTÉE
+              AVANT TOUTE REQUÊTE SUPABASE.
+            */
+
+            setInitialLoading(
+              false
+            );
+
+            /*
+              ------------------------------------------------
+              INTERNET + SUPABASE EN ARRIÈRE-PLAN
+              ------------------------------------------------
+            */
+
+            void (async () => {
+              const realOnline =
+                await checkRealInternetConnection();
+
+              setIsOnline(
+                realOnline
+              );
+
+              if (!realOnline) {
+                /*
+                  Dashboard déjà affiché avec
+                  les données locales.
+                */
+
+                return;
+              }
+
+              /*
+                Les deux synchronisations
+                sont indépendantes.
+              */
+
+              await Promise.allSettled(
+                [
+                  loadDashboard(
+                    userId as string
+                  ),
+
+                  checkSubscription(
+                    userId as string
+                  ),
+                ]
+              );
+            })();
+
+            return;
+          }
 
           /*
             --------------------------------------------------
-            CACHE IMMÉDIAT
+            PAS ENCORE DE USER_ID
             --------------------------------------------------
+
+            IMPORTANT :
+            NE PAS ATTENDRE SUPABASE POUR AFFICHER
+            LE DASHBOARD.
           */
-
-          const cached =
-            getDashboardCache(
-              userId
-            );
-
-          if (
-            cached
-          ) {
-            setSales(
-              cached.sales
-            );
-
-            setProducts(
-              cached.products
-            );
-
-            setExpenses(
-              cached.expenses
-            );
-
-            setDebts(
-              cached.debts
-            );
-
-            setClientsCount(
-              cached.clientsCount
-            );
-
-            const savedAt =
-              new Date(
-                cached.savedAt
-              );
-
-            if (
-              !Number.isNaN(
-                savedAt.getTime()
-              )
-            ) {
-              setLastSync(
-                savedAt
-              );
-            }
-          }
-
-
 
           setInitialLoading(
             false
           );
 
           /*
-            Synchronisation serveur.
+            Recherche de l'utilisateur
+            uniquement en arrière-plan.
           */
 
-          await Promise.all(
-            [
-              loadDashboard(
-                userId
-              ),
+          void (async () => {
+            const realOnline =
+              await checkRealInternetConnection();
 
-              checkSubscription(
+            setIsOnline(
+              realOnline
+            );
+
+            if (
+              !realOnline
+            ) {
+              return;
+            }
+
+            try {
+              const {
+                data: user,
+                error,
+              } =
+                await withTimeout(
+                  supabase
+                    .from(
+                      "users"
+                    )
+                    .select(
+                      "id"
+                    )
+                    .eq(
+                      "phone",
+                      phone
+                    )
+                    .single(),
+                  SUPABASE_REQUEST_TIMEOUT
+                );
+
+              if (
+                error ||
+                !user
+              ) {
+                console.error(
+                  "Erreur utilisateur :",
+                  error
+                );
+
+                return;
+              }
+
+              userId =
+                String(
+                  user.id
+                );
+
+              localStorage.setItem(
+                "user_id",
                 userId
-              ),
-            ]
-          );
+              );
+
+              userIdRef.current =
+                userId;
+
+              /*
+                Maintenant que le user_id est connu,
+                charger le cache éventuel puis synchroniser
+                en arrière-plan.
+              */
+
+              const cached =
+                getDashboardCache(
+                  userId
+                );
+
+              if (
+                cached
+              ) {
+                setSales(
+                  cached.sales
+                );
+
+                setProducts(
+                  cached.products
+                );
+
+                setExpenses(
+                  cached.expenses
+                );
+
+                setDebts(
+                  cached.debts
+                );
+
+                setClientsCount(
+                  cached.clientsCount
+                );
+
+                const savedAt =
+                  new Date(
+                    cached.savedAt
+                  );
+
+                if (
+                  !Number.isNaN(
+                    savedAt.getTime()
+                  )
+                ) {
+                  setLastSync(
+                    savedAt
+                  );
+                }
+              }
+
+              const cachedSubscription =
+                getSubscriptionCache(
+                  userId
+                );
+
+              if (
+                cachedSubscription
+              ) {
+                const result =
+                  evaluateCachedSubscription(
+                    cachedSubscription
+                  );
+
+                setDaysUsed(
+                  result.used
+                );
+
+                setDaysLeft(
+                  result.left
+                );
+
+                setStatus(
+                  result.active
+                    ? "active"
+                    : "expired"
+                );
+              }
+
+              await Promise.allSettled(
+                [
+                  loadDashboard(
+                    userId
+                  ),
+
+                  checkSubscription(
+                    userId
+                  ),
+                ]
+              );
+            } catch (error) {
+              console.error(
+                "Erreur utilisateur/dashboard :",
+                error
+              );
+            }
+          })();
         } catch (error) {
           console.error(
             "Erreur dashboard :",
             error
           );
+
+          /*
+            GARANTIE :
+            même si une erreur inattendue arrive,
+            le Skeleton ne reste jamais bloqué.
+          */
 
           setInitialLoading(
             false
@@ -1768,7 +2157,33 @@ export default function DashboardPage() {
         );
 
         try {
-          await Promise.all(
+          const realOnline =
+            await checkRealInternetConnection();
+
+          setIsOnline(
+            realOnline
+          );
+
+          if (
+            !realOnline
+          ) {
+            /*
+              Le Dashboard reste affiché avec
+              les données locales.
+            */
+
+            await loadDashboard(
+              userIdRef.current
+            );
+
+            await checkSubscription(
+              userIdRef.current
+            );
+
+            return;
+          }
+
+          await Promise.allSettled(
             [
               loadDashboard(
                 userIdRef.current
@@ -1804,31 +2219,52 @@ export default function DashboardPage() {
       return;
     }
 
-    setIsOnline(
-      navigator.onLine
-    );
+    let cancelled =
+      false;
+
+    const verifyConnection =
+      async () => {
+        const realOnline =
+          await checkRealInternetConnection();
+
+        if (
+          cancelled
+        ) {
+          return;
+        }
+
+        setIsOnline(
+          realOnline
+        );
+
+        if (
+          realOnline &&
+          userIdRef.current
+        ) {
+          await Promise.allSettled(
+            [
+              loadDashboard(
+                userIdRef.current
+              ),
+
+              checkSubscription(
+                userIdRef.current
+              ),
+            ]
+          );
+        }
+      };
+
+    void verifyConnection();
 
     const handleOnline =
       () => {
-        setIsOnline(
-          true
-        );
-
         /*
-          Resynchronisation
-          dès le retour Internet.
+          navigator.onLine n'est PAS utilisé
+          comme preuve d'Internet.
         */
 
-        if (
-          userIdRef.current
-        ) {
-          window.setTimeout(
-            () => {
-              void refresh();
-            },
-            300
-          );
-        }
+        void verifyConnection();
       };
 
     const handleOffline =
@@ -1839,7 +2275,7 @@ export default function DashboardPage() {
 
         /*
           Recharger immédiatement
-          depuis le cache.
+          depuis le cache local.
         */
 
         if (
@@ -1866,6 +2302,8 @@ export default function DashboardPage() {
     );
 
     return () => {
+      cancelled = true;
+
       window.removeEventListener(
         "online",
         handleOnline
@@ -1901,16 +2339,6 @@ export default function DashboardPage() {
       return;
     }
 
-    /*
-      La clé est calculée avec la date locale
-      de l'appareil.
-
-      Exemple :
-      26/08/2026
-      puis
-      27/08/2026
-    */
-
     const dayKey =
       `${now.getFullYear()}-${String(
         now.getMonth() + 1
@@ -1924,11 +2352,6 @@ export default function DashboardPage() {
         "0"
       )}`;
 
-    /*
-      Première initialisation :
-      on mémorise simplement le jour actuel.
-    */
-
     if (
       currentDayRef.current ===
       null
@@ -1939,27 +2362,12 @@ export default function DashboardPage() {
       return;
     }
 
-    /*
-      Si la date change, un nouveau jour
-      vient de commencer.
-
-      AUCUNE donnée n'est supprimée.
-      Les statistiques sont simplement
-      recalculées grâce à now qui déclenche
-      le useMemo des statistiques.
-    */
-
     if (
       currentDayRef.current !==
       dayKey
     ) {
       currentDayRef.current =
         dayKey;
-
-      /*
-        Recalcul local immédiat de
-        l'abonnement, même sans Internet.
-      */
 
       if (
         userIdRef.current
@@ -1968,26 +2376,9 @@ export default function DashboardPage() {
           userIdRef.current
         );
 
-        /*
-          Si Internet est disponible,
-          on resynchronise également les
-          données serveur.
-
-          Sans Internet, loadDashboard
-          utilise uniquement le cache local.
-        */
-
-        if (
-          navigator.onLine
-        ) {
-          void loadDashboard(
-            userIdRef.current
-          );
-        } else {
-          void loadDashboard(
-            userIdRef.current
-          );
-        }
+        void loadDashboard(
+          userIdRef.current
+        );
       }
     }
   }, [
@@ -2002,13 +2393,6 @@ export default function DashboardPage() {
 
   const stats =
     useMemo(() => {
-      /*
-        IMPORTANT :
-        Le produit le plus vendu est maintenant
-        calculé UNIQUEMENT avec les ventes
-        du jour actuel.
-      */
-
       const dayStartDate =
         startOfToday();
 
@@ -2068,12 +2452,6 @@ export default function DashboardPage() {
         ) {
           continue;
         }
-
-        /*
-          --------------------------------------------------
-          PRODUIT LE PLUS VENDU — AUJOURD'HUI UNIQUEMENT
-          --------------------------------------------------
-        */
 
         if (
           t >=
@@ -2157,11 +2535,6 @@ export default function DashboardPage() {
           );
         }
       }
-
-      /*
-        Le classement est construit APRÈS avoir
-        filtré les ventes du jour.
-      */
 
       const bestProduct =
         Object.entries(
@@ -2751,43 +3124,36 @@ export default function DashboardPage() {
       icon: Package,
       href: "/products",
     },
-
     {
       label: "Ajouter Produit",
       icon: PlusCircle,
       href: "/products/add",
     },
-
     {
       label: "Nouvelle Vente",
       icon: ShoppingCart,
       href: "/sales",
     },
-
     {
       label: "Rapports",
       icon: FileText,
       href: "/reports",
     },
-
     {
       label: "Dépenses",
       icon: Banknote,
       href: "/expenses",
     },
-
     {
       label: "Dettes",
       icon: CreditCard,
       href: "/debts",
     },
-
     {
       label: "Assistant IA",
       icon: Sparkles,
       href: "/assistant",
     },
-
     {
       label: "Abonnement",
       icon: Crown,
@@ -2881,11 +3247,9 @@ export default function DashboardPage() {
     },
   ].filter(Boolean) as {
     key: string;
-
     icon: React.ComponentType<{
       className?: string;
     }>;
-
     text: string;
     href: string;
     tone: string;
@@ -2898,15 +3262,11 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#050b16] pb-16 text-white">
 
-      {/* HALO */}
-
       <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(249,115,22,0.18),transparent)]" />
 
       <div className="relative mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
 
-        {/* ========================================================
-            HEADER
-        ======================================================== */}
+        {/* HEADER */}
 
         <GlassCard>
           <div className="flex items-start justify-between gap-3">
@@ -2934,8 +3294,6 @@ export default function DashboardPage() {
                 {dateLabel}
               </p>
 
-              {/* ÉTAT INTERNET */}
-
               <div className="mt-3 flex flex-wrap items-center gap-2">
 
                 <span
@@ -2957,9 +3315,6 @@ export default function DashboardPage() {
                     </>
                   )}
                 </span>
-
-                
-              
 
               </div>
             </div>
@@ -3014,9 +3369,7 @@ export default function DashboardPage() {
           </p>
         </GlassCard>
 
-        {/* ========================================================
-            ABONNEMENT
-        ======================================================== */}
+        {/* ABONNEMENT */}
 
         <GlassCard className="relative overflow-hidden">
 
@@ -3061,12 +3414,9 @@ export default function DashboardPage() {
 
           </div>
 
-
         </GlassCard>
 
-        {/* ========================================================
-            INFORMATION
-        ======================================================== */}
+        {/* INFORMATION */}
 
         <div className="flex justify-center">
 
@@ -3082,9 +3432,7 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* ========================================================
-            NOUVELLE VENTE
-        ======================================================== */}
+        {/* NOUVELLE VENTE */}
 
         <Link
           href="/sales"
@@ -3115,9 +3463,7 @@ export default function DashboardPage() {
 
         </Link>
 
-        {/* ========================================================
-            STATS
-        ======================================================== */}
+        {/* STATS */}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
 
@@ -3200,9 +3546,7 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* ========================================================
-            PRODUIT LE PLUS VENDU
-        ======================================================== */}
+        {/* PRODUIT LE PLUS VENDU */}
 
         <GlassCard className="p-3">
 
@@ -3232,9 +3576,7 @@ export default function DashboardPage() {
 
         </GlassCard>
 
-        {/* ========================================================
-            ALERTES
-        ======================================================== */}
+        {/* ALERTES */}
 
         {alerts.length > 0 && (
           <GlassCard>
@@ -3283,9 +3625,7 @@ export default function DashboardPage() {
           </GlassCard>
         )}
 
-        {/* ========================================================
-            ACCÈS RAPIDE
-        ======================================================== */}
+        {/* ACCÈS RAPIDE */}
 
         <div>
 
@@ -3328,9 +3668,7 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* ========================================================
-            ACTIVITÉ RÉCENTE
-        ======================================================== */}
+        {/* ACTIVITÉ RÉCENTE */}
 
         <GlassCard>
 
@@ -3512,9 +3850,7 @@ export default function DashboardPage() {
           </div>
         </GlassCard>
 
-        {/* ========================================================
-            FOOTER
-        ======================================================== */}
+        {/* FOOTER */}
 
         <p className="pt-2 text-center text-[10px] text-slate-500">
           ⚡ BISO-COMMERCE ( PDG DIEUMERCI IDI )
@@ -3540,8 +3876,6 @@ export default function DashboardPage() {
             }
             className="w-full max-w-md overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f] shadow-[0_25px_80px_-20px_rgba(0,0,0,0.9)]"
           >
-
-            {/* HEADER */}
 
             <div className="border-b border-white/10 bg-[#07111f] px-5 py-4">
 
@@ -3577,13 +3911,9 @@ export default function DashboardPage() {
 
             </div>
 
-            {/* CONTENU */}
-
             <div className="max-h-[82vh] overflow-y-auto p-5">
 
               <div className="space-y-5">
-
-                {/* BIENVENUE */}
 
                 <div className="overflow-hidden rounded-[1.5rem] border border-orange-400/20 bg-gradient-to-br from-orange-500/15 via-orange-500/5 to-yellow-400/5 p-5">
 
@@ -3616,8 +3946,6 @@ export default function DashboardPage() {
                   </p>
 
                 </div>
-
-                {/* FONCTIONNALITÉS */}
 
                 <div>
 
@@ -3703,8 +4031,6 @@ export default function DashboardPage() {
 
                 </div>
 
-                {/* POURQUOI */}
-
                 <div className="rounded-[1.5rem] border border-emerald-400/15 bg-emerald-500/[0.04] p-4">
 
                   <p className="text-sm font-black text-white">
@@ -3729,6 +4055,7 @@ export default function DashboardPage() {
                           }
                           className="flex items-start gap-2"
                         >
+
                           <span className="font-black text-emerald-400">
                             ✓
                           </span>
@@ -3738,6 +4065,7 @@ export default function DashboardPage() {
                               item
                             }
                           </p>
+
                         </div>
                       )
                     )}
@@ -3745,10 +4073,6 @@ export default function DashboardPage() {
                   </div>
 
                 </div>
-
-               
-
-                {/* INSTALLATION */}
 
                 <div className="rounded-[1.5rem] border border-sky-400/15 bg-sky-500/[0.04] p-4">
 
@@ -3839,8 +4163,6 @@ export default function DashboardPage() {
 
                 </div>
 
-                {/* SUPPORT */}
-
                 <div className="rounded-[1.5rem] border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.02] p-4">
 
                   <div className="flex items-center gap-3">
@@ -3878,8 +4200,6 @@ export default function DashboardPage() {
 
                 </div>
 
-                {/* CONSEIL */}
-
                 <div className="rounded-2xl border border-orange-400/10 bg-orange-500/[0.03] p-4">
 
                   <p className="text-xs font-black text-orange-300">
@@ -3891,8 +4211,6 @@ export default function DashboardPage() {
                   </p>
 
                 </div>
-
-                {/* FINAL */}
 
                 <div className="border-t border-white/10 pt-5 text-center">
 
