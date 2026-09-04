@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -72,19 +71,19 @@ async function checkRealInternetConnection(): Promise<boolean> {
 
 export default function SalesPage() {
   const [products, setProducts] = useState<Product[]>([]);
-
   const [productId, setProductId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [quantity, setQuantity] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
-
   const [showGuide, setShowGuide] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Connexion
   const [isOnline, setIsOnline] = useState(false);
+  const [isCheckingConnection, setIsCheckingConnection] =
+    useState(true);
+
   const [showConnectionPopup, setShowConnectionPopup] =
     useState(false);
 
@@ -98,17 +97,27 @@ export default function SalesPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const verifyConnection = async () => {
+    const verifyConnection = async (
+      initialCheck = false
+    ) => {
+      if (initialCheck) {
+        setIsCheckingConnection(true);
+      }
+
       const connected =
         await checkRealInternetConnection();
 
       if (!cancelled) {
         setIsOnline(connected);
+
+        if (initialCheck) {
+          setIsCheckingConnection(false);
+        }
       }
     };
 
     // Vérification réelle au chargement
-    verifyConnection();
+    verifyConnection(true);
 
     // Les événements du navigateur servent uniquement
     // à déclencher une nouvelle vérification réelle.
@@ -257,7 +266,10 @@ export default function SalesPage() {
     return products.filter((product) => {
       const stock = Number(product.stock);
 
-      return Number.isFinite(stock) && stock > 0;
+      return (
+        Number.isFinite(stock) &&
+        stock > 0
+      );
     });
   }, [products]);
 
@@ -276,16 +288,18 @@ export default function SalesPage() {
   // ==========================================================
 
   const filteredProducts = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
+    const term = searchTerm
+      .trim()
+      .toLowerCase();
 
-    // Aucun texte :
-    // on ne montre pas une longue liste inutile.
     if (!term) {
       return [];
     }
 
     return productsInStock.filter((product) =>
-      product.name.toLowerCase().includes(term)
+      product.name
+        .toLowerCase()
+        .includes(term)
     );
   }, [productsInStock, searchTerm]);
 
@@ -344,7 +358,8 @@ export default function SalesPage() {
     totalPreview - purchaseTotalPreview;
 
   const stockAfterSale = selectedProduct
-    ? Number(selectedProduct.stock) - quantityNumber
+    ? Number(selectedProduct.stock) -
+      quantityNumber
     : 0;
 
   // ==========================================================
@@ -353,13 +368,15 @@ export default function SalesPage() {
 
   const saleBlocked =
     loading ||
+    isCheckingConnection ||
     !isOnline ||
     !selectedProduct ||
     !quantity ||
     quantityNumber <= 0 ||
     !Number.isInteger(quantityNumber) ||
     (!!selectedProduct &&
-      quantityNumber > Number(selectedProduct.stock));
+      quantityNumber >
+        Number(selectedProduct.stock));
 
   // ==========================================================
   // CONNEXION OBLIGATOIRE
@@ -373,7 +390,6 @@ export default function SalesPage() {
 
     if (!connected) {
       setShowConnectionPopup(true);
-
       return false;
     }
 
@@ -385,7 +401,6 @@ export default function SalesPage() {
   // ==========================================================
 
   const selectProduct = (product: Product) => {
-    // Produit épuisé = impossible à sélectionner
     if (Number(product.stock) <= 0) {
       return;
     }
@@ -550,7 +565,6 @@ export default function SalesPage() {
         prixVente < 0
       ) {
         alert("Prix de vente invalide.");
-
         setLoading(false);
 
         return;
@@ -561,7 +575,6 @@ export default function SalesPage() {
         prixAchat < 0
       ) {
         alert("Prix d'achat invalide.");
-
         setLoading(false);
 
         return;
@@ -870,42 +883,43 @@ export default function SalesPage() {
             ÉTAT CONNEXION
         ====================================================== */}
 
-        {!isOnline && (
-          <div
-            className="
-              mb-5
-              flex
-              items-start
-              gap-3
-              rounded-2xl
-              border
-              border-red-400/30
-              bg-red-500/10
-              p-4
-            "
-          >
-            <WifiOff
-              size={21}
+        {!isCheckingConnection &&
+          !isOnline && (
+            <div
               className="
-                mt-0.5
-                shrink-0
-                text-red-400
+                mb-5
+                flex
+                items-start
+                gap-3
+                rounded-2xl
+                border
+                border-red-400/30
+                bg-red-500/10
+                p-4
               "
-            />
+            >
+              <WifiOff
+                size={21}
+                className="
+                  mt-0.5
+                  shrink-0
+                  text-red-400
+                "
+              />
 
-            <div className="min-w-0">
-              <p className="text-sm font-black text-red-300">
-                Connexion Internet requise
-              </p>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-red-300">
+                  Connexion Internet requise
+                </p>
 
-              <p className="mt-1 text-xs leading-5 text-slate-400">
-                La vente est temporairement désactivée.
-                Connectez-vous à Internet pour charger
-                les produits et enregistrer une vente.
-              </p>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  La vente est temporairement désactivée.
+                  Connectez-vous à Internet pour charger
+                  les produits et enregistrer une vente.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* ======================================================
             GUIDE
@@ -1062,6 +1076,7 @@ export default function SalesPage() {
         ====================================================== */}
 
         {!loadingProducts &&
+          !isCheckingConnection &&
           isOnline &&
           products.length === 0 && (
             <div
@@ -1104,6 +1119,7 @@ export default function SalesPage() {
         ====================================================== */}
 
         {!loadingProducts &&
+          !isCheckingConnection &&
           isOnline &&
           products.length > 0 &&
           productsInStock.length === 0 && (
@@ -1254,6 +1270,7 @@ export default function SalesPage() {
               <input
                 value={searchTerm}
                 disabled={
+                  isCheckingConnection ||
                   !isOnline ||
                   productsInStock.length === 0
                 }
@@ -1269,7 +1286,9 @@ export default function SalesPage() {
                   }
                 }}
                 placeholder={
-                  !isOnline
+                  isCheckingConnection
+                    ? "Vérification de la connexion..."
+                    : !isOnline
                     ? "Connexion Internet requise"
                     : productsInStock.length === 0
                     ? "Aucun produit en stock"
@@ -1295,6 +1314,7 @@ export default function SalesPage() {
 
             {searchTerm &&
               !productId &&
+              !isCheckingConnection &&
               isOnline && (
                 <div
                   className="
@@ -1518,6 +1538,7 @@ export default function SalesPage() {
                 disabled={
                   !quantity ||
                   Number(quantity) <= 1 ||
+                  isCheckingConnection ||
                   !isOnline
                 }
                 className="
@@ -1546,6 +1567,7 @@ export default function SalesPage() {
                 value={quantity}
                 disabled={
                   !selectedProduct ||
+                  isCheckingConnection ||
                   !isOnline
                 }
                 onChange={(e) => {
@@ -1594,6 +1616,7 @@ export default function SalesPage() {
                 onClick={increaseQty}
                 disabled={
                   !selectedProduct ||
+                  isCheckingConnection ||
                   !isOnline ||
                   (!!selectedProduct &&
                     quantityNumber >=
@@ -1776,42 +1799,44 @@ export default function SalesPage() {
               MESSAGE AVANT VENTE
           ================================================== */}
 
-          {!isOnline && (
-            <div
-              className="
-                flex
-                items-start
-                gap-3
-                rounded-2xl
-                border
-                border-red-400/20
-                bg-red-500/10
-                p-4
-              "
-            >
-              <WifiOff
-                size={19}
+          {!isCheckingConnection &&
+            !isOnline && (
+              <div
                 className="
-                  mt-0.5
-                  shrink-0
-                  text-red-400
+                  flex
+                  items-start
+                  gap-3
+                  rounded-2xl
+                  border
+                  border-red-400/20
+                  bg-red-500/10
+                  p-4
                 "
-              />
+              >
+                <WifiOff
+                  size={19}
+                  className="
+                    mt-0.5
+                    shrink-0
+                    text-red-400
+                  "
+                />
 
-              <div>
-                <p className="text-sm font-bold text-red-300">
-                  Vente désactivée
-                </p>
+                <div>
+                  <p className="text-sm font-bold text-red-300">
+                    Vente désactivée
+                  </p>
 
-                <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Cette page nécessite une connexion
-                  Internet pour enregistrer les ventes.
-                </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Cette page nécessite une connexion
+                    Internet pour enregistrer les ventes.
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {isOnline &&
+          {!isCheckingConnection &&
+            isOnline &&
             products.length === 0 &&
             !loadingProducts && (
               <div
@@ -1896,28 +1921,40 @@ export default function SalesPage() {
 
                 Enregistrement...
               </>
+            ) : isCheckingConnection ? (
+              <>
+                <span
+                  className="
+                    h-5
+                    w-5
+                    animate-spin
+                    rounded-full
+                    border-2
+                    border-black/30
+                    border-t-black
+                  "
+                />
+
+                Vérification de la connexion...
+              </>
             ) : !isOnline ? (
               <>
                 <WifiOff size={20} />
-
                 Connexion Internet requise
               </>
             ) : !selectedProduct ? (
               <>
                 <Package size={20} />
-
                 Sélectionnez un produit
               </>
             ) : !quantity ? (
               <>
                 <ShoppingCart size={20} />
-
                 Indiquez une quantité
               </>
             ) : (
               <>
                 <CheckCircle size={20} />
-
                 Valider la vente
               </>
             )}

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "biso-commerce-v16";
+const CACHE_VERSION = "biso-commerce-v17";
 
 const APP_SHELL = [
   "/",
