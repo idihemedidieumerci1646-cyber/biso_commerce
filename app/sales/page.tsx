@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -30,6 +31,45 @@ type Product = {
   unit?: string;
 };
 
+const REAL_CONNECTIVITY_TIMEOUT = 1500;
+
+async function checkRealInternetConnection(): Promise<boolean> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return false;
+  }
+
+  const controller = new AbortController();
+
+  const timeout = window.setTimeout(() => {
+    controller.abort();
+  }, REAL_CONNECTIVITY_TIMEOUT);
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/subscriptions?select=id&limit=1`,
+      {
+        method: "GET",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      }
+    );
+
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export default function SalesPage() {
   const [products, setProducts] = useState<Product[]>([]);
 
@@ -44,7 +84,7 @@ export default function SalesPage() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Connexion
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
   const [showConnectionPopup, setShowConnectionPopup] =
     useState(false);
 
@@ -52,22 +92,56 @@ export default function SalesPage() {
   const [lowStockMessage, setLowStockMessage] = useState("");
 
   // ==========================================================
-  // DÉTECTION CONNEXION
+  // DÉTECTION CONNEXION RÉELLE
   // ==========================================================
 
   useEffect(() => {
-    const updateConnection = () => {
-      setIsOnline(navigator.onLine);
+    let cancelled = false;
+
+    const verifyConnection = async () => {
+      const connected =
+        await checkRealInternetConnection();
+
+      if (!cancelled) {
+        setIsOnline(connected);
+      }
     };
 
-    updateConnection();
+    // Vérification réelle au chargement
+    verifyConnection();
 
-    window.addEventListener("online", updateConnection);
-    window.addEventListener("offline", updateConnection);
+    // Les événements du navigateur servent uniquement
+    // à déclencher une nouvelle vérification réelle.
+    const handleOnline = () => {
+      verifyConnection();
+    };
+
+    const handleOffline = () => {
+      verifyConnection();
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Vérification périodique de la vraie connexion
+    const interval = window.setInterval(() => {
+      verifyConnection();
+    }, 5000);
 
     return () => {
-      window.removeEventListener("online", updateConnection);
-      window.removeEventListener("offline", updateConnection);
+      cancelled = true;
+
+      window.removeEventListener(
+        "online",
+        handleOnline
+      );
+
+      window.removeEventListener(
+        "offline",
+        handleOffline
+      );
+
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -78,21 +152,41 @@ export default function SalesPage() {
   useEffect(() => {
     loadProducts();
 
-    const handleOnline = () => {
-      setIsOnline(true);
-      loadProducts();
+    const handleOnline = async () => {
+      const connected =
+        await checkRealInternetConnection();
+
+      setIsOnline(connected);
+
+      if (connected) {
+        loadProducts();
+      }
     };
 
-    const handleOffline = () => {
-      setIsOnline(false);
+    const handleOffline = async () => {
+      const connected =
+        await checkRealInternetConnection();
+
+      setIsOnline(connected);
+
+      if (!connected) {
+        setProducts([]);
+      }
     };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener(
+        "online",
+        handleOnline
+      );
+
+      window.removeEventListener(
+        "offline",
+        handleOffline
+      );
     };
   }, []);
 
@@ -111,8 +205,13 @@ export default function SalesPage() {
         return;
       }
 
-      // Cette page ne fonctionne pas hors connexion.
-      if (!navigator.onLine) {
+      // Vérification réelle d'Internet
+      const connected =
+        await checkRealInternetConnection();
+
+      setIsOnline(connected);
+
+      if (!connected) {
         setProducts([]);
         return;
       }
@@ -266,15 +365,17 @@ export default function SalesPage() {
   // CONNEXION OBLIGATOIRE
   // ==========================================================
 
-  const requireConnection = () => {
-    if (!navigator.onLine) {
-      setIsOnline(false);
+  const requireConnection = async () => {
+    const connected =
+      await checkRealInternetConnection();
+
+    setIsOnline(connected);
+
+    if (!connected) {
       setShowConnectionPopup(true);
 
       return false;
     }
-
-    setIsOnline(true);
 
     return true;
   };
@@ -319,7 +420,7 @@ export default function SalesPage() {
     // INTERNET OBLIGATOIRE
     // ========================================================
 
-    if (!requireConnection()) {
+    if (!(await requireConnection())) {
       return;
     }
 
@@ -420,8 +521,12 @@ export default function SalesPage() {
       // VÉRIFICATION INTERNET AVANT INSERTION
       // ======================================================
 
-      if (!navigator.onLine) {
-        setIsOnline(false);
+      const connectedBeforeSale =
+        await checkRealInternetConnection();
+
+      setIsOnline(connectedBeforeSale);
+
+      if (!connectedBeforeSale) {
         setShowConnectionPopup(true);
         setLoading(false);
 
@@ -536,9 +641,12 @@ export default function SalesPage() {
       // VÉRIFIER INTERNET APRÈS INSERTION
       // ======================================================
 
-      if (!navigator.onLine) {
-        setIsOnline(false);
+      const connectedAfterSale =
+        await checkRealInternetConnection();
 
+      setIsOnline(connectedAfterSale);
+
+      if (!connectedAfterSale) {
         alert(
           "La connexion Internet a été interrompue pendant l'opération. Vérifiez le stock et la vente."
         );
@@ -640,8 +748,12 @@ export default function SalesPage() {
         error
       );
 
-      if (!navigator.onLine) {
-        setIsOnline(false);
+      const connected =
+        await checkRealInternetConnection();
+
+      setIsOnline(connected);
+
+      if (!connected) {
         setShowConnectionPopup(true);
       } else {
         alert(
@@ -1630,7 +1742,6 @@ export default function SalesPage() {
                     </p>
                   </div>
 
-                 
                   {/* ALERT STOCK */}
 
                   {stockAfterSale <= 5 &&

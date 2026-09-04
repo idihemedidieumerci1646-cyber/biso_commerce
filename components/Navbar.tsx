@@ -1,32 +1,91 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { Wifi, WifiOff } from "lucide-react";
 
+const REAL_CONNECTIVITY_TIMEOUT = 1500;
+
+async function checkRealInternetConnection(): Promise<boolean> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return false;
+  }
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => {
+    controller.abort();
+  }, REAL_CONNECTIVITY_TIMEOUT);
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/subscriptions?select=id&limit=1`,
+      {
+        method: "GET",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      }
+    );
+
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export default function Navbar() {
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    setIsOnline(navigator.onLine);
+    let cancelled = false;
 
+    const verifyConnection = async () => {
+      const connected = await checkRealInternetConnection();
+
+      if (!cancelled) {
+        setIsOnline(connected);
+      }
+    };
+
+    // Vérification réelle au chargement
+    verifyConnection();
+
+    // Les événements du navigateur servent uniquement
+    // à déclencher une nouvelle vérification réelle.
     const handleOnline = () => {
-      setIsOnline(true);
+      verifyConnection();
     };
 
     const handleOffline = () => {
-      setIsOnline(false);
+      verifyConnection();
     };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
+    // Vérification périodique pour détecter une perte/récupération
+    // réelle d'Internet même si le navigateur ne déclenche aucun événement.
+    const interval = window.setInterval(() => {
+      verifyConnection();
+    }, 5000);
+
     return () => {
+      cancelled = true;
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.clearInterval(interval);
     };
   }, []);
 
